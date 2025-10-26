@@ -1,20 +1,17 @@
 <?php
 
-/*
- *  ______   _____    ______  __   __  ______
- * /  ___/  /  ___|  / ___  \ \ \ / / |  ____|
- * | |___  | |      | |___| |  \ / /  | |____
- * \___  \ | |      |  ___  |   / /   |  ____|
- *  ___| | | |____  | |   | |  / / \  | |____
- * /_____/  \_____| |_|   |_| /_/ \_\ |______|
+/* 
+ *  _____              _ __  __  
+ * /__  /  ___  ____  (_) /_/ /_ 
+ *   / /  / _ \/ __ \/ / __/ __ \
+ *  / /__/  __/ / / / / /_/ / / /
+ * /____/\___/_/ /_/_/\__/_/ /_/ 
+ *                               
+ * This program is free software: you can redistribute/modify it 
+ * under the terms of the GNU LGPL, version 3 or later.
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * @author Sunch233#3226 QQ2125696621 And KKK
- * @link https://github.com/ScaxeTeam/Scaxe/
+ * @author Xiaoao
+ * @link https://b23.tv/LQKxdts
  *
 */
 
@@ -72,12 +69,12 @@ class LvdatCommand extends VanillaCommand{
 				$sender->sendMessage(new TranslationContainer("pocketmine.command.lvdat.fixname", [$level->getFolderName()]));
 				break;
 			case "opts":
-				$sender->sendMessage($levname."åœ°å›¾, çœŸå®åç§°".$provider->getLevelData()->LevelName->getValue()." æ ¼å¼: ".$provider->getProviderName());
-				$sender->sendMessage("ä½¿ç”¨ ".$provider->getLevelData()->generatorName->getValue()." ç”Ÿæˆå™¨, ç§å­: ".$provider->getSeed());
-				$sender->sendMessage("ç”Ÿæˆå™¨é€‰é¡¹: ".$provider->getLevelData()->generatorOptions->getValue());
-				$sender->sendMessage("ä¸–ç•Œæ—¶é—´: ".$provider->getTime());
+				$sender->sendMessage($levname."µØÍ¼, ÕæÊµÃû³Æ".$provider->getLevelData()->LevelName->getValue()." ¸ñÊ½: ".$provider->getProviderName());
+				$sender->sendMessage("Ê¹ÓÃ ".$provider->getLevelData()->generatorName->getValue()." Éú³ÉÆ÷, ÖÖ×Ó: ".$provider->getSeed());
+				$sender->sendMessage("Éú³ÉÆ÷Ñ¡Ïî: ".$provider->getLevelData()->generatorOptions->getValue());
+				$sender->sendMessage("ÊÀ½çÊ±¼ä: ".$provider->getTime());
 				$v3 = $provider->getSpawn();
-				$sender->sendMessage("å‡ºç”Ÿç‚¹: ".$v3->x." ".$v3->y." ".$v3->z);
+				$sender->sendMessage("³öÉúµã: ".$v3->x." ".$v3->y." ".$v3->z);
 				break;
 			case "help":
 				$sender->sendMessage(new TranslationContainer("commands.generic.usage", [$this->usageMessage]));

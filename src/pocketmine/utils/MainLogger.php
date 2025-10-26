@@ -216,23 +216,13 @@ class MainLogger extends \AttachableThreadedLogger{
 			}
 		}
 		
-		// 修复部分：获取带毫秒的时间
-		$microtime = microtime(true); // 取消注释
-		$seconds = floor($microtime);
-		$milliseconds = round(($microtime - $seconds) * 1000);
+		// 获取带毫秒的时间
+        $microtime = microtime(true);
+        $seconds = floor($microtime);
+        $milliseconds = round(($microtime - $seconds) * 1000);
 
-		// 使用导入的 DateTime 类
-		$date = DateTime::createFromFormat('U', $seconds);
-		$date->setTime(
-			$date->format('H'),
-			$date->format('i'),
-			$date->format('s'),
-			(int)($milliseconds * 1000) // 微秒 = 毫秒 * 1000
-		);
-
-        // 格式化时间字符串，毫秒部分使用深绿色
-        $timeString = $date->format("H:i:s") . TextFormat::DARK_GREEN . '.' . sprintf('%03d', $milliseconds) . TextFormat::GREEN;
-
+        // 使用 date() 函数获取当前时间（自动使用系统时区）
+        $timeString = date("H:i:s", $seconds) . TextFormat::DARK_GREEN . '.' . sprintf('%03d', $milliseconds) . TextFormat::GREEN;
 		// $timeString = $date->format("H:i:s") . '.' . sprintf('%03d', $milliseconds);
 		
 		$message = TextFormat::toANSI(TextFormat::GREEN . $timeString . TextFormat::RESET. " " . $color  . $threadName . "/" . $prefix . " §8> " . $color . $message . TextFormat::RESET);

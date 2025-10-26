@@ -1,20 +1,17 @@
 <?php
 
-/*
- *  ______   _____    ______  __   __  ______
- * /  ___/  /  ___|  / ___  \ \ \ / / |  ____|
- * | |___  | |      | |___| |  \ / /  | |____
- * \___  \ | |      |  ___  |   / /   |  ____|
- *  ___| | | |____  | |   | |  / / \  | |____
- * /_____/  \_____| |_|   |_| /_/ \_\ |______|
+/* 
+ *  _____              _ __  __  
+ * /__  /  ___  ____  (_) /_/ /_ 
+ *   / /  / _ \/ __ \/ / __/ __ \
+ *  / /__/  __/ / / / / /_/ / / /
+ * /____/\___/_/ /_/_/\__/_/ /_/ 
+ *                               
+ * This program is free software: you can redistribute/modify it 
+ * under the terms of the GNU LGPL, version 3 or later.
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * @author Sunch233#3226 QQ2125696621 And KKK
- * @link https://github.com/ScaxeTeam/Scaxe/
+ * @author Xiaoao
+ * @link https://b23.tv/LQKxdts
  *
 */
 
@@ -44,35 +41,35 @@ class FlintSteel extends Tool{
 	}
 
 	public function onActivate(Level $level, Player $player, Block $block, Block $target, $face, $fx, $fy, $fz){
-		if($target->getId() === Block::OBSIDIAN and $player->getServer()->netherEnabled){//é»‘æ›œçŸ³ 4*5æœ€å° 23*23æœ€å¤§
+		if($target->getId() === Block::OBSIDIAN and $player->getServer()->netherEnabled){//ºÚê×Ê¯ 4*5×îÐ¡ 23*23×î´ó
 			//$level->setBlock($block, new Fire(), true);
 			$tx = $target->getX();
 			$ty = $target->getY();
 			$tz = $target->getZ();
-			//xæ–¹å‘
-			$x_max = $tx;//xæœ€å¤§å€¼
-			$x_min = $tx;//xæœ€å°å€¼
+			//x·½Ïò
+			$x_max = $tx;//x×î´óÖµ
+			$x_min = $tx;//x×îÐ¡Öµ
 			for($x = $tx + 1; $level->getBlock($this->temporalVector->setComponents($x, $ty, $tz))->getId() == Block::OBSIDIAN; $x++){
 				$x_max++;
 			}
 			for($x = $tx - 1; $level->getBlock($this->temporalVector->setComponents($x, $ty, $tz))->getId() == Block::OBSIDIAN; $x--){
 				$x_min--;
 			}
-			$count_x = $x_max - $x_min + 1;//xæ–¹å‘æ–¹å—
+			$count_x = $x_max - $x_min + 1;//x·½Ïò·½¿é
 			if($count_x >= 4 and $count_x <= 23){//4 23
-				$x_max_y = $ty;//xæœ€å¤§å€¼æ—¶çš„yæœ€å¤§å€¼
-				$x_min_y = $ty;//xæœ€å°å€¼æ—¶çš„yæœ€å¤§å€¼
+				$x_max_y = $ty;//x×î´óÖµÊ±µÄy×î´óÖµ
+				$x_min_y = $ty;//x×îÐ¡ÖµÊ±µÄy×î´óÖµ
 				for($y = $ty; $level->getBlock($this->temporalVector->setComponents($x_max, $y, $tz))->getId() == Block::OBSIDIAN; $y++){
 					$x_max_y++;
 				}
 				for($y = $ty; $level->getBlock($this->temporalVector->setComponents($x_min, $y, $tz))->getId() == Block::OBSIDIAN; $y++){
 					$x_min_y++;
 				}
-				$y_max = min($x_max_y, $x_min_y) - 1;//yæœ€å¤§å€¼
-				$count_y = $y_max - $ty + 2;//æ–¹å‘æ–¹å—
+				$y_max = min($x_max_y, $x_min_y) - 1;//y×î´óÖµ
+				$count_y = $y_max - $ty + 2;//·½Ïò·½¿é
 				//Server::getInstance()->broadcastMessage("$y_max $x_max_y $x_min_y $x_max $x_min");
 				if($count_y >= 5 and $count_y <= 23){//5 23
-					$count_up = 0;//ä¸Šé¢
+					$count_up = 0;//ÉÏÃæ
 					for($ux = $x_min; ($level->getBlock($this->temporalVector->setComponents($ux, $y_max, $tz))->getId() == Block::OBSIDIAN and $ux <= $x_max); $ux++){
 						$count_up++;
 					}
@@ -92,10 +89,10 @@ class FlintSteel extends Tool{
 				}
 			}
 
-			//zæ–¹å‘
-			$z_max = $tz;//zæœ€å¤§å€¼
-			$z_min = $tz;//zæœ€å°å€¼
-			$count_z = 0;//zæ–¹å‘æ–¹å—
+			//z·½Ïò
+			$z_max = $tz;//z×î´óÖµ
+			$z_min = $tz;//z×îÐ¡Öµ
+			$count_z = 0;//z·½Ïò·½¿é
 			for($z = $tz + 1; $level->getBlock($this->temporalVector->setComponents($tx, $ty, $z))->getId() == Block::OBSIDIAN; $z++){
 				$z_max++;
 			}
@@ -104,18 +101,18 @@ class FlintSteel extends Tool{
 			}
 			$count_z = $z_max - $z_min + 1;
 			if($count_z >= 4 and $count_z <= 23){//4 23
-				$z_max_y = $ty;//zæœ€å¤§å€¼æ—¶çš„yæœ€å¤§å€¼
-				$z_min_y = $ty;//zæœ€å°å€¼æ—¶çš„yæœ€å¤§å€¼
+				$z_max_y = $ty;//z×î´óÖµÊ±µÄy×î´óÖµ
+				$z_min_y = $ty;//z×îÐ¡ÖµÊ±µÄy×î´óÖµ
 				for($y = $ty; $level->getBlock($this->temporalVector->setComponents($tx, $y, $z_max))->getId() == Block::OBSIDIAN; $y++){
 					$z_max_y++;
 				}
 				for($y = $ty; $level->getBlock($this->temporalVector->setComponents($tx, $y, $z_min))->getId() == Block::OBSIDIAN; $y++){
 					$z_min_y++;
 				}
-				$y_max = min($z_max_y, $z_min_y) - 1;//yæœ€å¤§å€¼
-				$count_y = $y_max - $ty + 2;//æ–¹å‘æ–¹å—
+				$y_max = min($z_max_y, $z_min_y) - 1;//y×î´óÖµ
+				$count_y = $y_max - $ty + 2;//·½Ïò·½¿é
 				if($count_y >= 5 and $count_y <= 23){//5 23
-					$count_up = 0;//ä¸Šé¢
+					$count_up = 0;//ÉÏÃæ
 					for($uz = $z_min; ($level->getBlock($this->temporalVector->setComponents($tx, $y_max, $uz))->getId() == Block::OBSIDIAN and $uz <= $z_max); $uz++){
 						$count_up++;
 					}
@@ -148,7 +145,7 @@ class FlintSteel extends Tool{
 			}
 
 			if($player->isSurvival()){
-				$this->useOn($block, 2);//è€ä¹…è·ŸæŠ¥åºŸåˆ†åˆ«å†™åœ¨ tool è·Ÿ level äº†
+				$this->useOn($block, 2);//ÄÍ¾Ã¸ú±¨·Ï·Ö±ðÐ´ÔÚ tool ¸ú level ÁË
 				$player->getInventory()->setItemInHand($this);
 			}
 

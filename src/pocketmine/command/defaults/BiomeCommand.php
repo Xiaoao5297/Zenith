@@ -1,20 +1,17 @@
 <?php
 
-/*
- *  ______   _____    ______  __   __  ______
- * /  ___/  /  ___|  / ___  \ \ \ / / |  ____|
- * | |___  | |      | |___| |  \ / /  | |____
- * \___  \ | |      |  ___  |   / /   |  ____|
- *  ___| | | |____  | |   | |  / / \  | |____
- * /_____/  \_____| |_|   |_| /_/ \_\ |______|
+/* 
+ *  _____              _ __  __  
+ * /__  /  ___  ____  (_) /_/ /_ 
+ *   / /  / _ \/ __ \/ / __/ __ \
+ *  / /__/  __/ / / / / /_/ / / /
+ * /____/\___/_/ /_/_/\__/_/ /_/ 
+ *                               
+ * This program is free software: you can redistribute/modify it 
+ * under the terms of the GNU LGPL, version 3 or later.
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * @author Sunch233#3226 QQ2125696621 And KKK
- * @link https://github.com/ScaxeTeam/Scaxe/
+ * @author Xiaoao
+ * @link https://b23.tv/LQKxdts
  *
 */
 
@@ -48,7 +45,7 @@ class BiomeCommand extends VanillaCommand{
 
 		if($sender instanceof Player){
 			if($args[0] == "set"){
-				$biome = isset($args[1]) ? $args[1] : 1;//榛樿鏀规垚鑽夊師
+				$biome = isset($args[1]) ? $args[1] : 1;//默认改成草原
 				if(isset($sender->selectedPos[0]) and isset($sender->selectedPos[1])){
 					if(is_numeric($biome) === false){
 						$sender->sendMessage(TextFormat::RED . "%pocketmine.command.biome.wrongBio");
@@ -74,7 +71,7 @@ class BiomeCommand extends VanillaCommand{
 					$sender->sendMessage("%pocketmine.command.biome.noPos");
 				}
 			}elseif($args[0] == "color"){
-				$color = isset($args[1]) ? $args[1] : "146,188,89";//1=鑽夊師("146,188,89"),2=娌欐紶(251,183,19)"130,180,147"
+				$color = isset($args[1]) ? $args[1] : "146,188,89";//1=草原("146,188,89"),2=沙漠(251,183,19)"130,180,147"
 				$a = explode(",", $color);
 				//var_dump($a);
 				if(count($a) != 3){

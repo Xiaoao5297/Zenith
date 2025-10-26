@@ -1,20 +1,17 @@
 <?php
 
-/*
- *  ______   _____    ______  __   __  ______
- * /  ___/  /  ___|  / ___  \ \ \ / / |  ____|
- * | |___  | |      | |___| |  \ / /  | |____
- * \___  \ | |      |  ___  |   / /   |  ____|
- *  ___| | | |____  | |   | |  / / \  | |____
- * /_____/  \_____| |_|   |_| /_/ \_\ |______|
+/* 
+ *  _____              _ __  __  
+ * /__  /  ___  ____  (_) /_/ /_ 
+ *   / /  / _ \/ __ \/ / __/ __ \
+ *  / /__/  __/ / / / / /_/ / / /
+ * /____/\___/_/ /_/_/\__/_/ /_/ 
+ *                               
+ * This program is free software: you can redistribute/modify it 
+ * under the terms of the GNU LGPL, version 3 or later.
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * @author Sunch233#3226 QQ2125696621 And KKK
- * @link https://github.com/ScaxeTeam/Scaxe/
+ * @author Xiaoao
+ * @link https://b23.tv/LQKxdts
  *
 */
 
@@ -52,13 +49,13 @@ class XpCommand extends VanillaCommand{
 					$level = rtrim($args[0], "Ll");
 					if(is_numeric($level)){
 						$player->addExpLevel($level);
-						$sender->sendMessage("æˆåŠŸæ·»åŠ  $level çº§ç»éªŒç»™ $name");
+						$sender->sendMessage("³É¹¦Ìí¼Ó $level ¼¶¾­Ñé¸ø $name");
 					}
 				}elseif(is_numeric($args[0])){											//Set Experience
 					$player->addExperience($args[0]);
-					$sender->sendMessage("æˆåŠŸæ·»åŠ  $args[0] ç»éªŒç»™ $name");
+					$sender->sendMessage("³É¹¦Ìí¼Ó $args[0] ¾­Ñé¸ø $name");
 				}else{
-					$sender->sendMessage("æ ¼å¼é”™è¯¯");
+					$sender->sendMessage("¸ñÊ½´íÎó");
 					return false;
 				}
 			}else{

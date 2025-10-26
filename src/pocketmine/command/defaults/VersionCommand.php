@@ -1,20 +1,17 @@
 <?php
 
-/*
- *  ______   _____    ______  __   __  ______
- * /  ___/  /  ___|  / ___  \ \ \ / / |  ____|
- * | |___  | |      | |___| |  \ / /  | |____
- * \___  \ | |      |  ___  |   / /   |  ____|
- *  ___| | | |____  | |   | |  / / \  | |____
- * /_____/  \_____| |_|   |_| /_/ \_\ |______|
+/* 
+ *  _____              _ __  __  
+ * /__  /  ___  ____  (_) /_/ /_ 
+ *   / /  / _ \/ __ \/ / __/ __ \
+ *  / /__/  __/ / / / / /_/ / / /
+ * /____/\___/_/ /_/_/\__/_/ /_/ 
+ *                               
+ * This program is free software: you can redistribute/modify it 
+ * under the terms of the GNU LGPL, version 3 or later.
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * @author Sunch233#3226 QQ2125696621 And KKK
- * @link https://github.com/ScaxeTeam/Scaxe/
+ * @author Xiaoao
+ * @link https://b23.tv/LQKxdts
  *
 */
 
@@ -54,8 +51,8 @@ class VersionCommand extends VanillaCommand{
 			]));
 			$sender->sendMessage("Scaxe API: ".$sender->getServer()->getScaxeApiVersion());
 			$sender->sendMessage("PHP: ". PHP_VERSION ." ". (PHP_INT_SIZE * 8)."bit");
-			$sender->sendMessage("æœ¬æ ¸å¿ƒç”±badcatå…è´¹ç ´è§£~~");
-			$sender->sendMessage("ç‰ˆæƒæ‰€æœ‰ åçŒ«å·¥å‚è½¯ä»¶ç ´è§£ 2025");
+			$sender->sendMessage("±¾ºËĞÄÓÉbadcatÃâ·ÑÆÆ½â~~");
+			$sender->sendMessage("°æÈ¨ËùÓĞ »µÃ¨¹¤³§Èí¼şÆÆ½â 2025");
 			
 		}else{
 			$pluginName = \implode(" ", $args);

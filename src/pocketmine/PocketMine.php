@@ -69,7 +69,7 @@ namespace pocketmine {
 	use pocketmine\utils\Utils;
 	use pocketmine\wizard\Installer;
 
-	const VERSION = "0.7.3c";
+	const VERSION = "0.7.3b";
 	const API_VERSION = "2.1.0";
 	const CODENAME = "Zenith";
 	const MINECRAFT_VERSION = "v0.14.x alpha";

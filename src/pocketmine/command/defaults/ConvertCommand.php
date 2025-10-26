@@ -1,20 +1,17 @@
 <?php
 
-/*
- *  ______   _____    ______  __   __  ______
- * /  ___/  /  ___|  / ___  \ \ \ / / |  ____|
- * | |___  | |      | |___| |  \ / /  | |____
- * \___  \ | |      |  ___  |   / /   |  ____|
- *  ___| | | |____  | |   | |  / / \  | |____
- * /_____/  \_____| |_|   |_| /_/ \_\ |______|
+/* 
+ *  _____              _ __  __  
+ * /__  /  ___  ____  (_) /_/ /_ 
+ *   / /  / _ \/ __ \/ / __/ __ \
+ *  / /__/  __/ / / / / /_/ / / /
+ * /____/\___/_/ /_/_/\__/_/ /_/ 
+ *                               
+ * This program is free software: you can redistribute/modify it 
+ * under the terms of the GNU LGPL, version 3 or later.
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * @author Sunch233#3226 QQ2125696621 And KKK
- * @link https://github.com/ScaxeTeam/Scaxe/
+ * @author Xiaoao
+ * @link https://b23.tv/LQKxdts
  *
 */
 
@@ -44,7 +41,7 @@ class ConvertCommand extends VanillaCommand{
 
 	public function execute(CommandSender $sender, $currentAlias, array $args){
 		if(count($args) != 2){
-			$sender->sendMessage("ç”¨æ³•: /convert <LevelName> <NewFormat>");
+			$sender->sendMessage("ÓÃ·¨: /convert <LevelName> <NewFormat>");
 			return false;
 		}
 		
@@ -53,18 +50,18 @@ class ConvertCommand extends VanillaCommand{
 			return true;
 		}
 		if(!$this->autoLoad($sender, $args[0])){
-			$sender->sendMessage("ä¸–ç•Œä¸å­˜åœ¨!");
+			$sender->sendMessage("ÊÀ½ç²»´æÔÚ!");
 			return false;
 		}
 		$level = $sender->getServer()->getLevelByName($args[0]);
 		$provider = $level->getProvider();
 		if($provider->getProviderName() == "leveldb"){
-			$sender->sendMessage("Â§cä¸æ”¯æŒä»LevelDBåœ°å›¾è½¬æ¢!");
+			$sender->sendMessage("¡ìc²»Ö§³Ö´ÓLevelDBµØÍ¼×ª»»!");
 			return false;
 		}
 		echo($provider->getProviderName()." name\n");
 		if(LevelProviderManager::getProviderByName($args[1]) === null){
-			$sender->sendMessage("Â§cä¸æ”¯æŒçš„æ ¼å¼:". $args[1]);
+			$sender->sendMessage("¡ìc²»Ö§³ÖµÄ¸ñÊ½:". $args[1]);
 			return false;
 		}
 		$generator = Generator::getGenerator($provider->getLevelData()->generatorName->getValue());
@@ -73,16 +70,16 @@ class ConvertCommand extends VanillaCommand{
 		$NewLevel = $sender->getServer()->getLevelByName($args[0]."_".$args[1]);
 		$NewProvider = $NewLevel->getProvider();
 		
-		$sender->sendMessage($args[0]."åœ°å›¾, çœŸå®åç§°".$provider->getLevelData()->LevelName->getValue()." æ ¼å¼: ".$provider->getProviderName());
-		$sender->sendMessage("è½¬æ¢åˆ°: ".$NewProvider->getLevelData()->LevelName->getValue()." æ ¼å¼: ".$NewProvider->getProviderName());
-		$sender->sendMessage("è·¯å¾„: ".$provider->getPath()."region/");
+		$sender->sendMessage($args[0]."µØÍ¼, ÕæÊµÃû³Æ".$provider->getLevelData()->LevelName->getValue()." ¸ñÊ½: ".$provider->getProviderName());
+		$sender->sendMessage("×ª»»µ½: ".$NewProvider->getLevelData()->LevelName->getValue()." ¸ñÊ½: ".$NewProvider->getProviderName());
+		$sender->sendMessage("Â·¾¶: ".$provider->getPath()."region/");
 		
-		$sender->sendMessage("å¼€å§‹éå†æ–‡ä»¶...");
+		$sender->sendMessage("¿ªÊ¼±éÀúÎÄ¼ş...");
 		$files = scandir($provider->getPath()."region/");
 		
 		$regionCount = count($files) - 2;
 		$ChunkCount = (count($files) - 2) * 1024;
-		$sender->sendMessage("éå†å®Œæˆ, å…±æœ‰".(count($files) - 2)."ä¸ªregion, ".((count($files) - 2) * 1024)."ä¸ªChunk");
+		$sender->sendMessage("±éÀúÍê³É, ¹²ÓĞ".(count($files) - 2)."¸öregion, ".((count($files) - 2) * 1024)."¸öChunk");
 		sleep(2);
 		$finishCount = 0;
 		
@@ -97,7 +94,7 @@ class ConvertCommand extends VanillaCommand{
 				$v = str_replace(".mca", "", $v);
 				$v = str_replace(".mcr", "", $v);
 				$v2 = explode(".", $v);
-				$sender->sendMessage("Â§cæ­£åœ¨è½¬æ¢Region: ".$v2[0]."_".$v2[1]." | ".(round(($i / $regionCount), 4) * 100)."% | ".round((\memory_get_usage() / 1024 / 1024), 2)." MB");
+				$sender->sendMessage("¡ìcÕıÔÚ×ª»»Region: ".$v2[0]."_".$v2[1]." | ".(round(($i / $regionCount), 4) * 100)."% | ".round((\memory_get_usage() / 1024 / 1024), 2)." MB");
 				$rx = (int) $v2[0];
 				$rz = (int) $v2[1];
 				for($x = 0; $x < 32; $x++){
@@ -105,7 +102,7 @@ class ConvertCommand extends VanillaCommand{
 						$xx = ($rx * 32) + $x;
 						$zz = ($rz * 32) + $z;			
 						$Chunk = $level->getChunk($xx, $zz, true);
-						$sender->sendMessage("Â§6æ­£åœ¨è½¬æ¢Chunk: ".$xx."_".$zz." | ".$finishCount."/".$ChunkCount." | ".(round(($finishCount / $ChunkCount), 4) * 100)."%");
+						$sender->sendMessage("¡ì6ÕıÔÚ×ª»»Chunk: ".$xx."_".$zz." | ".$finishCount."/".$ChunkCount." | ".(round(($finishCount / $ChunkCount), 4) * 100)."%");
 						if($Chunk->isGenerated()){
 							$NewChunk = $NewLevel->getChunk($xx, $zz, true);
 							for($cx = 0; $cx < 16; $cx++){
@@ -147,9 +144,9 @@ class ConvertCommand extends VanillaCommand{
 				gc_collect_cycles();
 			}
 		}
-		$sender->sendMessage("Â§bè½¬æ¢å®Œæˆ! ä¿å­˜ä¸–ç•Œ...");
+		$sender->sendMessage("¡ìb×ª»»Íê³É! ±£´æÊÀ½ç...");
 		$NewLevel->save();
-		$sender->sendMessage("Â§cå®Œæˆ!");
+		$sender->sendMessage("¡ìcÍê³É!");
 		return true;
 	}
 	
