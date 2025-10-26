@@ -21,6 +21,7 @@ namespace pocketmine\utils;
 use LogLevel;
 use pocketmine\Thread;
 use pocketmine\Worker;
+use DateTime; // 添加 DateTime 类的导入
 
 class MainLogger extends \AttachableThreadedLogger{
 	protected $logFile;
@@ -215,9 +216,26 @@ class MainLogger extends \AttachableThreadedLogger{
 			}
 		}
 		
-		$message = TextFormat::toANSI(TextFormat::GREEN . date("H:i:s", $now) . TextFormat::RESET. " " . $color  . $threadName . "/" . $prefix . " §8> " . $color . $message . TextFormat::RESET);
-		//$message = TextFormat::toANSI(TextFormat::AQUA . "[" . date("H:i:s", $now) . "] " . TextFormat::RESET . $color . "[" . $threadName . "/" . $prefix . "]:" . " " . $message . TextFormat::RESET);
-		//$message = TextFormat::toANSI(TextFormat::AQUA . "[" . date("H:i:s") . "] ". TextFormat::RESET . $color ."<".$prefix . ">" . " " . $message . TextFormat::RESET);
+		// 修复部分：获取带毫秒的时间
+		$microtime = microtime(true); // 取消注释
+		$seconds = floor($microtime);
+		$milliseconds = round(($microtime - $seconds) * 1000);
+
+		// 使用导入的 DateTime 类
+		$date = DateTime::createFromFormat('U', $seconds);
+		$date->setTime(
+			$date->format('H'),
+			$date->format('i'),
+			$date->format('s'),
+			(int)($milliseconds * 1000) // 微秒 = 毫秒 * 1000
+		);
+
+        // 格式化时间字符串，毫秒部分使用深绿色
+        $timeString = $date->format("H:i:s") . TextFormat::DARK_GREEN . '.' . sprintf('%03d', $milliseconds) . TextFormat::GREEN;
+
+		// $timeString = $date->format("H:i:s") . '.' . sprintf('%03d', $milliseconds);
+		
+		$message = TextFormat::toANSI(TextFormat::GREEN . $timeString . TextFormat::RESET. " " . $color  . $threadName . "/" . $prefix . " §8> " . $color . $message . TextFormat::RESET);
 		$cleanMessage = TextFormat::clean($message);
 
 		if(!Terminal::hasFormattingCodes()){
@@ -242,45 +260,9 @@ class MainLogger extends \AttachableThreadedLogger{
 		}
 	}
 
-	/*public function run(){
-		$this->shutdown = false;
-		if($this->write){
-			$this->logResource = fopen($this->logFile, "a+b");
-			if(!is_resource($this->logResource)){
-				throw new \RuntimeException("Couldn't open log file");
-			}
-
-			while($this->shutdown === false){
-				if(!$this->write) {
-					fclose($this->logResource);
-					break;
-				}
-				$this->synchronized(function(){
-					while($this->logStream->count() > 0){
-						$chunk = $this->logStream->shift();
-						fwrite($this->logResource, $chunk);
-					}
-
-					$this->wait(25000);
-				});
-			}
-
-			if($this->logStream->count() > 0){
-				while($this->logStream->count() > 0){
-					$chunk = $this->logStream->shift();
-					fwrite($this->logResource, $chunk);
-				}
-			}
-
-			fclose($this->logResource);
-		}
-	}*/
-
 	public function run(){
 		$this->shutdown = false;
 		if($this->write){
-			//$this->logResource = file_put_contents($this->logFile, "a+b", FILE_APPEND);
-
 			while($this->shutdown === false){
 				if(!$this->write) break;
 				$this->synchronized(function(){
