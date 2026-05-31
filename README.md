@@ -37,19 +37,11 @@ Incore 适合希望在 PocketMine-MP 上运行稳定服务器的开发者，尤�
 
 4. 启动服务器
 	- 进入 PocketMine-MP 根目录，执行：
-	  `php7.3 pocketmine.phar`
+	  `./start.sh`
 	- 若使用自定义启动脚本或 Supervisor，请按各自方式启动。
 
 5. 常见操作
 	- 更新 Incore：在仓库根目录执行 `git pull` 并重启服务器。
 	- 安装插件：将插件放入 `plugins` 目录，重启或使用 `reload`（不推荐在生产服热加载）。
-
-6. 配置与调优
-	- 推荐调整 `php.ini`（如 `memory_limit`、`max_execution_time`）以适配服务器负载。
-	- 若使用大量插件或大型地图，适当增加内存并监控性能。
-
-7. 日志与排错
-	- 查看 PocketMine-MP 输出日志（console）及 `logs` 目录下的文件。
-	- 常见问题：PHP 版本不匹配、扩展缺失（如 `sockets`）、配置文件权限问题。
 
 如需示例配置或更详细的部署流程，请查看仓库内其他文档或 issues。
