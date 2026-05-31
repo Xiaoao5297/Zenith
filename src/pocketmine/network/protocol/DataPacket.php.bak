@@ -1,0 +1,125 @@
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+#ifndef COMPILE
+
+#endif
+
+use pocketmine\utils\BinaryStream;
+use pocketmine\utils\Utils;
+
+abstract class DataPacket extends BinaryStream{
+    const NETWORK_ID = 0;
+    
+    public $isEncoded = false;
+    private $channel = 0;
+    public $protocol = 0;  // 添加这行
+    
+    public function pid(){
+        return $this::NETWORK_ID;
+    }
+    
+    public function setProtocol($protocol){
+        error_log("设置DataPacket协议: " . $protocol);
+        $this->protocol = $protocol;
+        return $this;
+    }
+    
+    abstract public function encode();
+    abstract public function decode();
+    
+    public function reset(){
+        $this->buffer = chr($this::NETWORK_ID);
+        $this->offset = 0;
+    }
+    
+    public function setChannel($channel){
+        $this->channel = (int) $channel;
+        return $this;
+    }
+    
+    public function getChannel(){
+        return $this->channel;
+    }
+    
+    public function clean(){
+        $this->buffer = null;
+        $this->isEncoded = false;
+        $this->offset = 0;
+        return $this;
+    }
+    
+    // 添加针对不同协议版本的putSlot方法
+    public function putSlot($item){
+        if($item === null || $item->getId() === 0){
+            $this->putShort(0);
+            return;
+        }
+
+        $this->putShort($item->getId());
+        $this->putByte($item->getCount());
+        $this->putShort($item->getDamage() === null ? -1 : $item->getDamage());
+        $nbt = $item->getCompoundTag();
+        
+        // 根据协议版本使用不同的方法
+        $is013 = in_array($this->protocol, [31, 37, 38, 39]);
+        
+        if($is013){
+            // 0.13协议使用putShort
+            $this->putShort(strlen($nbt));
+        } else {
+            // 0.14协议使用putLShort
+            $this->putLShort(strlen($nbt));
+        }
+        
+        $this->put($nbt);
+    }
+    
+    // 添加针对不同协议版本的getSlot方法
+    public function getSlot(){
+        $id = $this->getSignedShort();
+
+        if($id <= 0){
+            return \pocketmine\item\Item::get(0, 0, 0);
+        }
+
+        $cnt = $this->getByte();
+        $data = $this->getShort();
+        
+        // 根据协议版本使用不同的方法
+        $is013 = in_array($this->protocol, [31, 37, 38, 39]);
+        
+        if($is013){
+            // 0.13协议使用getShort
+            $nbtLen = $this->getShort();
+        } else {
+            // 0.14协议使用getLShort
+            $nbtLen = $this->getLShort();
+        }
+
+        $nbt = "";
+
+        if($nbtLen > 0){
+            $nbt = $this->get($nbtLen);
+        }
+        
+        return \pocketmine\item\Item::get($id, $data, $cnt, $nbt);
+    }
+    
+    public function __debugInfo(){
+        $data = [];
+        foreach($this as $k => $v){
+            if($k === "buffer"){
+                $data[$k] = bin2hex($v);
+            }elseif(is_string($v) or (is_object($v) and method_exists($v, "__toString"))){
+                $data[$k] = Utils::printable((string) $v);
+            }else{
+                $data[$k] = $v;
+            }
+        }
+        return $data;
+    }
+}

@@ -1,0 +1,61 @@
+<?php
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+class StartGamePacket extends DataPacket{
+    const NETWORK_ID = Info::START_GAME_PACKET;
+    
+    public $seed;
+    public $dimension;
+    public $generator;
+    public $gamemode;
+    public $eid;
+    public $spawnX;
+    public $spawnY;
+    public $spawnZ;
+    public $x;
+    public $y;
+    public $z;
+    public $unknown = "";
+    
+    public function decode(){
+        // 解码逻辑
+    }
+    
+public function encode(){
+    error_log("=== StartGamePacket编码开始 ===");
+    error_log("协议版本: " . $this->protocol);
+    error_log("是否为0.13: " . (in_array($this->protocol, [31, 37, 38, 39]) ? "是" : "否"));
+    
+    $this->reset();
+    $this->putInt($this->seed);
+    $this->putByte($this->dimension);
+    $this->putInt($this->generator);
+    $this->putInt($this->gamemode);
+    $this->putLong($this->eid);
+    $this->putInt($this->spawnX);
+    $this->putInt($this->spawnY);
+    $this->putInt($this->spawnZ);
+    $this->putFloat($this->x);
+    $this->putFloat($this->y);
+    $this->putFloat($this->z);
+    
+    // 添加更多调试
+    $is013 = in_array($this->protocol, [31, 37, 38, 39]);
+    error_log("使用格式: " . ($is013 ? "0.13" : "0.14"));
+    
+    if($is013){ // 0.13协议
+        $this->putByte(0);
+        error_log("写入: putByte(0)");
+    } else { // 0.14协议
+        $this->putByte(1);
+        $this->putByte(1);
+        $this->putByte(0);
+        $this->putString($this->unknown);
+        error_log("写入: putByte(1), putByte(1), putByte(0), putString('{$this->unknown}')");
+    }
+    
+    error_log("=== StartGamePacket编码结束 ===");
+}
+}

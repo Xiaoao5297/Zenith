@@ -1,0 +1,2684 @@
+文件名: AddEntityPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+#ifndef COMPILE
+use pocketmine\utils\Binary;
+
+#endif
+
+class AddEntityPacket extends DataPacket{
+	const NETWORK_ID = Info::ADD_ENTITY_PACKET;
+
+	public $eid;
+	public $type;
+	public $x;
+	public $y;
+	public $z;
+	public $speedX;
+	public $speedY;
+	public $speedZ;
+	public $yaw;
+	public $pitch;
+	public $metadata;
+	public $links = [];
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putLong($this->eid);
+		$this->putInt($this->type);
+		$this->putFloat($this->x);
+		$this->putFloat($this->y);
+		$this->putFloat($this->z);
+		$this->putFloat($this->speedX);
+		$this->putFloat($this->speedY);
+		$this->putFloat($this->speedZ);
+		$this->putFloat($this->yaw);
+		$this->putFloat($this->pitch);
+		$meta = Binary::writeMetadata($this->metadata);
+		$this->put($meta);
+		$this->putShort(count($this->links));
+		foreach($this->links as $link){
+			$this->putLong($link[0]);
+			$this->putLong($link[1]);
+			$this->putByte($link[2]);
+		}
+	}
+
+}
+
+====================
+
+文件名: AddItemEntityPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class AddItemEntityPacket extends DataPacket{
+	const NETWORK_ID = Info::ADD_ITEM_ENTITY_PACKET;
+
+	public $eid;
+	public $item;
+	public $x;
+	public $y;
+	public $z;
+	public $speedX;
+	public $speedY;
+	public $speedZ;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putLong($this->eid);
+		$this->putSlot($this->item);
+		$this->putFloat($this->x);
+		$this->putFloat($this->y);
+		$this->putFloat($this->z);
+		$this->putFloat($this->speedX);
+		$this->putFloat($this->speedY);
+		$this->putFloat($this->speedZ);
+	}
+
+}
+
+====================
+
+文件名: AddPaintingPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class AddPaintingPacket extends DataPacket{
+	const NETWORK_ID = Info::ADD_PAINTING_PACKET;
+
+	public $eid;
+	public $x;
+	public $y;
+	public $z;
+	public $direction;
+	public $title;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putLong($this->eid);
+		$this->putInt($this->x);
+		$this->putInt($this->y);
+		$this->putInt($this->z);
+		$this->putInt($this->direction);
+		$this->putString($this->title);
+	}
+
+}
+
+====================
+
+文件名: AddPlayerPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+#ifndef COMPILE
+use pocketmine\utils\Binary;
+
+#endif
+
+class AddPlayerPacket extends DataPacket{
+	const NETWORK_ID = Info::ADD_PLAYER_PACKET;
+
+	public $uuid;
+	public $username;
+	public $eid;
+	public $x;
+	public $y;
+	public $z;
+	public $speedX;
+	public $speedY;
+	public $speedZ;
+	public $pitch;
+	public $yaw;
+	public $item;
+	public $metadata;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putUUID($this->uuid);
+		$this->putString($this->username);
+		$this->putLong($this->eid);
+		$this->putFloat($this->x);
+		$this->putFloat($this->y);
+		$this->putFloat($this->z);
+		$this->putFloat($this->speedX);
+		$this->putFloat($this->speedY);
+		$this->putFloat($this->speedZ);
+		$this->putFloat($this->yaw);
+		$this->putFloat($this->yaw); //TODO headrot
+		$this->putFloat($this->pitch);
+		$this->putSlot($this->item);
+
+		$meta = Binary::writeMetadata($this->metadata);
+		$this->put($meta);
+	}
+
+}
+
+====================
+
+文件名: AdventureSettingsPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class AdventureSettingsPacket extends DataPacket{
+	const NETWORK_ID = Info::ADVENTURE_SETTINGS_PACKET;
+
+	public $flags;
+	public $userPermission;
+	public $globalPermission;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putInt($this->flags);
+		$this->putInt($this->userPermission);
+		$this->putInt($this->globalPermission);
+	}
+
+}
+====================
+
+文件名: AnimatePacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class AnimatePacket extends DataPacket{
+	const NETWORK_ID = Info::ANIMATE_PACKET;
+
+	public $action; //3：起床
+	public $eid;
+
+	public function decode(){
+		$this->action = $this->getByte();
+		$this->eid = $this->getLong();
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putByte($this->action);
+		$this->putLong($this->eid);
+	}
+
+}
+
+====================
+
+文件名: BatchPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class BatchPacket extends DataPacket{
+	const NETWORK_ID = Info::BATCH_PACKET;
+
+	public $payload;
+
+	public function decode(){
+		$size = $this->getInt();
+		$this->payload = $this->get($size);
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putInt(strlen($this->payload));
+		$this->put($this->payload);
+	}
+
+}
+====================
+
+文件名: BlockEntityDataPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class BlockEntityDataPacket extends DataPacket{
+	const NETWORK_ID = Info::BLOCK_ENTITY_DATA_PACKET;
+
+	public $x;
+	public $y;
+	public $z;
+	public $namedtag;
+
+	public function decode(){
+		$this->x = $this->getInt();
+		$this->y = $this->getInt();
+		$this->z = $this->getInt();
+		$this->namedtag = $this->get(true);
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putInt($this->x);
+		$this->putInt($this->y);
+		$this->putInt($this->z);
+		$this->put($this->namedtag);
+	}
+
+}
+
+====================
+
+文件名: BlockEventPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class BlockEventPacket extends DataPacket{
+	const NETWORK_ID = Info::BLOCK_EVENT_PACKET;
+
+	public $x;
+	public $y;
+	public $z;
+	public $case1;
+	public $case2;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putInt($this->x);
+		$this->putInt($this->y);
+		$this->putInt($this->z);
+		$this->putInt($this->case1);
+		$this->putInt($this->case2);
+	}
+
+}
+====================
+
+文件名: ChangeDimensionPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+class ChangeDimensionPacket extends DataPacket{
+	const NETWORK_ID = Info::CHANGE_DIMENSION_PACKET;
+
+	const DIMENSION_NORMAL = 0;
+	const DIMENSION_NETHER = 1;
+	const DIMENSION_END = 2;
+
+	public $dimension;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putByte($this->dimension);
+		$this->putByte(0);
+	}
+
+}
+====================
+
+文件名: ChunkRadiusUpdatePacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+
+class ChunkRadiusUpdatePacket extends DataPacket{
+	const NETWORK_ID = Info::CHUNK_RADIUS_UPDATE_PACKET;
+
+	public $radius;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putInt($this->radius);
+	}
+}
+====================
+
+文件名: ClientboundMapItemDataPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+use pocketmine\utils\MapColor;
+
+class ClientboundMapItemDataPacket extends DataPacket {
+
+	const NETWORK_ID = Info::CLIENTBOUND_MAP_ITEM_DATA_PACKET;
+
+	const BITFLAG_TEXTURE_UPDATE = 0x02;
+	const BITFLAG_DECORATION_UPDATE = 0x04;
+
+	/** @var int */
+	public $mapId;
+	/** @var int */
+	public $type;
+	/** @var int */
+	public $scale = 0;
+
+	/** @var array */
+	public $decorations = []; //TODO:
+
+	/** @var int */
+	public $width = 128;
+	/** @var int */
+	public $height = 128;
+	/** @var int */
+	public $xOffset = 0;
+	/** @var int */
+	public $yOffset = 0;
+
+	/** @var Color[][]|string */
+	public $colors;
+
+	/** @var bool */
+	public $isColorArray = true;
+
+	public function decode() {
+		//TODO:
+	}
+
+	public function encode() {
+		$this->reset();
+		$this->putLong($this->mapId);
+
+		$type = 0x00;
+		
+		if(count($this->colors) > 0){
+			$type |= self::BITFLAG_TEXTURE_UPDATE;
+		}
+		$this->putInt($type);
+
+		if(($type & self::BITFLAG_TEXTURE_UPDATE) !== 0) {
+			$this->putByte($this->scale);
+
+			$this->putInt($this->width);
+			$this->putInt($this->height);
+			$this->putInt($this->xOffset);
+			$this->putInt($this->yOffset);
+
+			if($this->isColorArray) {
+				for($y = 0; $y < $this->height; ++$y){
+					for($x = 0; $x < $this->width; ++$x) {
+						$color = $this->colors[$y][$x];
+						
+						$this->putByte($color->getR());
+						$this->putByte($color->getG());
+						$this->putByte($color->getB());
+						$this->putByte($color->getA());
+					}
+				}
+			} else {
+				$this->put($this->colors);
+			}
+		}
+	}
+
+}
+====================
+
+文件名: ContainerClosePacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class ContainerClosePacket extends DataPacket{
+	const NETWORK_ID = Info::CONTAINER_CLOSE_PACKET;
+
+	public $windowid;
+
+	public function decode(){
+		$this->windowid = $this->getByte();
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putByte($this->windowid);
+	}
+
+}
+====================
+
+文件名: ContainerOpenPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class ContainerOpenPacket extends DataPacket{
+	const NETWORK_ID = Info::CONTAINER_OPEN_PACKET;
+
+	public $windowid;
+	public $type;
+	public $slots;
+	public $x;
+	public $y;
+	public $z;
+	public $entityId = -1;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putByte($this->windowid);
+		$this->putByte($this->type);
+		$this->putShort($this->slots);
+		$this->putInt($this->x);
+		$this->putInt($this->y);
+		$this->putInt($this->z);
+		$this->putLong($this->entityId);
+	}
+
+}
+====================
+
+文件名: ContainerSetContentPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class ContainerSetContentPacket extends DataPacket{
+	const NETWORK_ID = Info::CONTAINER_SET_CONTENT_PACKET;
+
+	const SPECIAL_INVENTORY = 0;
+	const SPECIAL_ARMOR = 0x78;
+	const SPECIAL_CREATIVE = 0x79;
+
+	public $windowid;
+	public $slots = [];
+	public $hotbar = [];
+
+	public function clean(){
+		$this->slots = [];
+		$this->hotbar = [];
+		return parent::clean();
+	}
+
+	public function decode(){
+		$this->windowid = $this->getByte();
+		$count = $this->getShort();
+		for($s = 0; $s < $count and !$this->feof(); ++$s){
+			$this->slots[$s] = $this->getSlot();
+		}
+		if($this->windowid === self::SPECIAL_INVENTORY){
+			$count = $this->getShort();
+			for($s = 0; $s < $count and !$this->feof(); ++$s){
+				$this->hotbar[$s] = $this->getInt();
+			}
+		}
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putByte($this->windowid);
+		$this->putShort(count($this->slots));
+		foreach($this->slots as $slot){
+			$this->putSlot($slot);
+		}
+		if($this->windowid === self::SPECIAL_INVENTORY and count($this->hotbar) > 0){
+			$this->putShort(count($this->hotbar));
+			foreach($this->hotbar as $slot){
+				$this->putInt($slot);
+			}
+		}else{
+			$this->putShort(0);
+		}
+	}
+
+}
+====================
+
+文件名: ContainerSetDataPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class ContainerSetDataPacket extends DataPacket{
+	const NETWORK_ID = Info::CONTAINER_SET_DATA_PACKET;
+
+	public $windowid;
+	public $property;
+	public $value;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putByte($this->windowid);
+		$this->putShort($this->property);
+		$this->putShort($this->value);
+	}
+
+}
+====================
+
+文件名: ContainerSetSlotPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+use pocketmine\item\Item;
+
+class ContainerSetSlotPacket extends DataPacket{
+	const NETWORK_ID = Info::CONTAINER_SET_SLOT_PACKET;
+
+	public $windowid;
+	public $slot;
+	/** @var Item */
+	public $item;
+	public $hotbarSlot;
+
+	public function decode(){
+		$this->windowid = $this->getByte();
+		$this->slot = $this->getShort();
+		$this->hotbarSlot = $this->getShort();
+		$this->item = $this->getSlot();
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putByte($this->windowid);
+		$this->putShort($this->slot);
+		$this->putShort($this->hotbarSlot);
+		$this->putSlot($this->item);
+	}
+
+}
+
+====================
+
+文件名: CraftingDataPacket.php
+内容:
+<?php
+
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+use pocketmine\inventory\FurnaceRecipe;
+use pocketmine\inventory\ShapedRecipe;
+use pocketmine\inventory\ShapelessRecipe;
+use pocketmine\item\enchantment\Enchantment;
+use pocketmine\item\enchantment\EnchantmentList;
+use pocketmine\utils\BinaryStream;
+
+class CraftingDataPacket extends DataPacket{
+	const NETWORK_ID = Info::CRAFTING_DATA_PACKET;
+
+	const ENTRY_SHAPELESS = 0;
+	const ENTRY_SHAPED = 1;
+	const ENTRY_FURNACE = 2;
+	const ENTRY_FURNACE_DATA = 3;
+	const ENTRY_ENCHANT_LIST = 4;
+
+	/** @var object[] */
+	public $entries = [];
+	public $cleanRecipes = false;
+
+	private static function writeEntry($entry, BinaryStream $stream){
+		if($entry instanceof ShapelessRecipe){
+			return self::writeShapelessRecipe($entry, $stream);
+		}elseif($entry instanceof ShapedRecipe){
+			return self::writeShapedRecipe($entry, $stream);
+		}elseif($entry instanceof FurnaceRecipe){
+			return self::writeFurnaceRecipe($entry, $stream);
+		}elseif($entry instanceof EnchantmentList){
+			return self::writeEnchantList($entry, $stream);
+		}
+
+		return -1;
+	}
+
+	private static function writeShapelessRecipe(ShapelessRecipe $recipe, BinaryStream $stream){
+		$stream->putInt($recipe->getIngredientCount());
+		foreach($recipe->getIngredientList() as $item){
+			$stream->putSlot($item);
+		}
+
+		$stream->putInt(1);
+		$stream->putSlot($recipe->getResult());
+
+		$stream->putUUID($recipe->getId());
+
+		return CraftingDataPacket::ENTRY_SHAPELESS;
+	}
+
+	private static function writeShapedRecipe(ShapedRecipe $recipe, BinaryStream $stream){
+		$stream->putInt($recipe->getWidth());
+		$stream->putInt($recipe->getHeight());
+
+		for($z = 0; $z < $recipe->getWidth(); ++$z){
+			for($x = 0; $x < $recipe->getHeight(); ++$x){
+				$stream->putSlot($recipe->getIngredient($x, $z));
+			}
+		}
+
+		$stream->putInt(1);
+		$stream->putSlot($recipe->getResult());
+
+		$stream->putUUID($recipe->getId());
+
+		return CraftingDataPacket::ENTRY_SHAPED;
+	}
+
+	private static function writeFurnaceRecipe(FurnaceRecipe $recipe, BinaryStream $stream){
+		if($recipe->getInput()->getDamage() !== 0){ //Data recipe
+			$stream->putInt(($recipe->getInput()->getId() << 16) | ($recipe->getInput()->getDamage()));
+			$stream->putSlot($recipe->getResult());
+
+			return CraftingDataPacket::ENTRY_FURNACE_DATA;
+		}else{
+			$stream->putInt($recipe->getInput()->getId());
+			$stream->putSlot($recipe->getResult());
+
+			return CraftingDataPacket::ENTRY_FURNACE;
+		}
+	}
+
+	private static function writeEnchantList(EnchantmentList $list, BinaryStream $stream){
+
+		$stream->putByte($list->getSize());
+		for($i = 0; $i < $list->getSize(); ++$i){
+			$entry = $list->getSlot($i);
+			$stream->putInt($entry->getCost());
+			$stream->putByte(count($entry->getEnchantments()));
+			foreach($entry->getEnchantments() as $enchantment){
+				$stream->putInt($enchantment->getId());
+				$stream->putInt($enchantment->getLevel());
+			}
+			$stream->putString($entry->getRandomName());
+		}
+
+		return CraftingDataPacket::ENTRY_ENCHANT_LIST;
+	}
+
+	public function addShapelessRecipe(ShapelessRecipe $recipe){
+		$this->entries[] = $recipe;
+	}
+
+	public function addShapedRecipe(ShapedRecipe $recipe){
+		$this->entries[] = $recipe;
+	}
+
+	public function addFurnaceRecipe(FurnaceRecipe $recipe){
+		$this->entries[] = $recipe;
+	}
+
+	public function addEnchantList(EnchantmentList $list){
+		$this->entries[] = $list;
+	}
+
+	public function clean(){
+		$this->entries = [];
+		return parent::clean();
+	}
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putInt(count($this->entries));
+
+		$writer = new BinaryStream();
+		foreach($this->entries as $d){
+			$entryType = self::writeEntry($d, $writer);
+			if($entryType >= 0){
+				$this->putInt($entryType);
+				$this->putInt(strlen($writer->getBuffer()));
+				$this->put($writer->getBuffer());
+			}else{
+				$this->putInt(-1);
+				$this->putInt(0);
+			}
+
+			$writer->reset();
+		}
+
+		$this->putByte($this->cleanRecipes ? 1 : 0);
+	}
+
+}
+
+====================
+
+文件名: CraftingEventPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class CraftingEventPacket extends DataPacket{
+	const NETWORK_ID = Info::CRAFTING_EVENT_PACKET;
+
+	public $windowId;
+	public $type;
+	public $id;
+	public $input = [];
+	public $output = [];
+
+	public function clean(){
+		$this->input = [];
+		$this->output = [];
+		return parent::clean();
+	}
+
+	public function decode(){
+		$this->windowId = $this->getByte();
+		$this->type = $this->getInt();
+		$this->id = $this->getUUID();
+		$size = $this->getInt();
+		for($i = 0; $i < $size and $i < 128; ++$i){
+			$this->input[] = $this->getSlot();
+		}
+
+		$size = $this->getInt();
+		for($i = 0; $i < $size and $i < 128; ++$i){
+			$this->output[] = $this->getSlot();
+		}
+	}
+
+	public function encode(){
+
+	}
+
+}
+
+====================
+
+文件名: DataPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+#ifndef COMPILE
+
+#endif
+
+use pocketmine\utils\BinaryStream;
+use pocketmine\utils\Utils;
+
+abstract class DataPacket extends BinaryStream{
+    const NETWORK_ID = 0;
+    
+    public $isEncoded = false;
+    private $channel = 0;
+    public $protocol = 0;  // 添加这行
+    
+    public function pid(){
+        return $this::NETWORK_ID;
+    }
+    
+    public function setProtocol($protocol){
+        error_log("设置DataPacket协议: " . $protocol);
+        $this->protocol = $protocol;
+        return $this;
+    }
+    
+    abstract public function encode();
+    abstract public function decode();
+    
+    public function reset(){
+        $this->buffer = chr($this::NETWORK_ID);
+        $this->offset = 0;
+    }
+    
+    public function setChannel($channel){
+        $this->channel = (int) $channel;
+        return $this;
+    }
+    
+    public function getChannel(){
+        return $this->channel;
+    }
+    
+    public function clean(){
+        $this->buffer = null;
+        $this->isEncoded = false;
+        $this->offset = 0;
+        return $this;
+    }
+    
+    public function __debugInfo(){
+        $data = [];
+        foreach($this as $k => $v){
+            if($k === "buffer"){
+                $data[$k] = bin2hex($v);
+            }elseif(is_string($v) or (is_object($v) and method_exists($v, "__toString"))){
+                $data[$k] = Utils::printable((string) $v);
+            }else{
+                $data[$k] = $v;
+            }
+        }
+        return $data;
+    }
+}
+====================
+
+文件名: DisconnectPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class DisconnectPacket extends DataPacket{
+	const NETWORK_ID = Info::DISCONNECT_PACKET;
+
+	public $message;
+
+	public function decode(){
+		$this->message = $this->getString();
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putString($this->message);
+	}
+
+}
+
+====================
+
+文件名: DropItemPacket.php
+内容:
+<?php
+
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class DropItemPacket extends DataPacket{
+	const NETWORK_ID = Info::DROP_ITEM_PACKET;
+
+	public $type;
+	public $item;
+
+	public function decode(){
+		$this->type = $this->getByte();
+		$this->item = $this->getSlot();
+	}
+
+	public function encode(){
+
+	}
+
+}
+
+====================
+
+文件名: EntityEventPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class EntityEventPacket extends DataPacket{
+	const NETWORK_ID = Info::ENTITY_EVENT_PACKET;
+
+	const HURT_ANIMATION = 2;
+	const DEATH_ANIMATION = 3;
+
+	const TAME_FAIL = 6;
+	const TAME_SUCCESS = 7;
+	const SHAKE_WET = 8;
+	const USE_ITEM = 9;
+	const EAT_GRASS_ANIMATION = 10;
+	const FISH_HOOK_BUBBLE = 11;
+	const FISH_HOOK_POSITION = 12;
+	const FISH_HOOK_HOOK = 13;
+	const FISH_HOOK_TEASE = 14;
+	const SQUID_INK_CLOUD = 15;
+	const AMBIENT_SOUND = 16;
+	const RESPAWN = 17;
+
+	//TODO add new events
+
+	public $eid;
+	public $event;
+
+	public function decode(){
+		$this->eid = $this->getLong();
+		$this->event = $this->getByte();
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putLong($this->eid);
+		$this->putByte($this->event);
+	}
+
+}
+
+====================
+
+文件名: ExplodePacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class ExplodePacket extends DataPacket{
+	const NETWORK_ID = Info::EXPLODE_PACKET;
+
+	public $x;
+	public $y;
+	public $z;
+	public $radius;
+	public $records = [];
+
+	public function clean(){
+		$this->records = [];
+		return parent::clean();
+	}
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putFloat($this->x);
+		$this->putFloat($this->y);
+		$this->putFloat($this->z);
+		$this->putFloat($this->radius);
+		$this->putInt(count($this->records));
+		if(count($this->records) > 0){
+			foreach($this->records as $record){
+				$this->putByte($record->x);
+				$this->putByte($record->y);
+				$this->putByte($record->z);
+			}
+		}
+	}
+
+}
+====================
+
+文件名: FullChunkDataPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class FullChunkDataPacket extends DataPacket{
+	const NETWORK_ID = Info::FULL_CHUNK_DATA_PACKET;
+	
+	const ORDER_COLUMNS = 0;
+	const ORDER_LAYERED = 1;
+
+	public $chunkX;
+	public $chunkZ;
+	public $order = self::ORDER_COLUMNS;
+	public $data;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+        $this->putInt($this->chunkX);
+        $this->putInt($this->chunkZ);
+        $this->putByte($this->order);
+		$this->putInt(strlen($this->data));
+		$this->put($this->data);
+	}
+
+}
+
+====================
+
+文件名: HurtArmorPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class HurtArmorPacket extends DataPacket{
+	const NETWORK_ID = Info::HURT_ARMOR_PACKET;
+
+	public $health;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putByte($this->health);
+	}
+
+}
+====================
+
+文件名: Info.php
+内容:
+<?php
+
+/**
+ * Minecraft: PE multiplayer protocol implementation
+ */
+namespace pocketmine\network\protocol;
+
+
+interface Info{
+
+	/**
+	 * Actual Minecraft: PE protocol version
+	 */
+	const CURRENT_PROTOCOL = 70;
+	const ACCEPTED_PROTOCOLS = [41, 42, 43, 44, 45, 46, 60, 70];
+	const ACCEPTED_013_PROTOCOLS = [31, 37, 38, 39];
+
+	const LOGIN_PACKET = 0x8f;
+	const PLAY_STATUS_PACKET = 0x90;
+	const DISCONNECT_PACKET = 0x91;
+	const BATCH_PACKET = 0x92;
+	const TEXT_PACKET = 0x93;
+	const SET_TIME_PACKET = 0x94;
+	const START_GAME_PACKET = 0x95;
+	const ADD_PLAYER_PACKET = 0x96;
+	const REMOVE_PLAYER_PACKET = 0x97;
+	const ADD_ENTITY_PACKET = 0x98;
+	const REMOVE_ENTITY_PACKET = 0x99;
+	const ADD_ITEM_ENTITY_PACKET = 0x9a;
+	const TAKE_ITEM_ENTITY_PACKET = 0x9b;
+	const MOVE_ENTITY_PACKET = 0x9c;
+	const MOVE_PLAYER_PACKET = 0x9d;
+	const REMOVE_BLOCK_PACKET = 0x9e;
+	const UPDATE_BLOCK_PACKET = 0x9f;
+	const ADD_PAINTING_PACKET = 0xa0;
+	const EXPLODE_PACKET = 0xa1;
+	const LEVEL_EVENT_PACKET = 0xa2;
+	const BLOCK_EVENT_PACKET = 0xa3;
+	const ENTITY_EVENT_PACKET = 0xa4;
+	const MOB_EFFECT_PACKET = 0xa5;
+	const UPDATE_ATTRIBUTES_PACKET = 0xa6;
+	const MOB_EQUIPMENT_PACKET = 0xa7;
+	const MOB_ARMOR_EQUIPMENT_PACKET = 0xa8;
+	const INTERACT_PACKET = 0xa9;
+	const USE_ITEM_PACKET = 0xaa;
+	const PLAYER_ACTION_PACKET = 0xab;
+	const HURT_ARMOR_PACKET = 0xac;
+	const SET_ENTITY_DATA_PACKET = 0xad;
+	const SET_ENTITY_MOTION_PACKET = 0xae;
+	const SET_ENTITY_LINK_PACKET = 0xaf;
+	const SET_HEALTH_PACKET = 0xb0;
+	const SET_SPAWN_POSITION_PACKET = 0xb1;
+	const ANIMATE_PACKET = 0xb2;
+	const RESPAWN_PACKET = 0xb3;
+	const DROP_ITEM_PACKET = 0xb4;
+	const CONTAINER_OPEN_PACKET = 0xb5;
+	const CONTAINER_CLOSE_PACKET = 0xb6;
+	const CONTAINER_SET_SLOT_PACKET = 0xb7;
+	const CONTAINER_SET_DATA_PACKET = 0xb8;
+	const CONTAINER_SET_CONTENT_PACKET = 0xb9;
+	const CRAFTING_DATA_PACKET = 0xba;
+	const CRAFTING_EVENT_PACKET = 0xbb;
+	const ADVENTURE_SETTINGS_PACKET = 0xbc;
+	const BLOCK_ENTITY_DATA_PACKET = 0xbd;
+	const PLAYER_INPUT_PACKET = 0xbe;
+	const FULL_CHUNK_DATA_PACKET = 0xbf;
+	const SET_DIFFICULTY_PACKET = 0xc0;
+	const CHANGE_DIMENSION_PACKET = 0xc1;
+	const SET_PLAYER_GAMETYPE_PACKET = 0xc2;
+	const PLAYER_LIST_PACKET = 0xc3;
+	const TELEMETRY_EVENT_PACKET = 0xc4;
+	
+	const SPAWN_EXPERIENCE_ORB_PACKET = 0xc5;
+	
+	const CLIENTBOUND_MAP_ITEM_DATA_PACKET = 0xc6;
+	const MAP_INFO_REQUEST_PACKET = 0xc7;
+	const REQUEST_CHUNK_RADIUS_PACKET = 0xc8;
+	const CHUNK_RADIUS_UPDATE_PACKET = 0xc9;
+	const ITEM_FRAME_DROP_ITEM_PACKET = 0xca;
+	
+	const REPLACE_SELECTED_ITEM_PACKET = 0xcb;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+====================
+
+文件名: InteractPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class InteractPacket extends DataPacket{
+	const NETWORK_ID = Info::INTERACT_PACKET;
+
+	const ACTION_RIGHT_CLICK = 1;
+	const ACTION_LEFT_CLICK = 2;
+	const ACTION_LEAVE_VEHICLE = 3;
+
+	public $action;
+	public $eid;
+	public $target;
+
+	public function decode(){
+		$this->action = $this->getByte();
+		$this->target = $this->getLong();
+		$this->eid = $this->target;
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putByte($this->action);
+		$this->putLong($this->target);
+	}
+
+}
+
+====================
+
+文件名: ItemFrameDropItemPacket.php
+内容:
+<?php
+
+
+namespace pocketmine\network\protocol;
+
+class ItemFrameDropItemPacket extends DataPacket{
+
+	const NETWORK_ID = Info::ITEM_FRAME_DROP_ITEM_PACKET;
+
+	public $x;
+	public $y;
+	public $z;
+	public $dropItem;
+
+	public function decode(){
+		$this->z = $this->getInt();
+		$this->y = $this->getInt();
+		$this->x = $this->getInt();
+		$this->dropItem = $this->getSlot();
+	}
+
+	public function encode(){
+	}
+}
+====================
+
+文件名: LevelEventPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class LevelEventPacket extends DataPacket{
+	const NETWORK_ID = Info::LEVEL_EVENT_PACKET;
+
+	const EVENT_SOUND_CLICK = 1000;
+	const EVENT_SOUND_CLICK_FAIL = 1001;
+	const EVENT_SOUND_SHOOT = 1002;
+	const EVENT_SOUND_DOOR = 1003;
+	const EVENT_SOUND_FIZZ = 1004;
+	const EVENT_SOUND_TNT = 1005;
+
+	const EVENT_SOUND_GHAST = 1007;
+	const EVENT_SOUND_GHAST_SHOOT = 1008;
+	const EVENT_SOUND_BLAZE_SHOOT = 1009;
+	const EVENT_SOUND_DOOR_BUMP = 1010;
+	
+	const EVENT_SOUND_DOOR_CRASH = 1012;
+
+	const EVENT_SOUND_BAT_FLY = 1015;
+	const EVENT_SOUND_ZOMBIE_INFECT = 1016;
+	const EVENT_SOUND_ZOMBIE_HEAL = 1017;
+	const EVENT_SOUND_ENDERMAN_TELEPORT = 1018;
+
+	const EVENT_SOUND_ANVIL_BREAK = 1020;
+	const EVENT_SOUND_ANVIL_USE = 1021;
+	const EVENT_SOUND_ANVIL_FALL = 1022;
+	
+	const EVENT_SOUND_POP = 1030; //捡起物品声音
+	const EVENT_SOUND_THROW_PROJECTILE = 1031;
+	
+	const EVENT_SOUND_ITEMFRAME_ADD_ITEM = 1040;
+	const EVENT_SOUND_ITEMFRAME_REMOVE = 1041;
+	const EVENT_SOUND_ITEMFRAME_PLACE = 1042;
+	const EVENT_SOUND_ITEMFRAME_REMOVE_ITEM = 1043;
+	const EVENT_SOUND_ITEMFRAME_ROTATE_ITEM = 1044;
+
+	const EVENT_SOUND_BUTTON_CLICK = 3500;
+
+	const EVENT_PARTICLE_SHOOT = 2000;
+	const EVENT_PARTICLE_DESTROY = 2001;
+	const EVENT_PARTICLE_SPLASH = 2002;
+	const EVENT_PARTICLE_EYE_DESPAWN = 2003;
+	const EVENT_PARTICLE_SPAWN = 2004;
+
+	const EVENT_START_RAIN = 3001;
+	const EVENT_START_THUNDER = 3002;
+	const EVENT_STOP_RAIN = 3003;
+	const EVENT_STOP_THUNDER = 3004;
+	
+	//Scaxe API 1.0.11 add , Not Tested / splash SOUNDS with particles
+	const EVENT_CAULDRON_EXPLODE = 3501;
+	const EVENT_CAULDRON_DYE_ARMOR = 3502;
+	const EVENT_CAULDRON_CLEAN_ARMOR = 3503;
+	const EVENT_CAULDRON_FILL_POTION = 3504;
+	const EVENT_CAULDRON_TAKE_POTION = 3505;
+	const EVENT_CAULDRON_FILL_WATER = 3506;
+	const EVENT_CAULDRON_TAKE_WATER = 3507;
+	const EVENT_CAULDRON_ADD_DYE = 3508;
+
+	const EVENT_SOUND_EXPLODE = 3501;
+	const EVENT_SOUND_SPELL = 3504;
+	const EVENT_SOUND_SPLASH = 3506;
+	const EVENT_SOUND_GRAY_SPLASH = 3507;//TODO: fix name
+
+	const EVENT_SET_DATA = 4000;
+
+	const EVENT_PLAYERS_SLEEPING = 9800;
+
+	const EVENT_ADD_PARTICLE_MASK = 0x4000;
+
+	public $evid;
+	public $x;
+	public $y;
+	public $z;
+	public $data;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putShort($this->evid);
+		$this->putFloat($this->x);
+		$this->putFloat($this->y);
+		$this->putFloat($this->z);
+		$this->putInt($this->data);
+	}
+
+}
+
+====================
+
+文件名: LoginPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class LoginPacket extends DataPacket{
+	const NETWORK_ID = Info::LOGIN_PACKET;
+
+	public $username;
+	public $protocol1;
+	public $protocol2;
+	public $clientId;
+
+	public $clientUUID;
+	public $serverAddress;
+	public $clientSecret;
+
+	public $skinName = null;
+	public $skin = null;
+
+	public function decode(){
+		$this->username = $this->getString();
+		$this->protocol1 = $this->getInt();
+		$this->protocol2 = $this->getInt();
+		/*if($this->protocol1 < Info::CURRENT_PROTOCOL){ //New fields!
+			$this->setBuffer(null, 0); //Skip batch packet handling
+			return;
+		}*/
+		$this->clientId = $this->getLong();
+		$this->clientUUID = $this->getUUID();
+		$this->serverAddress = $this->getString();
+		$this->clientSecret = $this->getString();
+		if($this->protocol1 == 34){
+			$this->skinName = $this->getByte() > 0;
+			$this->skin = $this->getString();
+		}else{
+			$this->skinName = $this->getString();
+			$this->skin = $this->getString();
+		}
+	}
+
+	public function encode(){
+
+	}
+
+}
+====================
+
+文件名: MapInfoRequestPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+class MapInfoRequestPacket extends DataPacket {
+
+	const NETWORK_ID = Info::MAP_INFO_REQUEST_PACKET;
+
+	/** @var int */
+	public $mapId;
+
+	public function decode() {
+		$this->mapId = $this->getLong();
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putLong($this->mapId);
+	}
+
+}
+====================
+
+文件名: MobArmorEquipmentPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class MobArmorEquipmentPacket extends DataPacket{
+	const NETWORK_ID = Info::MOB_ARMOR_EQUIPMENT_PACKET;
+
+	public $eid;
+	public $slots = [];
+
+	public function decode(){
+		$this->eid = $this->getLong();
+		$this->slots[0] = $this->getSlot();
+		$this->slots[1] = $this->getSlot();
+		$this->slots[2] = $this->getSlot();
+		$this->slots[3] = $this->getSlot();
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putLong($this->eid);
+		$this->putSlot($this->slots[0]);
+		$this->putSlot($this->slots[1]);
+		$this->putSlot($this->slots[2]);
+		$this->putSlot($this->slots[3]);
+	}
+
+}
+
+====================
+
+文件名: MobEffectPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class MobEffectPacket extends DataPacket{
+	const NETWORK_ID = Info::MOB_EFFECT_PACKET;
+
+	const EVENT_ADD = 1;
+	const EVENT_MODIFY = 2;
+	const EVENT_REMOVE = 3;
+
+	public $eid;
+	public $eventId;
+	public $effectId;
+	public $amplifier;
+	public $particles = true;
+	public $duration;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putLong($this->eid);
+		$this->putByte($this->eventId);
+		$this->putByte($this->effectId);
+		$this->putByte($this->amplifier);
+		$this->putByte($this->particles ? 1 : 0);
+		$this->putInt($this->duration);
+	}
+
+}
+
+====================
+
+文件名: MobEquipmentPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class MobEquipmentPacket extends DataPacket{
+	const NETWORK_ID = Info::MOB_EQUIPMENT_PACKET;
+
+	public $eid;
+	public $item;
+	public $slot;
+	public $selectedSlot;
+
+	public function decode(){
+		$this->eid = $this->getLong();
+		$this->item = $this->getSlot();
+		$this->slot = $this->getByte();
+		$this->selectedSlot = $this->getByte();
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putLong($this->eid);
+		$this->putSlot($this->item);
+		$this->putByte($this->slot);
+		$this->putByte($this->selectedSlot);
+	}
+
+}
+
+====================
+
+文件名: MoveEntityPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class MoveEntityPacket extends DataPacket{
+	const NETWORK_ID = Info::MOVE_ENTITY_PACKET;
+
+
+	// eid, x, y, z, yaw, pitch
+	/** @var array[] */
+	public $entities = [];
+
+	public function clean(){
+		$this->entities = [];
+		return parent::clean();
+	}
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putInt(count($this->entities));
+		foreach($this->entities as $d){
+			$this->putLong($d[0]); //eid
+			$this->putFloat($d[1]); //x
+			$this->putFloat($d[2]); //y
+			$this->putFloat($d[3]); //z
+			$this->putFloat($d[4]); //yaw
+			$this->putFloat($d[5]); //headYaw
+			$this->putFloat($d[6]); //pitch
+		}
+	}
+
+}
+
+====================
+
+文件名: MovePlayerPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class MovePlayerPacket extends DataPacket{
+	const NETWORK_ID = Info::MOVE_PLAYER_PACKET;
+
+	const MODE_NORMAL = 0;
+	const MODE_RESET = 1;
+	const MODE_ROTATION = 2;
+
+	public $eid;
+	public $x;
+	public $y;
+	public $z;
+	public $yaw;
+	public $bodyYaw;
+	public $pitch;
+	public $mode = self::MODE_NORMAL;
+	public $onGround;
+
+	public function clean(){
+		$this->teleport = false;
+		return parent::clean();
+	}
+
+	public function decode(){
+		$this->eid = $this->getLong();
+		$this->x = $this->getFloat();
+		$this->y = $this->getFloat();
+		$this->z = $this->getFloat();
+		$this->yaw = $this->getFloat();
+		$this->bodyYaw = $this->getFloat();
+		$this->pitch = $this->getFloat();
+		$this->mode = $this->getByte();
+		$this->onGround = $this->getByte() > 0;
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putLong($this->eid);
+		$this->putFloat($this->x);
+		$this->putFloat($this->y);
+		$this->putFloat($this->z);
+		$this->putFloat($this->yaw);
+		$this->putFloat($this->bodyYaw); //TODO
+		$this->putFloat($this->pitch);
+		$this->putByte($this->mode);
+		$this->putByte($this->onGround > 0);
+	}
+
+}
+
+====================
+
+文件名: PlayStatusPacket.php
+内容:
+<?php
+
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class PlayStatusPacket extends DataPacket{
+	const NETWORK_ID = Info::PLAY_STATUS_PACKET;
+	
+	const LOGIN_SUCCESS = 0;
+	const LOGIN_FAILED_CLIENT = 1;
+	const LOGIN_FAILED_SERVER = 2;
+	const PLAYER_SPAWN = 3;
+
+	public $status;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putInt($this->status);
+	}
+
+}
+
+====================
+
+文件名: PlayerActionPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class PlayerActionPacket extends DataPacket{
+	const NETWORK_ID = Info::PLAYER_ACTION_PACKET;
+
+	const ACTION_START_BREAK = 0;
+	const ACTION_ABORT_BREAK = 1;
+	const ACTION_STOP_BREAK = 2;
+
+
+	const ACTION_RELEASE_ITEM = 5;
+	const ACTION_STOP_SLEEPING = 6;
+	const ACTION_RESPAWN = 7;
+	const ACTION_JUMP = 8;
+	const ACTION_START_SPRINT = 9;
+	const ACTION_STOP_SPRINT = 10;
+	const ACTION_START_SNEAK = 11;
+	const ACTION_STOP_SNEAK = 12;
+	const ACTION_DIMENSION_CHANGE = 13;
+
+	public $eid;
+	public $action;
+	public $x;
+	public $y;
+	public $z;
+	public $face;
+
+	public function decode(){
+		$this->eid = $this->getLong();
+		$this->action = $this->getInt();
+		$this->x = $this->getInt();
+		$this->y = $this->getInt();
+		$this->z = $this->getInt();
+		$this->face = $this->getInt();
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putLong($this->eid);
+		$this->putInt($this->action);
+		$this->putInt($this->x);
+		$this->putInt($this->y);
+		$this->putInt($this->z);
+		$this->putInt($this->face);
+	}
+
+}
+
+====================
+
+文件名: PlayerInputPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+class PlayerInputPacket extends DataPacket{
+	const NETWORK_ID = Info::PLAYER_INPUT_PACKET;
+
+	public $motX;
+	public $motY;
+
+	public $jumping;
+	public $sneaking;
+
+	public function decode(){
+		$this->motX = $this->getFloat();
+		$this->motY = $this->getFloat();
+		$flags = $this->getByte();
+		$this->jumping = (($flags & 0x80) > 0);
+		$this->sneaking = (($flags & 0x40) > 0);
+	}
+
+	public function encode(){
+
+	}
+
+}
+
+====================
+
+文件名: PlayerListPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class PlayerListPacket extends DataPacket{
+	const NETWORK_ID = Info::PLAYER_LIST_PACKET;
+
+	const TYPE_ADD = 0;
+	const TYPE_REMOVE = 1;
+
+	//REMOVE: UUID, ADD: UUID, entity id, name, isSlim, skin
+	/** @var array[] */
+	public $entries = [];
+	public $type;
+
+	public function clean(){
+		$this->entries = [];
+		return parent::clean();
+	}
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putByte($this->type);
+		$this->putInt(count($this->entries));
+		foreach($this->entries as $d){
+			if($this->type === self::TYPE_ADD){
+				$this->putUUID($d[0]);
+				$this->putLong($d[1]);
+				$this->putString($d[2]);
+				$this->putString($d[3]);
+				$this->putString($d[4]);
+			}else{
+				$this->putUUID($d[0]);
+			}
+		}
+	}
+
+}
+
+====================
+
+文件名: RemoveBlockPacket.php
+内容:
+<?php
+
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class RemoveBlockPacket extends DataPacket{
+	const NETWORK_ID = Info::REMOVE_BLOCK_PACKET;
+
+	public $eid;
+	public $x;
+	public $y;
+	public $z;
+
+	public function decode(){
+		$this->eid = $this->getLong();
+		$this->x = $this->getInt();
+		$this->z = $this->getInt();
+		$this->y = $this->getByte();
+	}
+
+	public function encode(){
+
+	}
+
+}
+
+====================
+
+文件名: RemoveEntityPacket.php
+内容:
+<?php
+
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class RemoveEntityPacket extends DataPacket{
+	const NETWORK_ID = Info::REMOVE_ENTITY_PACKET;
+
+	public $eid;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putLong($this->eid);
+	}
+
+}
+
+====================
+
+文件名: RemovePlayerPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class RemovePlayerPacket extends DataPacket{
+	const NETWORK_ID = Info::REMOVE_PLAYER_PACKET;
+
+	public $eid;
+	public $clientId;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putLong($this->eid);
+		$this->putUUID($this->clientId);
+	}
+
+}
+
+====================
+
+文件名: RequestChunkRadiusPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+class RequestChunkRadiusPacket extends DataPacket{
+	const NETWORK_ID = Info::REQUEST_CHUNK_RADIUS_PACKET;
+
+	public $radius;
+
+	public function decode(){
+		$this->radius = $this->getInt();
+	}
+
+	public function encode(){
+
+	}
+}
+====================
+
+文件名: RespawnPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class RespawnPacket extends DataPacket{
+	const NETWORK_ID = Info::RESPAWN_PACKET;
+
+	public $x;
+	public $y;
+	public $z;
+
+	public function decode(){
+		$this->x = $this->getFloat();
+		$this->y = $this->getFloat();
+		$this->z = $this->getFloat();
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putFloat($this->x);
+		$this->putFloat($this->y);
+		$this->putFloat($this->z);
+	}
+
+}
+
+====================
+
+文件名: SetDifficultyPacket.php
+内容:
+<?php
+
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class SetDifficultyPacket extends DataPacket{
+	const NETWORK_ID = Info::SET_DIFFICULTY_PACKET;
+
+	public $difficulty;
+
+	public function decode(){
+		$this->difficulty = $this->getInt();
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putInt($this->difficulty);
+	}
+
+}
+====================
+
+文件名: SetEntityDataPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+#ifndef COMPILE
+use pocketmine\utils\Binary;
+
+#endif
+
+class SetEntityDataPacket extends DataPacket{
+	const NETWORK_ID = Info::SET_ENTITY_DATA_PACKET;
+
+	public $eid;
+	public $metadata;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putLong($this->eid);
+		$meta = Binary::writeMetadata($this->metadata);
+		$this->put($meta);
+	}
+
+}
+
+====================
+
+文件名: SetEntityLinkPacket.php
+内容:
+<?php
+
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class SetEntityLinkPacket extends DataPacket{
+	const NETWORK_ID = Info::SET_ENTITY_LINK_PACKET;
+	
+	const TYPE_REMOVE = 0;
+	const TYPE_RIDE = 1;
+	const TYPE_PASSENGER = 2;
+
+
+	public $from;
+	public $to;
+	public $type;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putLong($this->from);
+		$this->putLong($this->to);
+		$this->putByte($this->type);
+	}
+
+}
+
+====================
+
+文件名: SetEntityMotionPacket.php
+内容:
+<?php
+
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class SetEntityMotionPacket extends DataPacket{
+	const NETWORK_ID = Info::SET_ENTITY_MOTION_PACKET;
+
+
+	// eid, motX, motY, motZ
+	/** @var array[] */
+	public $entities = [];
+
+	public function clean(){
+		$this->entities = [];
+		return parent::clean();
+	}
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putInt(count($this->entities));
+		foreach($this->entities as $d){
+			$this->putLong($d[0]); //eid
+			$this->putFloat($d[1]); //motX
+			$this->putFloat($d[2]); //motY
+			$this->putFloat($d[3]); //motZ
+		}
+	}
+
+}
+
+====================
+
+文件名: SetHealthPacket.php
+内容:
+<?php
+
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class SetHealthPacket extends DataPacket{
+	const NETWORK_ID = Info::SET_HEALTH_PACKET;
+
+	public $health;
+
+	public function decode(){
+		$this->health = $this->getInt();
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putInt($this->health);
+	}
+
+}
+====================
+
+文件名: SetPlayerGameTypePacket.php
+内容:
+<?php
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+class SetPlayerGameTypePacket extends DataPacket {
+
+	const NETWORK_ID = Info::SET_PLAYER_GAMETYPE_PACKET;
+
+	public $gamemode;
+
+	public function decode() {
+
+	}
+
+	public function encode() {
+		$this->reset();
+		$this->putInt($this->gamemode);
+	}
+}
+====================
+
+文件名: SetSpawnPositionPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class SetSpawnPositionPacket extends DataPacket{
+	const NETWORK_ID = Info::SET_SPAWN_POSITION_PACKET;
+
+	public $x;
+	public $y;
+	public $z;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putInt($this->x);
+		$this->putInt($this->y);
+		$this->putInt($this->z);
+	}
+
+}
+
+====================
+
+文件名: SetTimePacket.php
+内容:
+<?php
+
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+use pocketmine\level\Level;
+
+class SetTimePacket extends DataPacket{
+	const NETWORK_ID = Info::SET_TIME_PACKET;
+
+	public $time;
+	public $started = true;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putInt($this->time);
+		$this->putByte($this->started ? 1 : 0);
+	}
+
+}
+====================
+
+文件名: StartGamePacket.php
+内容:
+<?php
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+class StartGamePacket extends DataPacket{
+    const NETWORK_ID = Info::START_GAME_PACKET;
+    
+    public $seed;
+    public $dimension;
+    public $generator;
+    public $gamemode;
+    public $eid;
+    public $spawnX;
+    public $spawnY;
+    public $spawnZ;
+    public $x;
+    public $y;
+    public $z;
+    public $unknown = "";
+    
+    public function decode(){
+        // 解码逻辑
+    }
+    
+public function encode(){
+    error_log("=== StartGamePacket编码开始 ===");
+    error_log("协议版本: " . $this->protocol);
+    error_log("是否为0.13: " . (in_array($this->protocol, [31, 37, 38, 39]) ? "是" : "否"));
+    
+    $this->reset();
+    $this->putInt($this->seed);
+    $this->putByte($this->dimension);
+    $this->putInt($this->generator);
+    $this->putInt($this->gamemode);
+    $this->putLong($this->eid);
+    $this->putInt($this->spawnX);
+    $this->putInt($this->spawnY);
+    $this->putInt($this->spawnZ);
+    $this->putFloat($this->x);
+    $this->putFloat($this->y);
+    $this->putFloat($this->z);
+    
+    // 添加更多调试
+    $is013 = in_array($this->protocol, [31, 37, 38, 39]);
+    error_log("使用格式: " . ($is013 ? "0.13" : "0.14"));
+    
+    if($is013){ // 0.13协议
+        $this->putByte(0);
+        error_log("写入: putByte(0)");
+    } else { // 0.14协议
+        $this->putByte(1);
+        $this->putByte(1);
+        $this->putByte(0);
+        $this->putString($this->unknown);
+        error_log("写入: putByte(1), putByte(1), putByte(0), putString('{$this->unknown}')");
+    }
+    
+    error_log("=== StartGamePacket编码结束 ===");
+}
+}
+====================
+
+文件名: StrangePacket.php
+内容:
+<?php
+
+
+namespace pocketmine\network\protocol;
+
+class StrangePacket extends DataPacket{
+	const NETWORK_ID = 0x1b;
+
+	public $address;
+	public $port = 19132;
+
+	public function pid(){
+		return 0x1b;
+	}
+
+	protected function putAddress($addr, $port, $version = 4){
+		$this->putByte($version);
+		if($version === 4){
+			foreach(explode(".", $addr) as $b){
+				$this->putByte((~((int) $b)) & 0xff);
+			}
+			$this->putShort($port);
+		}else{
+			//IPv6
+		}
+	}
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putAddress($this->address, $this->port);
+	}
+
+}
+
+====================
+
+文件名: TakeItemEntityPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class TakeItemEntityPacket extends DataPacket{
+	const NETWORK_ID = Info::TAKE_ITEM_ENTITY_PACKET;
+
+	public $target;
+	public $eid;
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putLong($this->target);
+		$this->putLong($this->eid);
+	}
+
+}
+
+====================
+
+文件名: TelemetryEventPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+class TelemetryEventPacket extends DataPacket{
+	const NETWORK_ID = Info::TELEMETRY_EVENT_PACKET;
+	
+	public function decode(){
+		//TODO
+	}
+	
+	public function encode(){
+		//TODO
+	}
+}
+
+====================
+
+文件名: TextPacket.php
+内容:
+<?php
+
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class TextPacket extends DataPacket{
+	const NETWORK_ID = Info::TEXT_PACKET;
+
+	const TYPE_RAW = 0;
+	const TYPE_CHAT = 1;
+	const TYPE_TRANSLATION = 2;
+	const TYPE_POPUP = 3;
+	const TYPE_TIP = 4;
+	const TYPE_SYSTEM = 5;
+
+	public $type;
+	public $source;
+	public $message;
+	public $parameters = [];
+
+	public function decode(){
+		$this->type = $this->getByte();
+		switch($this->type){
+			case self::TYPE_POPUP:
+			case self::TYPE_CHAT:
+				$this->source = $this->getString();
+			case self::TYPE_RAW:
+			case self::TYPE_TIP:
+			case self::TYPE_SYSTEM:
+				$this->message = $this->getString();
+				break;
+
+			case self::TYPE_TRANSLATION:
+				$this->message = $this->getString();
+				$count = $this->getByte();
+				for($i = 0; $i < $count; ++$i){
+					$this->parameters[] = $this->getString();
+				}
+		}
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putByte($this->type);
+		switch($this->type){
+			case self::TYPE_POPUP:
+			case self::TYPE_CHAT:
+				$this->putString($this->source);
+			case self::TYPE_RAW:
+			case self::TYPE_TIP:
+			case self::TYPE_SYSTEM:
+				$this->putString($this->message);
+				break;
+
+			case self::TYPE_TRANSLATION:
+				$this->putString($this->message);
+				$this->putByte(count($this->parameters));
+				foreach($this->parameters as $p){
+					$this->putString($p);
+				}
+		}
+	}
+
+}
+
+====================
+
+文件名: UpdateAttributesPacket.php
+内容:
+<?php
+
+
+namespace pocketmine\network\protocol;
+#include <rules/DataPacket.h>
+use pocketmine\entity\Attribute;
+class UpdateAttributesPacket extends DataPacket{
+	const NETWORK_ID = Info::UPDATE_ATTRIBUTES_PACKET;
+	public $entityId;
+	/** @var Attribute[] */
+	public $entries = [];
+	public function decode(){
+	}
+	public function encode(){
+		$this->reset();
+		$this->putLong($this->entityId);
+		$this->putShort(count($this->entries));
+		foreach($this->entries as $entry){
+			$this->putFloat($entry->getMinValue());
+			$this->putFloat($entry->getMaxValue());
+			$this->putFloat($entry->getValue());
+			$this->putString($entry->getName());
+		}
+	}
+}
+====================
+
+文件名: UpdateBlockPacket.php
+内容:
+<?php
+
+
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class UpdateBlockPacket extends DataPacket{
+	const NETWORK_ID = Info::UPDATE_BLOCK_PACKET;
+
+	const FLAG_NONE      = 0b0000;
+	const FLAG_NEIGHBORS = 0b0001;
+    const FLAG_NETWORK   = 0b0010;
+	const FLAG_NOGRAPHIC = 0b0100;
+	const FLAG_PRIORITY  = 0b1000;
+
+	const FLAG_ALL = (self::FLAG_NEIGHBORS | self::FLAG_NETWORK);
+	const FLAG_ALL_PRIORITY = (self::FLAG_ALL | self::FLAG_PRIORITY);
+
+	public $records = []; //x, z, y, blockId, blockData, flags
+
+	public function decode(){
+
+	}
+
+	public function encode(){
+		$this->reset();
+		$this->putInt(count($this->records));
+		foreach($this->records as $r){
+			$this->putInt($r[0]);
+			$this->putInt($r[1]);
+			$this->putByte($r[2]);
+			$this->putByte($r[3]);
+			$this->putByte(($r[5] << 4) | $r[4]);
+		}
+	}
+
+}
+====================
+
+文件名: UseItemPacket.php
+内容:
+<?php
+
+namespace pocketmine\network\protocol;
+
+#include <rules/DataPacket.h>
+
+
+class UseItemPacket extends DataPacket{
+	const NETWORK_ID = Info::USE_ITEM_PACKET;
+
+	public $x;
+	public $y;
+	public $z;
+	public $face;
+	public $item;
+	public $fx;
+	public $fy;
+	public $fz;
+	public $posX;
+	public $posY;
+	public $posZ;
+	public $slot;
+
+	public function decode(){
+		$this->x = $this->getInt();
+		$this->y = $this->getInt();
+		$this->z = $this->getInt();
+		$this->face = $this->getByte();
+		$this->fx = $this->getFloat();
+		$this->fy = $this->getFloat();
+		$this->fz = $this->getFloat();
+		$this->posX = $this->getFloat();
+		$this->posY = $this->getFloat();
+		$this->posZ = $this->getFloat();
+		//decode more!
+	}
+
+	public function encode(){
+	}
+	
+	public function decodeAdditional($protocol){
+		$this->slot = -1;
+		if($protocol >= Info::CURRENT_PROTOCOL){
+			$this->slot = $this->getInt();
+		}
+		$this->item = $this->getSlot();
+	}
+}
+
+====================
+
+文件名: integrate_files.php
+内容:
+<?php
+// 获取目录中所有非.bak文件的列表
+$directory = '/data/data/com.termux/files/home/PocketMine/src/pocketmine/network/protocol';
+$files = glob($directory . '/*.php');
+
+// 过滤掉.bak文件
+$files = array_filter($files, function($file) {
+    return !preg_match('/\.bak$/', $file);
+});
+
+// 创建输出文件
+$outputFile = $directory . '/integrated_files.txt';
+$output = '';
+
+// 读取每个文件并添加到输出
+foreach ($files as $file) {
+    $filename = basename($file);
+    $content = file_get_contents($file);
+    
+    // 添加文件名和内容到输出
+    $output .= "文件名: $filename\n";
+    $output .= "内容:\n$content\n";
+    $output .= "====================\n\n";
+}
+
+// 写入输出文件
+file_put_contents($outputFile, $output);
+
+echo "整合完成！输出文件: $outputFile\n";
+?>
+====================
+
