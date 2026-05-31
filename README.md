@@ -2,7 +2,7 @@
 
 ## 介绍
 
-Incore 是一个基于 PocketMine-MP 的核心，基于 AXE。
+Incore 是一个基于 PocketMine-MP 的核心，基于 SCAXE 和 Genisys。
 
 特点：
 - 支持 `PHP 7.3` - `7.4`
