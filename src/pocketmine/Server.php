@@ -1773,15 +1773,18 @@ class Server{
 
 
 			$this->aboutstring = "服务端信息：\n
-    §3    ____      ______              
-    §3   /  _/___  / ____/___  ________ 
-    §3   / // __ \/ /   / __ \/ ___/ _ \
-    §3 _/ // / / / /___/ /_/ / /  /  __/
-    §3/___/_/ /_/\____/\____/_/   \___/
-    §b“InCore” Minecraft PE 0.14.x 服务端 §a开发代号：" . CODENAME . " §e坏猫工厂荣誉出品
+    §3    ____                              ____           
+    §3   /  _/___  _________  ________     / __ \_________ 
+    §3   / // __ \/ ___/ __ \/ ___/ _ \   / /_/ / ___/ __ \
+    §3 _/ // / / / /__/ /_/ / /  /  __/  / ____/ /  / /_/ /
+    §3/___/_/ /_/\___/\____/_/   \___/  /_/   /_/   \____/ 
+                                                     
+    §b“InCore Pro” Minecraft PE 0.14.x 服务端 §a开发代号：" . CODENAME . " §e坏猫工厂荣誉出品
+	§b 在 “INCore” 基础上重构
     §e版本: §b" . VERSION . "        §ePHP版本: §b". phpversion() . "
     §a本核心在 §dSCAXE §a的代码基础上构建
     发做出重要贡献：§6WTFDoge, wusheng233, Win1145, byd666
+	§eGitHub: §bhttps://github.com/Xiaoao5297/InCorePro
 ";
 
 			$this->MapData = new MapData($this, $dataPath);
@@ -2944,15 +2947,31 @@ private function lookupAddress($address) {
 		$d = Utils::getRealMemoryUsage();
 
 		$u = Utils::getMemoryUsage(true);
-		$usage = round(($u[0] / 1024) / 1024, 2) . "/" . round(($d[0] / 1024) / 1024, 2) . "/" . round(($u[1] / 1024) / 1024, 2) . "/" . round(($u[2] / 1024) / 1024, 2) . " MB @ " . Utils::getThreadCount() . " threads";
 
-		echo "\x1b]0;" . "坏猫工厂 Genisys InCore" . 
-			" | 在线 " . count($this->players) . "/" . $this->getMaxPlayers() .
-			" | 内存 " . $usage .
-			" | U " . round($this->network->getUpload() / 1024, 2) .
-			" D " . round($this->network->getDownload() / 1024, 2) .
-			" kB/s | TPS " . $this->getTicksPerSecondAverage() .
-			" | 加载 " . $this->getTickUsageAverage() . "%\x07";
+		$usage = sprintf("%.2f/%.2f/%.2f/%.2f MB",
+			($u[0] / 1024) / 1024,
+			($d[0] / 1024) / 1024,
+			($u[1] / 1024) / 1024,
+			($u[2] / 1024) / 1024
+		);
+
+		$upload = round($this->network->getUpload() / 1024, 2);
+		$download = round($this->network->getDownload() / 1024, 2);
+		$threads = Utils::getThreadCount();
+		$tps = round($this->getTicksPerSecondAverage(), 2);
+		$load = round($this->getTickUsageAverage(), 2);
+
+		echo sprintf(
+			"\x1b]0;%s | 在线 %d/%d | 内存 %s | U %.2f D %.2f kB/s | TPS %.2f | 加载 %.2f%%\x07",
+			"坏猫工厂 Genisys InCore Pro",
+			count($this->players),
+			$this->getMaxPlayers(),
+			$usage,
+			$upload,
+			$download,
+			$tps,
+			$load
+		);
 
 		$this->network->resetStatistics();
 	}

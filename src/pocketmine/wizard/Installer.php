@@ -40,7 +40,7 @@ class Installer{
 	private $defaultLang;
 
 	public function __construct(){
-		echo "[*] InCore配置程序\n";
+		echo "[*] InCore Pro 配置程序\n";
 		echo "[*] 请选择语言:\n";
 		foreach(InstallerLang::$languages as $short => $native){
 			echo " $native => $short\n";
@@ -85,12 +85,17 @@ class Installer{
 	private function showLicense(){
 		echo $this->lang->welcome_to_pocketmine . "\n";
 		echo <<<LICENSE
-This LICENSE is only available in Chinese.
-
+  Chinese License:
   使用须知：
   1.本核心为基于LGPL开源项目，禁止倒卖，违者必究。
   2.如要二次修改，禁止以任何方式往核心中添加后门。
-  3.如发现Bug，请加作者QQ：3416515738 反馈
+  3.如发现Bug，请加作者QQ：2574459918 或 2574459918@qq.com 反馈
+
+  English License:
+  Terms of Use:
+  1. This core is based on the LGPL open source project, reselling is prohibited, violators will be prosecuted.
+  2. If you want to modify it, you are prohibited from adding backdoors to the core in any way.
+  3. If you find a bug, please add the author's QQ: 2574459918 or 2574459918@qq.com
 
 LICENSE;
 		echo "\n[?] " . $this->lang->accept_license . " (y/N): ";
@@ -115,6 +120,7 @@ LICENSE;
 		$config = new Config(\pocketmine\DATA . "server.properties", Config::PROPERTIES);
 		echo "[?] " . $this->lang->name_your_server . " (" . self::DEFAULT_NAME . "): ";
 		$config->set("server-name", $this->getInput(self::DEFAULT_NAME));
+		echo "[?] " . $this->lang->name_your_motd . " (" . self::DEFAULT_NAME . "): ";
 		$config->set("motd", $this->getInput(self::DEFAULT_NAME));
 		echo "[*] " . $this->lang->port_warning . "\n";
 		do{
