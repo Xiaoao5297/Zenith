@@ -44,8 +44,8 @@ elif [ -f ./PocketMine-MP.phar ]; then
     POCKETMINE_FILE="./PocketMine-MP.phar"
 elif [ -f ./src/pocketmine/PocketMine.php ]; then
     POCKETMINE_FILE="./src/pocketmine/PocketMine.php"
-elif [ -f ./GrassServer*.phar ]; then
-    POCKETMINE_FILE="./GrassServer"
+elif [ -f ./Incore*.phar ]; then
+    POCKETMINE_FILE="./Incore*.phar"
 else
     echo "[ERROR] 未找到 PocketMine 核心"
     exit 1
