@@ -1,5 +1,7 @@
 # Incore-PRO
 
+> 这个核心还在基础阶段，如果您发现了 bug 或者有宝贵的建议，请提交 Issues！
+
 ## 介绍
 
 Incore 是一个基于 PocketMine-MP 的核心，基于 SCAXE 和 Genisys。
