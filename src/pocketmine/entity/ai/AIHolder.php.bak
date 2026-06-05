@@ -954,23 +954,14 @@ class AIHolder {
 					} else {
 						$back = 1;
 					}
-					$targetX = $array[$entity->getId()]['x'] - $array[$entity->getId()]['xxx'] * $back;
-					$targetY = $entity->getY() + $high;
-					$targetZ = $array[$entity->getId()]['z'] - $array[$entity->getId()]['zzz'] * $back;
-					$pos = new Vector3($targetX, $targetY, $targetZ);
-					//如果目标击退位置被墙挡住，则缩减击退距离
-					if(!$this->canKnockBackTo($entity->getLevel(), $pos)) {
-						$back = max(0.5, $back / 2);
-						$targetX = $array[$entity->getId()]['x'] - $array[$entity->getId()]['xxx'] * $back;
-						$targetZ = $array[$entity->getId()]['z'] - $array[$entity->getId()]['zzz'] * $back;
-						$pos = new Vector3($targetX, $targetY, $targetZ);
-					}
-					if($this->canKnockBackTo($entity->getLevel(), $pos)) {
-						$array[$entity->getId()]['x'] = $targetX;
-						$array[$entity->getId()]['y'] = $targetY;
-						$array[$entity->getId()]['z'] = $targetZ;
-						$entity->knockBack($entity, 0, $array[$entity->getId()]['xxx'] * $back, $array[$entity->getId()]['zzz'] * $back);
-					}
+					//var_dump("玩家".$p->getName()."攻击了ID为".$zo->getId()."的实体");
+					$array[$entity->getId()]['x'] = $array[$entity->getId()]['x'] - $array[$entity->getId()]['xxx'] * $back;
+					$array[$entity->getId()]['y'] = $entity->getY() + $high;
+					$array[$entity->getId()]['z'] = $array[$entity->getId()]['z'] - $array[$entity->getId()]['zzz'] * $back;
+					$pos = new Vector3 ($array[$entity->getId()]['x'], $array[$entity->getId()]['y'], $array[$entity->getId()]['z']);
+					//目标坐标
+					//$entity->setPosition($pos);
+					$entity->knockBack($entity, 0, $array[$entity->getId()]['xxx'] * $back, $array[$entity->getId()]['zzz'] * $back);
 					if(isset($array[$entity->getId()])) {
 						$zom = &$array[$entity->getId()];
 						$zom['IsChasing'] = $p->getName();

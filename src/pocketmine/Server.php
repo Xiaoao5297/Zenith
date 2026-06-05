@@ -1938,8 +1938,8 @@ class Server{
 			define("BOOTUP_RANDOM", @Utils::getRandomBytes(16));
 			$this->serverID = Utils::getMachineUniqueId($this->getIp() . $this->getPort());
 
-			$this->getLogger()->debug("Server unique id: " . $this->getServerUniqueId());
-			$this->getLogger()->debug("Machine unique id: " . Utils::getMachineUniqueId());
+			$this->getLogger()->debug($this->getLanguage()->translateString("pocketmine.server.debug.serverID", [$this->getServerUniqueId()]));
+			$this->getLogger()->debug($this->getLanguage()->translateString("pocketmine.server.debug.machineID", [Utils::getMachineUniqueId()]));
 
 			$this->network = new Network($this);
 			$this->network->setName($this->getMotd());
@@ -2514,40 +2514,40 @@ private function lookupAddress($address) {
 				UPnP::RemovePortForward($this->getPort());
 			}
 
-			$this->getLogger()->debug("禁用所有插件");
+			$this->getLogger()->debug($this->getLanguage()->translateString("pocketmine.server.debug.forceShutdown", [$this->getName()]));
 			$this->pluginManager->disablePlugins();
 
 			foreach($this->players as $player){
 				$player->close($player->getLeaveMessage(), $this->getProperty("settings.shutdown-message", "服务器已关闭"));
 			}
 
-			$this->getLogger()->debug("卸载所有地图");
+			$this->getLogger()->debug($this->getLanguage()->translateString("pocketmine.server.debug.unloadLevels"));
 			foreach($this->getLevels() as $level){
 				$this->unloadLevel($level, true);
 			}
 
-			$this->getLogger()->debug("Removing event handlers");
+			$this->getLogger()->debug($this->getLanguage()->translateString("pocketmine.server.debug.removeEventHandlers"));
 			HandlerList::unregisterAll();
 
-			$this->getLogger()->debug("结束所有进程");
+			$this->getLogger()->debug($this->getLanguage()->translateString("pocketmine.server.debug.endProcesses"));
 			$this->scheduler->cancelAllTasks();
 			$this->scheduler->mainThreadHeartbeat(PHP_INT_MAX);
 
-			$this->getLogger()->debug("保存配置文件");
+			$this->getLogger()->debug($this->getLanguage()->translateString("pocketmine.server.debug.saveConfig"));
 			$this->properties->save();
 
-			$this->getLogger()->debug("关闭控制台");
+			$this->getLogger()->debug($this->getLanguage()->translateString("pocketmine.server.debug.closeConsole"));
 			$this->console->shutdown();
 			$this->console->notify();
 
-			$this->getLogger()->debug("Stopping network interfaces");
+			$this->getLogger()->debug($this->getLanguage()->translateString("pocketmine.server.debug.stopNetworkInterfaces"));
 			foreach($this->network->getInterfaces() as $interface){
 				$interface->shutdown();
 				$this->network->unregisterInterface($interface);
 			}
 
 			if($this->isSynapseEnabled()){
-				$this->getLogger()->debug("停止 Synapse 客户端");
+				$this->getLogger()->debug($this->getLanguage()->translateString("pocketmine.server.debug.stopSynapseClient"));
 				$this->synapse->shutdown();
 			}
 

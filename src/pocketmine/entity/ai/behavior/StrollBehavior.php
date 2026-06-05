@@ -32,7 +32,7 @@ class StrollBehavior extends Behavior{
     public $speed;
     public $speedMultiplier;
 
-    public function __construct(Mob $entity, int $duration = 80, float $speed = 0.71, float $speedMultiplier = 2.65){
+    public function __construct(Mob $entity, int $duration = 80, float $speed = 0.35, float $speedMultiplier = 1.30){
         parent::__construct($entity);
 
         $this->duration = $duration;
@@ -92,11 +92,11 @@ class StrollBehavior extends Behavior{
 			if (!$blockUp->isSolid() and !($entity->height > 1 and $blockUpUp->isSolid()) and rand(0,5) != 0){
 				$entity->motionY = 0.42; //实体跳跃
 			}else{
-				$entity->yaw += 180;
+				$entity->yaw += mt_rand(-90, 90); //避免撞墙后直接180度转弯
 			}
 		}
 		$this->swimming();
-    }
+	}
 
     public function onEnd(){
         $this->timeLeft = $this->duration;

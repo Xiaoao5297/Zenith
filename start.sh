@@ -22,16 +22,28 @@ POCKETMINE_FILE=""
 #     exit 1
 # fi
 
-if [ -e ./bin/php ]; then
-    PHP_BINARY="./bin/php"
-elif [ -e /usr/local/php73/bin/php ]; then
-    PHP_BINARY="/usr/local/php73/bin/php"
-elif [ -e /usr/bin/php ]; then
-    PHP_BINARY="/usr/bin/php"
-elif [ -e ./bin/php73/bin/php ]; then
-    PHP_BINARY="./bin/php73/bin/php"
-else
-    echo "[ERROR] 未找到 PHP 可执行文件"
+check_php_version() {
+    local php="$1"
+    if [ ! -x "$php" ]; then
+        return 1
+    fi
+    local version
+    version=$("$php" -nr 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null)
+    if [ "$version" = "7.3" ] || [ "$version" = "7.4" ]; then
+        return 0
+    fi
+    return 1
+}
+
+for candidate in ./bin/php /usr/local/php73/bin/php /usr/bin/php ./bin/php73/bin/php; do
+    if check_php_version "$candidate"; then
+        PHP_BINARY="$candidate"
+        break
+    fi
+done
+
+if [ -z "$PHP_BINARY" ]; then
+    echo "[ERROR] 未找到 PHP 可执行文件 或 PHP 版本不在 7.3-7.4 之间"
     exit 1
 fi
 
