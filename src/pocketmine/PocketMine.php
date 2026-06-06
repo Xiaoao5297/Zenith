@@ -92,13 +92,17 @@ namespace pocketmine {
 		@define('pocketmine\PATH', \getcwd() . DIRECTORY_SEPARATOR);
 	}
 
-	if(version_compare("7.0", PHP_VERSION) > 0){
-		echo "[CRITICAL] You must use PHP >= 7.0" . PHP_EOL;
+	if(version_compare("7.3", PHP_VERSION) > 0){
+		echo "[注意] PHP 7.3 以上版本才支持 PocketMine-MP。" . PHP_EOL;
+		echo "[注意] 请使用主页提供的安装程序。" . PHP_EOL;
+		echo "[CRITICAL] You must use PHP >= 7.3" . PHP_EOL;
 		echo "[CRITICAL] Please use the installer provided on the homepage." . PHP_EOL;
 		exit(1);
 	}
 
 	if(!extension_loaded("pthreads")){
+		echo "[注意] 无法找到 pthreads 扩展。" . PHP_EOL;
+		echo "[注意] 请使用主页提供的安装程序。" . PHP_EOL;
 		echo "[CRITICAL] Unable to find the pthreads extension." . PHP_EOL;
 		echo "[CRITICAL] Please use the installer provided on the homepage." . PHP_EOL;
 		exit(1);
@@ -384,11 +388,13 @@ namespace pocketmine {
 	$errors = 0;
 
 	if(php_sapi_name() !== "cli"){
+		$logger->critical("你必须在命令行界面运行 PocketMine-MP。");
 		$logger->critical("You must run PocketMine-MP using the CLI.");
 		++$errors;
 	}
 
 	if(!extension_loaded("sockets")){
+		$logger->critical("无法找到 Socket 扩展。");
 		$logger->critical("Unable to find the Socket extension.");
 		++$errors;
 	}
@@ -398,6 +404,7 @@ namespace pocketmine {
 		$pthreads_version = "0.$pthreads_version";
 	}
 	if(version_compare($pthreads_version, "3.1.5") < 0){
+		$logger->critical("无法找到符合要求的 pthreads 扩展。");
 		$logger->critical("pthreads >= 3.1.5 is required, while you have $pthreads_version.");
 		++$errors;
 	}
@@ -409,35 +416,42 @@ namespace pocketmine {
 	if(extension_loaded("pocketmine")){
 		if(version_compare(phpversion("pocketmine"), "0.0.1") < 0){
 			$logger->critical("You have the native PocketMine extension, but your version is lower than 0.0.1.");
+			$logger->critical("你拥有了原生的 PocketMine 扩展，但你的版本低于 0.0.1。");
 			++$errors;
 		}elseif(version_compare(phpversion("pocketmine"), "0.0.4") > 0){
 			$logger->critical("You have the native PocketMine extension, but your version is higher than 0.0.4.");
+			$logger->critical("你有原生的 PocketMine 扩展，但你的版本高于 0.0.4。");
 			++$errors;
 		}
 	}
 
 	if(!extension_loaded("curl")){
 		$logger->critical("Unable to find the cURL extension.");
+		$logger->critical("无法找到 cURL 扩展。");
 		++$errors;
 	}
 
 	if(!extension_loaded("yaml")){
 		$logger->critical("Unable to find the YAML extension.");
+		$logger->critical("无法找到 YAML 扩展。");
 		++$errors;
 	}
 
 	if(!extension_loaded("sqlite3")){
 		$logger->critical("Unable to find the SQLite3 extension.");
+		$logger->critical("无法找到 SQLite3 扩展。");
 		++$errors;
 	}
 
 	if(!extension_loaded("zlib")){
 		$logger->critical("Unable to find the Zlib extension.");
+		$logger->critical("无法找到 Zlib 扩展。");
 		++$errors;
 	}
     
     if(!extension_loaded("gd")){
 		$logger->critical("Unable to find the GD extension.");
+		$logger->critical("无法找到 GD 扩展。");
 		++$errors;
 	}
     
