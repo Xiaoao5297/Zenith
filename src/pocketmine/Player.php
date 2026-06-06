@@ -47,6 +47,7 @@ use pocketmine\entity\ThrownPotion;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\ItemFrameDropItemEvent;
 use pocketmine\level\sound\ItemFrameRemoveItemSound;
+use pocketmine\lang\BaseLang;
 use pocketmine\event\block\SignChangeEvent;
 use pocketmine\event\entity\EntityDamageByBlockEvent;
 use pocketmine\event\entity\EntityDamageByEntityEvent;
@@ -2271,7 +2272,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 		//TODO add more stuff after authentication is available
 		if(!$valid){
-			$this->close("", "disconnectionScreen.invalidSession");
+			$this->close("", $this->getLanguage()->translateString("disconnectionScreen.invalidSession"));
 			return;
 		}
 
@@ -2309,11 +2310,11 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 	protected function processLogin(){
 		if(!$this->server->isWhitelisted(strtolower($this->getName()))){
-			$this->close($this->getLeaveMessage(), "本服务器使用白名单！");
+			$this->close($this->getLeaveMessage(), $this->getLanguage()->translateString("player.join.noPermission"));
 
 			return;
 		}elseif($this->server->getNameBans()->isBanned(strtolower($this->getName())) or $this->server->getIPBans()->isBanned($this->getAddress()) or $this->server->getCIDBans()->isBanned($this->randomClientId)){
-			$this->close($this->getLeaveMessage(), TextFormat::RED . "此账号/IP/CID已被封禁，请联系管理员！");
+			$this->close($this->getLeaveMessage(), TextFormat::RED . $this->getLanguage()->translateString("player.join.banned"));
 
 			return;
 		}
@@ -2327,13 +2328,13 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 		foreach($this->server->getOnlinePlayers() as $p){
 			if($p !== $this and strtolower($p->getName()) === strtolower($this->getName())){
-				if($p->kick("从另一个地点登录") === false){
-					$this->close($this->getLeaveMessage(), "从另一个地点登录");
+				if($p->kick($this->getLanguage()->translateString("player.join.duplicate")) === false){
+					$this->close($this->getLeaveMessage(), $this->getLanguage()->translateString("player.join.duplicate"));
 					return;
 				}
 			}elseif($p->loggedIn and $this->getUniqueId()->equals($p->getUniqueId())){
-				if($p->kick("从另一个地点登录") === false){
-					$this->close($this->getLeaveMessage(), "从另一个地点登录");
+				if($p->kick($this->getLanguage()->translateString("player.join.duplicate")) === false){
+					$this->close($this->getLeaveMessage(), $this->getLanguage()->translateString("player.join.duplicate"));
 					return;
 				}
 			}
@@ -2379,7 +2380,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		}
 
 		if(!($nbt instanceof CompoundTag)){
-			$this->close($this->getLeaveMessage(), "数据包错误");
+			$this->close($this->getLeaveMessage(), $this->getLanguage()->translateString("disconnectionScreen.invalidData"));
 
 			return;
 		}
