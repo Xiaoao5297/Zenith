@@ -140,7 +140,7 @@ abstract class BaseFullChunk implements FullChunk{
 							continue;
 						}
 
-						if(($nbt["Pos"][0] >> 4) !== $this->x or ($nbt["Pos"][2] >> 4) !== $this->z){
+						if(((int) $nbt["Pos"][0] >> 4) !== $this->x or ((int) $nbt["Pos"][2] >> 4) !== $this->z){
 							$changed = true;
 							continue; //Fixes entities allocated in wrong chunks.
 						}
@@ -163,7 +163,7 @@ abstract class BaseFullChunk implements FullChunk{
 							continue;
 						}
 
-						if(($nbt["x"] >> 4) !== $this->x or ($nbt["z"] >> 4) !== $this->z){
+						if(((int) $nbt["x"] >> 4) !== $this->x or ((int) $nbt["z"] >> 4) !== $this->z){
 							$changed = true;
 							continue; //Fixes tiles allocated in wrong chunks.
 						}
