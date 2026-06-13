@@ -78,33 +78,18 @@ class RCON{
 			"usage" => $usage
 		]);
 		for($n = 0; $n < $this->threads; ++$n){
-			if(!$this->workers[$n]->isTerminated()){
-				$this->workers[$n]->serverStatus = $serverStatus;
-			}
-			if($this->workers[$n]->isTerminated() === true){
-				$this->workers[$n] = new RCONInstance($this->socket, $this->password, $this->clientsPerThread);
-			}elseif($this->workers[$n]->isWaiting()){
-				if($this->workers[$n]->response !== ""){
-					$this->server->getLogger()->info($this->workers[$n]->response);
-					$this->workers[$n]->synchronized(function(RCONInstance $thread){
-						$thread->notify();
-					}, $this->workers[$n]);
-				}else{
+			$cmd = $this->workers[$n]->getCmd();
+			if($cmd !== null){
+				$response = new RemoteConsoleCommandSender();
+				$command = $cmd;
 
-					$response = new RemoteConsoleCommandSender();
-					$command = $this->workers[$n]->cmd;
+				$this->server->getPluginManager()->callEvent($ev = new RemoteServerCommandEvent($response, $command));
 
-					$this->server->getPluginManager()->callEvent($ev = new RemoteServerCommandEvent($response, $command));
-
-					if(!$ev->isCancelled()){
-						$this->server->dispatchCommand($ev->getSender(), $ev->getCommand());
-					}
-
-					$this->workers[$n]->response = $response->getMessage();
-					$this->workers[$n]->synchronized(function(RCONInstance $thread){
-						$thread->notify();
-					}, $this->workers[$n]);
+				if(!$ev->isCancelled()){
+					$this->server->dispatchCommand($ev->getSender(), $ev->getCommand());
 				}
+
+				$this->workers[$n]->setResponse($response->getMessage());
 			}
 		}
 	}

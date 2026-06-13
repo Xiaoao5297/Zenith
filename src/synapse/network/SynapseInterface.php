@@ -48,7 +48,7 @@ class SynapseInterface{
 		$this->ip = $ip;
 		$this->port = $port;
 		$this->registerPackets();
-		$this->client = new SynapseClient($server->getLogger(), $server->getGenisysServer()->getLoader(), $port, $ip);
+		$this->client = new SynapseClient($port, $ip);
 	}
 
 	public function getSynapse(){

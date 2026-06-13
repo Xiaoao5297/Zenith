@@ -70,12 +70,8 @@ class ServerHandler{
 		$buffer = chr(RakLib::PACKET_SHUTDOWN);
 		$this->server->pushMainToThreadPacket($buffer);
 		$this->server->shutdown();
-		$this->server->synchronized(function(){
-			if($this->server !== null){ #pthreadssucks
-				$this->server->wait(20000);
-			}
-		});
-		$this->server->join();
+		usleep(20000);
+		$this->server->quit();
 	}
 
 	public function emergencyShutdown(){

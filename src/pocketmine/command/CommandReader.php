@@ -22,19 +22,17 @@
 namespace pocketmine\command;
 
 use pocketmine\Thread;
-use pocketmine\utils\MainLogger;
-use pocketmine\utils\Utils;
 
 class CommandReader extends Thread{
 	private $readline;
-	/** @var \Threaded */
+	/** @var \parallel\Channel */
 	protected $buffer;
 	private $shutdown = false;
 	private $stdin;
-	/** @var MainLogger */
-	private $logger;
+	/** @var \parallel\Runtime|null */
+	private $readerRuntime = null;
 
-	public function __construct($logger){
+	public function __construct(){
 		$this->stdin = fopen("php://stdin", "r");
 		$opts = getopt("", ["disable-readline"]);
 		if(extension_loaded("readline") && !isset($opts["disable-readline"]) && (!function_exists("posix_isatty") || posix_isatty($this->stdin))){
@@ -42,31 +40,12 @@ class CommandReader extends Thread{
 		}else{
 			$this->readline = false;
 		}
-		$this->logger = $logger;
-		$this->buffer = new \Threaded;
+		$this->buffer = \parallel\Channel::make("cmd_" . spl_object_id($this), \parallel\Channel::Infinite);
 		$this->start();
 	}
 
 	public function shutdown(){
 		$this->shutdown = true;
-	}
-
-	private function readline_callback($line){
-		if($line !== ""){
-			$this->buffer[] = $line;
-			readline_add_history($line);
-		}
-	}
-
-	private function readLine(){
-		if(!$this->readline){
-			$line = trim(fgets($this->stdin));
-			if($line !== ""){
-				$this->buffer[] = $line;
-			}
-		}else{
-			readline_callback_read_char();
-		}
 	}
 
 	/**
@@ -75,51 +54,76 @@ class CommandReader extends Thread{
 	 * @return string|null
 	 */
 	public function getLine(){
-		if($this->buffer->count() !== 0){
-			return $this->buffer->shift();
+		try{
+			return $this->buffer->tryRecv();
+		}catch(\parallel\Channel\Error\Existence $e){
+			return null;
+		}catch(\parallel\Channel\Error\Closed $e){
+			return null;
 		}
+	}
 
-		return null;
+	public function start(int $options = 0){
+		$bufferName = $this->buffer->getName();
+		$readlineMode = $this->readline;
+
+		$this->readerRuntime = new \parallel\Runtime();
+
+		$this->future = $this->readerRuntime->run(function($bufferName, $readlineMode){
+			$buffer = \parallel\Channel::open($bufferName);
+			$stdin = fopen("php://stdin", "r");
+
+			if($readlineMode){
+				$cb = function($line) use ($buffer){
+					if($line !== ""){
+						$buffer->send($line);
+						readline_add_history($line);
+					}
+				};
+				readline_callback_handler_install("Genisys> ", $cb);
+			}
+
+			$shutdown = false;
+			while(!$shutdown){
+				$r = [$stdin];
+				$w = null;
+				$e = null;
+				if(stream_select($r, $w, $e, 0, 200000) > 0){
+					if(feof($stdin)){
+						break;
+					}
+					if(!$readlineMode){
+						$line = trim(fgets($stdin));
+						if($line !== ""){
+							$buffer->send($line);
+						}
+					}else{
+						readline_callback_read_char();
+					}
+				}
+			}
+
+			if($readlineMode){
+				readline_callback_handler_remove();
+			}
+			fclose($stdin);
+		}, [$bufferName, $readlineMode]);
 	}
 
 	public function quit(){
 		$this->shutdown();
-		// Windows sucks
-		if(Utils::getOS() != "win"){
-			parent::quit();
+		try{
+			\parallel\Channel::destroy($this->buffer->getName());
+		}catch(\Throwable $e){
+		}
+		try{
+			$this->readerRuntime?->close();
+		}catch(\Throwable $e){
 		}
 	}
 
 	public function run(){
-		if($this->readline){
-			readline_callback_handler_install("Genisys> ", [$this, "readline_callback"]);
-			$this->logger->setConsoleCallback("readline_redisplay");
-		}
-
-		while(!$this->shutdown){
-			$r = [$this->stdin];
-			$w = null;
-			$e = null;
-			if(stream_select($r, $w, $e, 0, 200000) > 0){
-				// PHP on Windows sucks
-				if(feof($this->stdin)){
-					if(Utils::getOS() == "win"){
-						$this->stdin = fopen("php://stdin", "r");
-						if(!is_resource($this->stdin)){
-							break;
-						}
-					}else{
-						break;
-					}
-				}
-				$this->readLine();
-			}
-		}
-
-		if($this->readline){
-			$this->logger->setConsoleCallback(null);
-			readline_callback_handler_remove();
-		}
+		// No-op
 	}
 
 	public function getThreadName(){

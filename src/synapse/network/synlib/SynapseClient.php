@@ -6,31 +6,22 @@ use pocketmine\Thread;
 class SynapseClient extends Thread{
 	const VERSION = "0.1.0";
 
-	/** @var \ThreadedLogger */
-	private $logger;
-	/** @var string */
-	private $interface;
-	/** @var int */
-	private $port;
-	private $shutdown = true;
-	/** @var \Threaded */
+	/** @var \parallel\Channel */
 	private $externalQueue, $internalQueue;
 	private $mainPath;
 	private $needAuth = false;
 
-	public function __construct(\ThreadedLogger $logger, \ClassLoader $loader, $port, $interface = "127.0.0.1"){
-		$this->logger = $logger;
+	public function __construct($port, $interface = "127.0.0.1"){
 		$this->interface = $interface;
 		$this->port = (int) $port;
 		if($port < 1 or $port > 65536){
 			throw new \Exception("Invalid port range");
 		}
 
-		$this->setClassLoader($loader);
-
 		$this->shutdown = false;
-		$this->externalQueue = new \Threaded;
-		$this->internalQueue = new \Threaded;
+
+		$this->externalQueue = \parallel\Channel::make("syn_ext_" . spl_object_id($this), \parallel\Channel::Infinite);
+		$this->internalQueue = \parallel\Channel::make("syn_int_" . spl_object_id($this), \parallel\Channel::Infinite);
 
 		if(\Phar::running(true) !== ""){
 			$this->mainPath = \Phar::running(true);
@@ -41,6 +32,12 @@ class SynapseClient extends Thread{
 		$this->start();
 	}
 
+	/** @var string */
+	private $interface;
+	/** @var int */
+	private $port;
+	private $shutdown = true;
+
 	public function isNeedAuth() : bool{
 		return $this->needAuth;
 	}
@@ -50,102 +47,119 @@ class SynapseClient extends Thread{
 	}
 
 	public function quit(){
-		$this->shutdown();
-		parent::quit();
-	}
-
-	public function run(){
-		$this->registerClassLoader();
-		gc_enable();
-		error_reporting(-1);
-		ini_set("display_errors", 1);
-		ini_set("display_startup_errors", 1);
-
-		set_error_handler([$this, "errorHandler"], E_ALL);
-		register_shutdown_function([$this, "shutdownHandler"]);
-
+		$this->shutdown = true;
 		try{
-			$socket = new SynapseSocket($this->getLogger(), $this->port, $this->interface);
-			new ServerConnection($this, $socket);
-		}catch(\Throwable $e){
-			$this->logger->logException($e);
-		}
+			\parallel\Channel::destroy($this->externalQueue->getName());
+		}catch(\Throwable $e){}
+		try{
+			\parallel\Channel::destroy($this->internalQueue->getName());
+		}catch(\Throwable $e){}
 	}
 
-	public function shutdownHandler(){
-		if($this->shutdown !== true){
-			$this->getLogger()->emergency("SynLib crashed!");
-		}
-	}
+	public function start(int $options = 0){
+		$bootstrapPath = \pocketmine\PATH;
+		$port = $this->port;
+		$interface = $this->interface;
+		$mainPath = $this->mainPath;
+		$extName = $this->externalQueue->getName();
+		$intName = $this->internalQueue->getName();
 
-	public function errorHandler($errno, $errstr, $errfile, $errline, $context, $trace = null){
-		if(error_reporting() === 0){
-			return false;
-		}
-		$errorConversion = [
-			E_ERROR => "E_ERROR",
-			E_WARNING => "E_WARNING",
-			E_PARSE => "E_PARSE",
-			E_NOTICE => "E_NOTICE",
-			E_CORE_ERROR => "E_CORE_ERROR",
-			E_CORE_WARNING => "E_CORE_WARNING",
-			E_COMPILE_ERROR => "E_COMPILE_ERROR",
-			E_COMPILE_WARNING => "E_COMPILE_WARNING",
-			E_USER_ERROR => "E_USER_ERROR",
-			E_USER_WARNING => "E_USER_WARNING",
-			E_USER_NOTICE => "E_USER_NOTICE",
-			E_STRICT => "E_STRICT",
-			E_RECOVERABLE_ERROR => "E_RECOVERABLE_ERROR",
-			E_DEPRECATED => "E_DEPRECATED",
-			E_USER_DEPRECATED => "E_USER_DEPRECATED",
-		];
-		$errno = isset($errorConversion[$errno]) ? $errorConversion[$errno] : $errno;
-		if(($pos = strpos($errstr, "\n")) !== false){
-			$errstr = substr($errstr, 0, $pos);
-		}
-		$errfile = $this->cleanPath($errfile);
+		$this->runtime = new \parallel\Runtime();
+		$this->future = $this->runtime->run(function($bootstrapPath, $port, $interface, $mainPath, $extName, $intName){
+			require_once $bootstrapPath . "src/spl/ClassLoader.php";
+			require_once $bootstrapPath . "src/spl/BaseClassLoader.php";
+			require_once $bootstrapPath . "src/pocketmine/CompatibleClassLoader.php";
 
-		$this->getLogger()->debug("An $errno error happened: \"$errstr\" in \"$errfile\" at line $errline");
+			$loader = new \CompatibleClassLoader();
+			$loader->addPath($bootstrapPath . "src");
+			$loader->addPath($bootstrapPath . "src" . DIRECTORY_SEPARATOR . "spl");
+			$loader->register(true);
 
-		foreach(($trace = $this->getTrace($trace === null ? 3 : 0, $trace)) as $i => $line){
-			$this->getLogger()->debug($line);
-		}
+			$extChan = \parallel\Channel::open($extName);
+			$intChan = \parallel\Channel::open($intName);
 
-		return true;
-	}
+			gc_enable();
+			error_reporting(-1);
+			ini_set("display_errors", 1);
+			ini_set("display_startup_errors", 1);
 
-	public function getTrace($start = 1, $trace = null){
-		if($trace === null){
-			if(function_exists("xdebug_get_function_stack")){
-				$trace = array_reverse(xdebug_get_function_stack());
-			}else{
-				$e = new \Exception();
-				$trace = $e->getTrace();
-			}
-		}
+			// Create a proxy object that communicates via channels (like RakLibServer)
+			$proxy = new class($extChan, $intChan, $mainPath){
+				public $externalQueue, $internalQueue;
+				public $shutdown = false;
+				public $needAuth = false;
+				private $mainPath;
 
-		$messages = [];
-		$j = 0;
-		for($i = (int) $start; isset($trace[$i]); ++$i, ++$j){
-			$params = "";
-			if(isset($trace[$i]["args"]) or isset($trace[$i]["params"])){
-				if(isset($trace[$i]["args"])){
-					$args = $trace[$i]["args"];
-				}else{
-					$args = $trace[$i]["params"];
+				public function __construct($ext, $int, $mainPath){
+					$this->externalQueue = $ext;
+					$this->internalQueue = $int;
+					$this->mainPath = $mainPath;
 				}
-				foreach($args as $name => $value){
-					$params .= (is_object($value) ? get_class($value) . " " . (method_exists($value, "__toString") ? $value->__toString() : "object") : gettype($value) . " " . @strval($value)) . ", ";
+
+				public function getExternalQueue(){ return $this->externalQueue; }
+				public function getInternalQueue(){ return $this->internalQueue; }
+
+				public function pushMainToThreadPacket($str){ $this->internalQueue->send($str); }
+				public function readMainToThreadPacket(){
+					try{ return $this->internalQueue->tryRecv(); }
+					catch(\Throwable $e){ return ""; }
 				}
+				public function pushThreadToMainPacket($str){ $this->externalQueue->send($str); }
+				public function readThreadToMainPacket(){
+					try{ return $this->externalQueue->recv(); }
+					catch(\Throwable $e){ return ""; }
+				}
+				public function isShutdown(){ return $this->shutdown; }
+				public function shutdown(){ $this->shutdown = true; }
+				public function isNeedAuth(){ return $this->needAuth; }
+				public function setNeedAuth($v){ $this->needAuth = $v; }
+				public function getPort(){ return $port; }
+				public function getInterface(){ return $interface; }
+
+				public function getLogger(){
+					return new class() extends \ThreadedLogger{
+						public function log($level, $message){}
+						public function emergency($message){}
+						public function alert($message){}
+						public function critical($message){}
+						public function error($message){}
+						public function warning($message){}
+						public function notice($message){}
+						public function info($message){}
+						public function debug($message){}
+						public function logException(\Throwable $e, $trace = null){}
+						public function shutdown(){}
+					};
+				}
+
+				public function getTrace($start = 1, $trace = null){ return []; }
+				public function cleanPath($path){
+					return rtrim(str_replace(["\\", ".php", "phar://", rtrim(str_replace(["\\", "phar://"], ["/", ""], $this->mainPath), "/")], ["/", "", "", ""], $path), "/");
+				}
+			};
+
+			$proxy->shutdown = false;
+
+			set_error_handler(function($errno, $errstr, $errfile, $errline) use ($proxy){
+				if(error_reporting() === 0) return false;
+				$errfile = $proxy->cleanPath($errfile);
+				echo "[SynLib] Error: \"$errstr\" in \"$errfile\" at line $errline\n";
+				return true;
+			}, E_ALL);
+
+			register_shutdown_function(function() use ($proxy){
+				if(!$proxy->isShutdown()){
+					echo "[SynLib] SynLib crashed!\n";
+				}
+			});
+
+			try{
+				$socket = new SynapseSocket($proxy->getLogger(), $port, $interface);
+				new ServerConnection($proxy, $socket);
+			}catch(\Throwable $e){
+				echo "[SynLib] " . $e->getMessage() . "\n";
 			}
-			$messages[] = "#$j " . (isset($trace[$i]["file"]) ? $this->cleanPath($trace[$i]["file"]) : "") . "(" . (isset($trace[$i]["line"]) ? $trace[$i]["line"] : "") . "): " . (isset($trace[$i]["class"]) ? $trace[$i]["class"] . (($trace[$i]["type"] === "dynamic" or $trace[$i]["type"] === "->") ? "->" : "::") : "") . $trace[$i]["function"] . "(" . substr($params, 0, -2) . ")";
-		}
-
-		return $messages;
-	}
-
-	public function cleanPath($path){
-		return rtrim(str_replace(["\\", ".php", "phar://", rtrim(str_replace(["\\", "phar://"], ["/", ""], $this->mainPath), "/")], ["/", "", "", ""], $path), "/");
+		}, [$bootstrapPath, $port, $interface, $mainPath, $extName, $intName]);
 	}
 
 	public function getExternalQueue(){
@@ -157,19 +171,29 @@ class SynapseClient extends Thread{
 	}
 
 	public function pushMainToThreadPacket($str){
-		$this->internalQueue[] = $str;
+		$this->internalQueue->send($str);
 	}
 
 	public function readMainToThreadPacket(){
-		return $this->internalQueue->shift();
+		try{
+			return $this->internalQueue->tryRecv();
+		}catch(\parallel\Channel\Error\Existence $e){
+			return "";
+		}catch(\parallel\Channel\Error\Closed $e){
+			return "";
+		}
 	}
 
 	public function pushThreadToMainPacket($str){
-		$this->externalQueue[] = $str;
+		$this->externalQueue->send($str);
 	}
 
 	public function readThreadToMainPacket(){
-		return $this->externalQueue->shift();
+		try{
+			return $this->externalQueue->recv();
+		}catch(\parallel\Channel\Error\Closed $e){
+			return "";
+		}
 	}
 
 	public function isShutdown(){
@@ -188,19 +212,10 @@ class SynapseClient extends Thread{
 		return $this->interface;
 	}
 
-	/**
-	 * @return \ThreadedLogger
-	 */
 	public function getLogger(){
-		return $this->logger;
+		return null;
 	}
 
-	public function isGarbage() : bool{
-		parent::isGarbage();
+	public function run(){
 	}
-
-	public function getThreadName(){
-		return "SynapseClient";
-	}
-
 }

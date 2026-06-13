@@ -22,72 +22,39 @@
 namespace pocketmine;
 
 /**
- * This class must be extended by all custom threading classes
+ * Base class for custom Worker classes.
+ * Uses parallel\Runtime and parallel\Channel instead of pthreads Worker.
  */
-abstract class Worker extends \Worker{
+abstract class Worker extends Thread{
 
-	/** @var \ClassLoader */
-	protected $classLoader;
-	
-	protected $isKilled = false;
-
-	public function getClassLoader(){
-		return $this->classLoader;
-	}
-
-	public function setClassLoader(\ClassLoader $loader = null){
-		if($loader === null){
-			$loader = Server::getInstance()->getLoader();
-		}
-		$this->classLoader = $loader;
-	}
-
-	public function registerClassLoader(){
-		if(!interface_exists("ClassLoader", false)){
-			require(\pocketmine\PATH . "src/spl/ClassLoader.php");
-			require(\pocketmine\PATH . "src/spl/BaseClassLoader.php");
-			require(\pocketmine\PATH . "src/pocketmine/CompatibleClassLoader.php");
-		}
-		if($this->classLoader !== null){
-			$this->classLoader->register(true);
-		}
-	}
-
-	public function start(int $options = PTHREADS_INHERIT_ALL){
-		ThreadManager::getInstance()->add($this);
-
-		if(!$this->isRunning() and !$this->isJoined() and !$this->isTerminated()){
-			if($this->getClassLoader() === null){
-				$this->setClassLoader();
-			}
-			return parent::start($options);
-		}
-
-		return false;
+	/**
+	 * Stacks a task onto the worker's queue.
+	 * Override in subclasses for actual parallel task execution.
+	 */
+	public function stack(&$task){
+		$this->pushMainToThreadPacket($task);
 	}
 
 	/**
-	 * Stops the thread using the best way possible. Try to stop it yourself before calling this.
+	 * Removes a task from the worker's queue.
 	 */
-	public function quit(){
-		$this->isKilled = true;
+	public function unstack(){
+	}
 
-		$this->notify();
-		
-		if($this->isRunning()){
-			$this->shutdown();
-			$this->notify();
-			$this->unstack();
-		}elseif(!$this->isJoined()){
-			if(!$this->isTerminated()){
-				$this->join();
-			}
-		}
+	/**
+	 * Collects finished tasks.
+	 */
+	public function collector($task){
+	}
 
-		ThreadManager::getInstance()->remove($this);
+	/**
+	 * Shuts down the worker.
+	 */
+	public function shutdown(){
+		$this->quit();
 	}
 
 	public function getThreadName(){
-		return (new \ReflectionClass($this))->getShortName();
+		return "Worker #" . spl_object_id($this);
 	}
 }

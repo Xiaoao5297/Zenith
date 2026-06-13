@@ -31,15 +31,25 @@ class ServerKiller extends Thread{
 		$this->time = $time;
 	}
 
-	public function run(){
-		$start = time() + 1;
-		$this->synchronized(function(){
-			$this->wait($this->time * 1000000);
+	public function start(int $options = 0){
+		$time = $this->time;
+		$this->future = \parallel\run(function() use ($time){
+			$start = time() + 1;
+			$sleepTime = $time * 1000000;
+			usleep($sleepTime);
+			if(time() - $start >= $time){
+				echo "\nTook too long to stop, server was killed forcefully!\n";
+				@\pocketmine\kill(getmypid());
+			}
 		});
-		if(time() - $start >= $this->time){
-			echo "\nTook too long to stop, server was killed forcefully!\n";
-			@\pocketmine\kill(getmypid());
-		}
+	}
+
+	public function run(){
+		// No-op, executed via parallel\run in start()
+	}
+
+	public function quit(){
+		// The future will complete on its own
 	}
 
 	public function getThreadName(){
