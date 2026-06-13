@@ -59,7 +59,7 @@ class RakLibServer extends Thread{
 		$this->intChanName = "rak_int_{$id}";
 		$this->internalQueue = \parallel\Channel::make($this->intChanName, \parallel\Channel::Infinite);
 
-		$this->start();
+		// Debug: skip Runtime creation to isolate memory corruption
 	}
 
 	public function isShutdown(){
@@ -103,90 +103,11 @@ class RakLibServer extends Thread{
 	}
 
 	public function start(int $options = 0){
-		$bootstrapPath = \pocketmine\PATH;
-		$port = $this->port;
-		$interface = $this->interface;
-		$mainPath = $this->mainPath;
-		$intChanName = $this->intChanName;
-
-		// Create socket pair for non-blocking data channel (RakLib -> main)
-		$sockets = @stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
-		if($sockets === false){
-			echo "[RakLib] Failed to create socket pair\n";
-			return false;
-		}
-		$dataSocket = $sockets[0];  // main thread side
-		$proxySocket = $sockets[1]; // proxy side (sent to Runtime)
-		stream_set_blocking($dataSocket, false);
-		stream_set_blocking($proxySocket, false);
-
-		$this->runtime = new \parallel\Runtime();
-		$this->future = $this->runtime->run(function($bootstrapPath, $port, $interface, $mainPath, $intChanName, $proxySocket){
-			require_once $bootstrapPath . "src/spl/ClassLoader.php";
-			require_once $bootstrapPath . "src/spl/BaseClassLoader.php";
-			require_once $bootstrapPath . "src/pocketmine/CompatibleClassLoader.php";
-			require_once $bootstrapPath . "src/raklib/server/RakLibDummyLogger.php";
-			require_once $bootstrapPath . "src/raklib/server/RakLibProxy.php";
-
-			$loader = new \CompatibleClassLoader();
-			$loader->addPath($bootstrapPath . "src");
-			$loader->addPath($bootstrapPath . "src" . DIRECTORY_SEPARATOR . "spl");
-			$loader->register(true);
-
-			$intChan = \parallel\Channel::open($intChanName);
-
-			$proxy = new RakLibProxy($intChan, $proxySocket, $mainPath);
-			$proxy->shutdown = false;
-
-			gc_enable();
-			error_reporting(-1);
-			ini_set("display_errors", 1);
-			ini_set("display_startup_errors", 1);
-
-			set_error_handler(function($errno, $errstr, $errfile, $errline) use ($proxy){
-				if(error_reporting() === 0) return false;
-				$errfile = $proxy->cleanPath($errfile);
-				echo "[RakLib] Error: \"$errstr\" in \"$errfile\" at line $errline\n";
-				return true;
-			}, E_ALL);
-
-			register_shutdown_function(function() use ($proxy){
-				if(!$proxy->isShutdown()){
-					echo "[RakLib] RakLib crashed!\n";
-				}
-			});
-
-			$socket = new UDPServerSocket($proxy->getLogger(), $port, $interface);
-			new SessionManager($proxy, $socket);
-		}, [$bootstrapPath, $port, $interface, $mainPath, $intChanName, $proxySocket]);
-
-		$this->dataSocket = $dataSocket;
-
-		return true;
+		// Debug: Runtime creation disabled to isolate memory corruption
+		return false;
 	}
 
 	public function readThreadToMainPacket(){
-		if(!isset($this->dataSocket) or $this->dataSocket === null){
-			return "";
-		}
-		// Non-blocking read from data socket
-		$r = [$this->dataSocket];
-		$w = null;
-		$e = null;
-		if(stream_select($r, $w, $e, 0, 0) > 0){
-			$header = @fread($this->dataSocket, 4);
-			if($header === false or strlen($header) < 4){
-				return "";
-			}
-			$len = unpack("N", $header)[1];
-			$data = "";
-			while(strlen($data) < $len){
-				$chunk = @fread($this->dataSocket, $len - strlen($data));
-				if($chunk === false or $chunk === "") break;
-				$data .= $chunk;
-			}
-			return $data;
-		}
 		return "";
 	}
 

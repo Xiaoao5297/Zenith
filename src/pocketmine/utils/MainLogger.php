@@ -78,37 +78,7 @@ class MainLogger extends \AttachableThreadedLogger{
 	 * Start the background file writer using parallel.
 	 */
 	private function startWriter(){
-		$chanName = "logger_" . spl_object_id($this);
-		$this->logChan = \parallel\Channel::make($chanName, \parallel\Channel::Infinite);
-		$this->writerRuntime = new \parallel\Runtime();
-
-		$logFile = $this->logFile;
-
-		$this->writerFuture = $this->writerRuntime->run(function($logFile, $chanName){
-			$chan = \parallel\Channel::open($chanName);
-			$shutdown = false;
-
-			while(!$shutdown){
-				try{
-					$chunk = $chan->recv();
-				}catch(\parallel\Channel\Error\Closed $e){
-					break;
-				}
-
-				if($chunk === null){
-					break;
-				}
-
-				if($chunk === "__SHUTDOWN__"){
-					$shutdown = true;
-					continue;
-				}
-
-				file_put_contents($logFile, $chunk, FILE_APPEND);
-			}
-
-			// Shutdown - exit the writer
-		}, [$logFile, $chanName]);
+		// Synchronous file writing - avoids parallel Runtime creation for stability
 	}
 
 	/**
@@ -234,11 +204,7 @@ class MainLogger extends \AttachableThreadedLogger{
 
 	public function shutdown(){
 		$this->shutdown = true;
-		// Signal the background writer to stop
-		try{
-			$this->logChan?->send("__SHUTDOWN__");
-		}catch(\Throwable $e){
-		}
+		// Synchronous mode - no channel to signal
 	}
 
 	protected function send($message, $level, $prefix, $color){
@@ -280,15 +246,9 @@ class MainLogger extends \AttachableThreadedLogger{
 			$this->attachment->call($level, $message);
 		}
 
-		// Send to background file writer
-		try{
-			$this->logChan?->send(date("Y-m-d", $now) . " " . $cleanMessage . "\n");
-		}catch(\Throwable $e){
-		}
-	}
-
-	public function run(){
-		// No-op in parallel mode; file writing is handled by the background Runtime
+		// Write to log file synchronously
+		$logLine = date("Y-m-d", $now) . " " . $cleanMessage . "\n";
+		@file_put_contents($this->logFile, $logLine, FILE_APPEND);
 	}
 
 	public function setWrite($write){
