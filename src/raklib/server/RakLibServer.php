@@ -40,15 +40,11 @@ class RakLibServer extends Thread{
 	protected $extChanName = "";
 	/** @var string */
 	protected $intChanName = "";
+	/** @var resource|null */
+	protected $dataSocket = null;
 
 	protected $mainPath;
 
-	/**
-	 * @param int             $port
-	 * @param string          $interface
-	 *
-	 * @throws \Throwable
-	 */
 	public function __construct($port, $interface = "0.0.0.0"){
 		$this->port = (int) $port;
 		if($port < 1 or $port > 65536){
@@ -60,9 +56,7 @@ class RakLibServer extends Thread{
 		$this->mainPath = \Phar::running(true) !== "" ? \Phar::running(true) : \getcwd() . DIRECTORY_SEPARATOR;
 
 		$id = spl_object_id($this);
-		$this->extChanName = "rak_ext_{$id}";
 		$this->intChanName = "rak_int_{$id}";
-		$this->externalQueue = \parallel\Channel::make($this->extChanName, \parallel\Channel::Infinite);
 		$this->internalQueue = \parallel\Channel::make($this->intChanName, \parallel\Channel::Infinite);
 
 		$this->start();
@@ -84,16 +78,10 @@ class RakLibServer extends Thread{
 		return $this->interface;
 	}
 
-	/**
-	 * @return \parallel\Channel
-	 */
 	public function getExternalQueue(){
 		return $this->externalQueue;
 	}
 
-	/**
-	 * @return \parallel\Channel
-	 */
 	public function getInternalQueue(){
 		return $this->internalQueue;
 	}
@@ -104,9 +92,7 @@ class RakLibServer extends Thread{
 
 	public function readMainToThreadPacket(){
 		try{
-			return $this->internalQueue->tryRecv();
-		}catch(\parallel\Channel\Error\Existence $e){
-			return "";
+			return $this->internalQueue->recv();
 		}catch(\parallel\Channel\Error\Closed $e){
 			return "";
 		}
@@ -116,166 +102,104 @@ class RakLibServer extends Thread{
 		$this->externalQueue->send($str);
 	}
 
-	public function readThreadToMainPacket(){
-		try{
-			return $this->externalQueue->recv();
-		}catch(\parallel\Channel\Error\Closed $e){
-			return "";
-		}
-	}
-
 	public function start(int $options = 0){
 		$bootstrapPath = \pocketmine\PATH;
 		$port = $this->port;
 		$interface = $this->interface;
 		$mainPath = $this->mainPath;
-		$extChanName = $this->extChanName;
 		$intChanName = $this->intChanName;
 
+		// Create socket pair for non-blocking data channel (RakLib -> main)
+		$sockets = @stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+		if($sockets === false){
+			echo "[RakLib] Failed to create socket pair\n";
+			return false;
+		}
+		$dataSocket = $sockets[0];  // main thread side
+		$proxySocket = $sockets[1]; // proxy side (sent to Runtime)
+		stream_set_blocking($dataSocket, false);
+		stream_set_blocking($proxySocket, false);
+
 		$this->runtime = new \parallel\Runtime();
-		$this->future = $this->runtime->run(function($bootstrapPath, $port, $interface, $mainPath, $extChanName, $intChanName){
+		$this->future = $this->runtime->run(function($bootstrapPath, $port, $interface, $mainPath, $intChanName, $proxySocket){
 			require_once $bootstrapPath . "src/spl/ClassLoader.php";
 			require_once $bootstrapPath . "src/spl/BaseClassLoader.php";
 			require_once $bootstrapPath . "src/pocketmine/CompatibleClassLoader.php";
+			require_once $bootstrapPath . "src/raklib/server/RakLibDummyLogger.php";
+			require_once $bootstrapPath . "src/raklib/server/RakLibProxy.php";
 
 			$loader = new \CompatibleClassLoader();
 			$loader->addPath($bootstrapPath . "src");
 			$loader->addPath($bootstrapPath . "src" . DIRECTORY_SEPARATOR . "spl");
 			$loader->register(true);
 
-			// Create channel-based logger for the RakLib thread
-			$extChan = \parallel\Channel::open($extChanName);
 			$intChan = \parallel\Channel::open($intChanName);
 
-			// Create a simple proxy object to handle server communication via channels
-			$serverProxy = new class($extChan, $intChan, $mainPath){
-				public $externalQueue, $internalQueue;
-				public $shutdown = false;
-				private $mainPath;
+			$proxy = new RakLibProxy($intChan, $proxySocket, $mainPath);
+			$proxy->shutdown = false;
 
-				public function __construct($ext, $int, $mainPath){
-					$this->externalQueue = $ext;
-					$this->internalQueue = $int;
-					$this->mainPath = $mainPath;
-				}
-
-				public function pushThreadToMainPacket($str){
-					$this->externalQueue->send($str);
-				}
-
-				public function readMainToThreadPacket(){
-					try{
-						return $this->internalQueue->tryRecv();
-					}catch(\parallel\Channel\Error\Existence $e){
-						return "";
-					}catch(\parallel\Channel\Error\Closed $e){
-						return "";
-					}
-				}
-
-				public function pushMainToThreadPacket($str){
-					$this->internalQueue->send($str);
-				}
-
-				public function readThreadToMainPacket(){
-					try{
-						return $this->externalQueue->recv();
-					}catch(\parallel\Channel\Error\Closed $e){
-						return "";
-					}
-				}
-
-				public function isShutdown(){
-					return $this->shutdown;
-				}
-
-				public function shutdown(){
-					$this->shutdown = true;
-				}
-
-				public function getLogger(){
-					// Return a simple logger that sends to main thread
-					return new class() extends \ThreadedLogger{
-						public function log($level, $message){}
-						public function emergency($message){}
-						public function alert($message){}
-						public function critical($message){}
-						public function error($message){}
-						public function warning($message){}
-						public function notice($message){}
-						public function info($message){}
-						public function debug($message){}
-						public function logException(\Throwable $e, $trace = null){}
-						public function shutdown(){}
-					};
-				}
-
-				public function cleanPath($path){
-					return rtrim(str_replace(["\\", ".php", "phar://", rtrim(str_replace(["\\", "phar://"], ["/", ""], $this->mainPath), "/")], ["/", "", "", ""], $path), "/");
-				}
-			};
-
-			$serverProxy->shutdown = false;
 			gc_enable();
 			error_reporting(-1);
 			ini_set("display_errors", 1);
 			ini_set("display_startup_errors", 1);
 
-			set_error_handler(function($errno, $errstr, $errfile, $errline) use ($serverProxy){
+			set_error_handler(function($errno, $errstr, $errfile, $errline) use ($proxy){
 				if(error_reporting() === 0) return false;
-				$errorConversion = [
-					E_ERROR => "E_ERROR", E_WARNING => "E_WARNING", E_PARSE => "E_PARSE",
-					E_NOTICE => "E_NOTICE", E_CORE_ERROR => "E_CORE_ERROR", E_CORE_WARNING => "E_CORE_WARNING",
-					E_COMPILE_ERROR => "E_COMPILE_ERROR", E_COMPILE_WARNING => "E_COMPILE_WARNING",
-					E_USER_ERROR => "E_USER_ERROR", E_USER_WARNING => "E_USER_WARNING",
-					E_USER_NOTICE => "E_USER_NOTICE", E_STRICT => "E_STRICT",
-					E_RECOVERABLE_ERROR => "E_RECOVERABLE_ERROR", E_DEPRECATED => "E_DEPRECATED",
-					E_USER_DEPRECATED => "E_USER_DEPRECATED",
-				];
-				$errnoStr = isset($errorConversion[$errno]) ? $errorConversion[$errno] : $errno;
-				if(($pos = strpos($errstr, "\n")) !== false) $errstr = substr($errstr, 0, $pos);
-				$errfile = $serverProxy->cleanPath($errfile);
-				echo "[RakLib] $errnoStr: \"$errstr\" in \"$errfile\" at line $errline\n";
+				$errfile = $proxy->cleanPath($errfile);
+				echo "[RakLib] Error: \"$errstr\" in \"$errfile\" at line $errline\n";
 				return true;
 			}, E_ALL);
 
-			register_shutdown_function(function() use ($serverProxy){
-				if(!$serverProxy->isShutdown()){
+			register_shutdown_function(function() use ($proxy){
+				if(!$proxy->isShutdown()){
 					echo "[RakLib] RakLib crashed!\n";
 				}
 			});
 
-			$socket = new UDPServerSocket($serverProxy->getLogger(), $port, $interface);
-			new SessionManager($serverProxy, $socket);
-		}, [$bootstrapPath, $port, $interface, $mainPath, $extChanName, $intChanName]);
-	}
+			$socket = new UDPServerSocket($proxy->getLogger(), $port, $interface);
+			new SessionManager($proxy, $socket);
+		}, [$bootstrapPath, $port, $interface, $mainPath, $intChanName, $proxySocket]);
 
-	public function shutdownHandler(){
-		if($this->shutdown !== true){
-			// RakLib crashed
-		}
-	}
+		$this->dataSocket = $dataSocket;
 
-	public function errorHandler($errno, $errstr, $errfile, $errline, $context, $trace = null){
 		return true;
 	}
 
-	public function getTrace($start = 1, $trace = null){
-		return [];
-	}
-
-	public function cleanPath($path){
-		return $path;
+	public function readThreadToMainPacket(){
+		if(!isset($this->dataSocket) or $this->dataSocket === null){
+			return "";
+		}
+		// Non-blocking read from data socket
+		$r = [$this->dataSocket];
+		$w = null;
+		$e = null;
+		if(stream_select($r, $w, $e, 0, 0) > 0){
+			$header = @fread($this->dataSocket, 4);
+			if($header === false or strlen($header) < 4){
+				return "";
+			}
+			$len = unpack("N", $header)[1];
+			$data = "";
+			while(strlen($data) < $len){
+				$chunk = @fread($this->dataSocket, $len - strlen($data));
+				if($chunk === false or $chunk === "") break;
+				$data .= $chunk;
+			}
+			return $data;
+		}
+		return "";
 	}
 
 	public function run(){
-		// No-op, runs in parallel Runtime
 	}
 
 	public function quit(){
 		$this->shutdown = true;
 		try{
-			\parallel\Channel::destroy($this->extChanName);
+			if($this->dataSocket){
+				@fclose($this->dataSocket);
+				$this->dataSocket = null;
+			}
 		}catch(\Throwable $e){}
 		try{
 			\parallel\Channel::destroy($this->intChanName);
