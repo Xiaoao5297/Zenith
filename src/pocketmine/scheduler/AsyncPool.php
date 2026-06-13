@@ -108,7 +108,11 @@ class AsyncPool{
 		$task->setGarbage();
 
 		if(isset($this->taskWorkers[$task->getTaskId()])){
+			if(!$force and ($task->isRunning() or !$task->isGarbage())){
+				return;
+			}
 			$this->workerUsage[$this->taskWorkers[$task->getTaskId()]]--;
+			$this->workers[$this->taskWorkers[$task->getTaskId()]]->collector($task);
 		}
 
 		unset($this->tasks[$task->getTaskId()]);
@@ -140,24 +144,17 @@ class AsyncPool{
 	public function collectTasks(){
 		Timings::$schedulerAsyncTimer->startTiming();
 
-		// Collect completed results from all workers
-		foreach($this->workers as $worker){
-			$completed = $worker->collectResults();
-			foreach($completed as $completedTask){
-				$taskId = $completedTask->getTaskId();
-				if(isset($this->tasks[$taskId]) and !$this->tasks[$taskId]->isGarbage()){
-					// Copy state from the completed task back to the original
-					$original = $this->tasks[$taskId];
-					foreach(get_object_vars($completedTask) as $k => $v){
-						$original->{$k} = $v;
-					}
+		foreach($this->tasks as $task){
+			if($task->isFinished() and !$task->isRunning() and !$task->isCrashed()){
 
-					if(!$original->hasCancelledRun()){
-						$original->onCompletion($this->server);
-					}
-
-					$this->removeTask($original);
+				if(!$task->hasCancelledRun()){
+					$task->onCompletion($this->server);
 				}
+
+				$this->removeTask($task);
+			}elseif($task->isTerminated() or $task->isCrashed()){
+				$this->server->getLogger()->critical("Could not execute asynchronous task " . (new \ReflectionClass($task))->getShortName() . ": Task crashed");
+				$this->removeTask($task, true);
 			}
 		}
 

@@ -175,7 +175,7 @@ class Server{
 	/** @var Server */
 	private static $instance = null;
 
-	/** @var mixed */
+	/** @var \Threaded */
 	private static $sleeper = null;
 
 	/** @var BanList */
@@ -263,8 +263,6 @@ class Server{
 	private $network;
 
 	private $networkCompressionAsync = true;
-	/** @var MapData */
-	private $MapData = null;
 	public $networkCompressionLevel = 7;
 	// public $InCoreVersion = "0.7Alpha";
 
@@ -1587,7 +1585,9 @@ class Server{
 	}
 
 	public static function microSleep(int $microseconds){
-		usleep($microseconds);
+		Server::$sleeper->synchronized(function(int $ms){
+			Server::$sleeper->wait($ms);
+		}, $microseconds);
 	}
 
 	public function getExpectedExperience($level){
@@ -1742,7 +1742,7 @@ class Server{
 	 */
 	public function __construct(\ClassLoader $autoloader, \ThreadedLogger $logger, $filePath, $dataPath, $pluginPath, $defaultLang = "unknown"){
 		self::$instance = $this;
-		self::$sleeper = true;
+		self::$sleeper = new \Threaded;
 		$this->autoloader = $autoloader;
 		$this->logger = $logger;
 		$this->filePath = $filePath;
@@ -1766,7 +1766,7 @@ class Server{
 			$this->dataPath = realpath($dataPath) . DIRECTORY_SEPARATOR;
 			$this->pluginPath = realpath($pluginPath) . DIRECTORY_SEPARATOR;
 
-			$this->console = new CommandReader();
+			$this->console = new CommandReader($logger);
 
 			$version = new VersionString($this->getPocketMineVersion());
 			$this->version = $version;
@@ -2538,6 +2538,7 @@ private function lookupAddress($address) {
 
 			$this->getLogger()->debug($this->getLanguage()->translateString("pocketmine.server.debug.closeConsole"));
 			$this->console->shutdown();
+			$this->console->notify();
 
 			$this->getLogger()->debug($this->getLanguage()->translateString("pocketmine.server.debug.stopNetworkInterfaces"));
 			foreach($this->network->getInterfaces() as $interface){

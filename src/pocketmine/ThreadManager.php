@@ -21,13 +21,10 @@
 
 namespace pocketmine;
 
-class ThreadManager{
+class ThreadManager extends \Volatile{
 
 	/** @var ThreadManager */
 	private static $instance = null;
-
-	/** @var Thread[] */
-	private $threads = [];
 
 	public static function init(){
 		self::$instance = new ThreadManager();
@@ -41,27 +38,32 @@ class ThreadManager{
 	}
 
 	/**
-	 * @param Thread $thread
+	 * @param Worker|Thread $thread
 	 */
 	public function add($thread){
-		if($thread instanceof Thread){
-			$this->threads[spl_object_hash($thread)] = $thread;
+		if($thread instanceof Thread or $thread instanceof Worker){
+			$this->{spl_object_hash($thread)} = $thread;
 		}
 	}
 
 	/**
-	 * @param Thread $thread
+	 * @param Worker|Thread $thread
 	 */
 	public function remove($thread){
-		if($thread instanceof Thread){
-			unset($this->threads[spl_object_hash($thread)]);
+		if($thread instanceof Thread or $thread instanceof Worker){
+			unset($this->{spl_object_hash($thread)});
 		}
 	}
 
 	/**
-	 * @return Thread[]
+	 * @return Worker[]|Thread[]
 	 */
 	public function getAll(){
-		return $this->threads;
+		$array = [];
+		foreach($this as $key => $thread){
+			$array[$key] = $thread;
+		}
+
+		return $array;
 	}
 }

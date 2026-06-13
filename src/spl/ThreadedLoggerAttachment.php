@@ -15,7 +15,7 @@
  * GNU General Public License for more details.
 */
 
-abstract class ThreadedLoggerAttachment implements \LoggerAttachment{
+abstract class ThreadedLoggerAttachment extends \Threaded implements \LoggerAttachment{
 
     /** @var \ThreadedLoggerAttachment */
     protected $attachment = null;

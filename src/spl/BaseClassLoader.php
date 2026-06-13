@@ -15,7 +15,7 @@
  * GNU General Public License for more details.
 */
 
-class BaseClassLoader implements ClassLoader{
+class BaseClassLoader extends \Threaded implements ClassLoader{
 
     /** @var \ClassLoader */
     private $parent;
@@ -30,8 +30,8 @@ class BaseClassLoader implements ClassLoader{
      */
     public function __construct(ClassLoader $parent = null){
         $this->parent = $parent;
-        $this->lookup = [];
-        $this->classes = [];
+        $this->lookup = new \Threaded;
+        $this->classes = new \Threaded;
     }
 
     /**
@@ -49,11 +49,25 @@ class BaseClassLoader implements ClassLoader{
         }
 
         if($prepend){
-            array_unshift($this->lookup, $path);
+			$this->synchronized(function($path){
+				$entries = $this->getAndRemoveLookupEntries();
+				$this->lookup[] = $path;
+				foreach($entries as $entry){
+					$this->lookup[] = $entry;
+				}
+			}, $path);
         }else{
             $this->lookup[] = $path;
         }
     }
+    
+    protected function getAndRemoveLookupEntries(){
+		$entries = [];
+		while($this->count() > 0){
+			$entries[] = $this->shift();
+		}
+		return $entries;
+	}
 
     /**
      * Removes a path from the lookup list
@@ -74,7 +88,11 @@ class BaseClassLoader implements ClassLoader{
      * @return string[]
      */
     public function getClasses(){
-        return $this->classes;
+		$classes = [];
+		foreach($this->classes as $class){
+			$classes[] = $class;
+		}
+        return $classes;
     }
 
     /**
@@ -118,7 +136,7 @@ class BaseClassLoader implements ClassLoader{
 	        if(method_exists($name, "onClassLoaded") and (new ReflectionClass($name))->getMethod("onClassLoaded")->isStatic()){
 		        $name::onClassLoaded();
 	        }
-
+	        
 	        $this->classes[] = $name;
 
             return true;

@@ -6,38 +6,31 @@ use pocketmine\Thread;
 class SynapseClient extends Thread{
 	const VERSION = "0.1.0";
 
-	/** @var \parallel\Channel */
-	private $internalQueue;
+	/** @var \ThreadedLogger */
+	private $logger;
 	/** @var string */
-	private $intChanName = "";
-	/** @var resource|null */
-	private $dataSocket = null;
-	/** @var resource|null */
-	private $proxyDataSocket = null;
+	private $interface;
+	/** @var int */
+	private $port;
+	private $shutdown = true;
+	/** @var \Threaded */
+	private $externalQueue, $internalQueue;
 	private $mainPath;
 	private $needAuth = false;
 
-	public function __construct($port, $interface = "127.0.0.1"){
+	public function __construct(\ThreadedLogger $logger, \ClassLoader $loader, $port, $interface = "127.0.0.1"){
+		$this->logger = $logger;
 		$this->interface = $interface;
 		$this->port = (int) $port;
 		if($port < 1 or $port > 65536){
 			throw new \Exception("Invalid port range");
 		}
 
+		$this->setClassLoader($loader);
+
 		$this->shutdown = false;
-
-		$id = spl_object_id($this);
-		$this->intChanName = "syn_int_{$id}";
-		$this->internalQueue = \parallel\Channel::make($this->intChanName, \parallel\Channel::Infinite);
-
-		// Socket pair for non-blocking data reading
-		$sockets = @stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
-		if($sockets !== false){
-			$this->dataSocket = $sockets[0];
-			$this->proxyDataSocket = $sockets[1];
-			stream_set_blocking($this->dataSocket, false);
-			stream_set_blocking($this->proxyDataSocket, false);
-		}
+		$this->externalQueue = new \Threaded;
+		$this->internalQueue = new \Threaded;
 
 		if(\Phar::running(true) !== ""){
 			$this->mainPath = \Phar::running(true);
@@ -48,12 +41,6 @@ class SynapseClient extends Thread{
 		$this->start();
 	}
 
-	/** @var string */
-	private $interface;
-	/** @var int */
-	private $port;
-	private $shutdown = true;
-
 	public function isNeedAuth() : bool{
 		return $this->needAuth;
 	}
@@ -63,70 +50,106 @@ class SynapseClient extends Thread{
 	}
 
 	public function quit(){
-		$this->shutdown = true;
-		try{
-			if($this->dataSocket){ @fclose($this->dataSocket); $this->dataSocket = null; }
-		}catch(\Throwable $e){}
-		try{
-			\parallel\Channel::destroy($this->intChanName);
-		}catch(\Throwable $e){}
+		$this->shutdown();
+		parent::quit();
 	}
 
-	public function start(int $options = 0){
-		$bootstrapPath = \pocketmine\PATH;
-		$port = $this->port;
-		$interface = $this->interface;
-		$mainPath = $this->mainPath;
-		$intName = $this->intChanName;
-		$proxySocket = $this->proxyDataSocket;
+	public function run(){
+		$this->registerClassLoader();
+		gc_enable();
+		error_reporting(-1);
+		ini_set("display_errors", 1);
+		ini_set("display_startup_errors", 1);
 
-		$this->runtime = new \parallel\Runtime();
-		$this->future = $this->runtime->run(function($bootstrapPath, $port, $interface, $mainPath, $intName, $proxySocket){
-			require_once $bootstrapPath . "src/spl/ClassLoader.php";
-			require_once $bootstrapPath . "src/spl/BaseClassLoader.php";
-			require_once $bootstrapPath . "src/pocketmine/CompatibleClassLoader.php";
-			require_once $bootstrapPath . "src/raklib/server/RakLibDummyLogger.php";
-			require_once $bootstrapPath . "src/synapse/network/synlib/SynapseProxy.php";
+		set_error_handler([$this, "errorHandler"], E_ALL);
+		register_shutdown_function([$this, "shutdownHandler"]);
 
-			$loader = new \CompatibleClassLoader();
-			$loader->addPath($bootstrapPath . "src");
-			$loader->addPath($bootstrapPath . "src" . DIRECTORY_SEPARATOR . "spl");
-			$loader->register(true);
+		try{
+			$socket = new SynapseSocket($this->getLogger(), $this->port, $this->interface);
+			new ServerConnection($this, $socket);
+		}catch(\Throwable $e){
+			$this->logger->logException($e);
+		}
+	}
 
-			gc_enable();
-			error_reporting(-1);
-			ini_set("display_errors", 1);
-			ini_set("display_startup_errors", 1);
+	public function shutdownHandler(){
+		if($this->shutdown !== true){
+			$this->getLogger()->emergency("SynLib crashed!");
+		}
+	}
 
-			$intChan = \parallel\Channel::open($intName);
+	public function errorHandler($errno, $errstr, $errfile, $errline, $context, $trace = null){
+		if(error_reporting() === 0){
+			return false;
+		}
+		$errorConversion = [
+			E_ERROR => "E_ERROR",
+			E_WARNING => "E_WARNING",
+			E_PARSE => "E_PARSE",
+			E_NOTICE => "E_NOTICE",
+			E_CORE_ERROR => "E_CORE_ERROR",
+			E_CORE_WARNING => "E_CORE_WARNING",
+			E_COMPILE_ERROR => "E_COMPILE_ERROR",
+			E_COMPILE_WARNING => "E_COMPILE_WARNING",
+			E_USER_ERROR => "E_USER_ERROR",
+			E_USER_WARNING => "E_USER_WARNING",
+			E_USER_NOTICE => "E_USER_NOTICE",
+			E_STRICT => "E_STRICT",
+			E_RECOVERABLE_ERROR => "E_RECOVERABLE_ERROR",
+			E_DEPRECATED => "E_DEPRECATED",
+			E_USER_DEPRECATED => "E_USER_DEPRECATED",
+		];
+		$errno = isset($errorConversion[$errno]) ? $errorConversion[$errno] : $errno;
+		if(($pos = strpos($errstr, "\n")) !== false){
+			$errstr = substr($errstr, 0, $pos);
+		}
+		$errfile = $this->cleanPath($errfile);
 
-			$proxy = new SynapseProxy($intChan, $proxySocket, $mainPath, $port, $interface);
-			$proxy->shutdown = false;
+		$this->getLogger()->debug("An $errno error happened: \"$errstr\" in \"$errfile\" at line $errline");
 
-			set_error_handler(function($errno, $errstr, $errfile, $errline) use ($proxy){
-				if(error_reporting() === 0) return false;
-				$errfile = $proxy->cleanPath($errfile);
-				echo "[SynLib] Error: \"$errstr\" in \"$errfile\" at line $errline\n";
-				return true;
-			}, E_ALL);
+		foreach(($trace = $this->getTrace($trace === null ? 3 : 0, $trace)) as $i => $line){
+			$this->getLogger()->debug($line);
+		}
 
-			register_shutdown_function(function() use ($proxy){
-				if(!$proxy->isShutdown()){
-					echo "[SynLib] SynLib crashed!\n";
-				}
-			});
+		return true;
+	}
 
-			try{
-				$socket = new SynapseSocket($proxy->getLogger(), $port, $interface);
-				new ServerConnection($proxy, $socket);
-			}catch(\Throwable $e){
-				echo "[SynLib] " . $e->getMessage() . "\n";
+	public function getTrace($start = 1, $trace = null){
+		if($trace === null){
+			if(function_exists("xdebug_get_function_stack")){
+				$trace = array_reverse(xdebug_get_function_stack());
+			}else{
+				$e = new \Exception();
+				$trace = $e->getTrace();
 			}
-		}, [$bootstrapPath, $port, $interface, $mainPath, $intName, $proxySocket]);
+		}
+
+		$messages = [];
+		$j = 0;
+		for($i = (int) $start; isset($trace[$i]); ++$i, ++$j){
+			$params = "";
+			if(isset($trace[$i]["args"]) or isset($trace[$i]["params"])){
+				if(isset($trace[$i]["args"])){
+					$args = $trace[$i]["args"];
+				}else{
+					$args = $trace[$i]["params"];
+				}
+				foreach($args as $name => $value){
+					$params .= (is_object($value) ? get_class($value) . " " . (method_exists($value, "__toString") ? $value->__toString() : "object") : gettype($value) . " " . @strval($value)) . ", ";
+				}
+			}
+			$messages[] = "#$j " . (isset($trace[$i]["file"]) ? $this->cleanPath($trace[$i]["file"]) : "") . "(" . (isset($trace[$i]["line"]) ? $trace[$i]["line"] : "") . "): " . (isset($trace[$i]["class"]) ? $trace[$i]["class"] . (($trace[$i]["type"] === "dynamic" or $trace[$i]["type"] === "->") ? "->" : "::") : "") . $trace[$i]["function"] . "(" . substr($params, 0, -2) . ")";
+		}
+
+		return $messages;
+	}
+
+	public function cleanPath($path){
+		return rtrim(str_replace(["\\", ".php", "phar://", rtrim(str_replace(["\\", "phar://"], ["/", ""], $this->mainPath), "/")], ["/", "", "", ""], $path), "/");
 	}
 
 	public function getExternalQueue(){
-		return null;
+		return $this->externalQueue;
 	}
 
 	public function getInternalQueue(){
@@ -134,43 +157,19 @@ class SynapseClient extends Thread{
 	}
 
 	public function pushMainToThreadPacket($str){
-		$this->internalQueue->send($str);
+		$this->internalQueue[] = $str;
 	}
 
 	public function readMainToThreadPacket(){
-		try{
-			return $this->internalQueue->recv();
-		}catch(\parallel\Channel\Error\Closed $e){
-			return "";
-		}
+		return $this->internalQueue->shift();
 	}
 
 	public function pushThreadToMainPacket($str){
-		// Legacy - no-op from main thread side
+		$this->externalQueue[] = $str;
 	}
 
 	public function readThreadToMainPacket(){
-		if($this->dataSocket === null or $this->dataSocket === false){
-			return "";
-		}
-		$r = [$this->dataSocket];
-		$w = null;
-		$e = null;
-		if(stream_select($r, $w, $e, 0, 0) > 0){
-			$header = @fread($this->dataSocket, 4);
-			if($header === false or strlen($header) < 4){
-				return "";
-			}
-			$len = unpack("N", $header)[1];
-			$data = "";
-			while(strlen($data) < $len){
-				$chunk = @fread($this->dataSocket, $len - strlen($data));
-				if($chunk === false or $chunk === "") break;
-				$data .= $chunk;
-			}
-			return $data;
-		}
-		return "";
+		return $this->externalQueue->shift();
 	}
 
 	public function isShutdown(){
@@ -189,10 +188,19 @@ class SynapseClient extends Thread{
 		return $this->interface;
 	}
 
+	/**
+	 * @return \ThreadedLogger
+	 */
 	public function getLogger(){
-		return null;
+		return $this->logger;
 	}
 
-	public function run(){
+	public function isGarbage() : bool{
+		parent::isGarbage();
 	}
+
+	public function getThreadName(){
+		return "SynapseClient";
+	}
+
 }

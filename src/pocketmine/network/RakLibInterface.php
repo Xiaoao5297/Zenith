@@ -43,7 +43,7 @@ class RakLibInterface implements ServerInstance, AdvancedSourceInterface{
 		$this->server = $server;
 		$this->identifiers = [];
 
-		$this->rakLib = new RakLibServer($this->server->getPort(), $this->server->getIp() === "" ? "0.0.0.0" : $this->server->getIp());
+		$this->rakLib = new RakLibServer($this->server->getLogger(), $this->server->getLoader(), $this->server->getPort(), $this->server->getIp() === "" ? "0.0.0.0" : $this->server->getIp());
 		$this->interface = new ServerHandler($this->rakLib, $this);
 	}
 
@@ -65,7 +65,7 @@ class RakLibInterface implements ServerInstance, AdvancedSourceInterface{
 		if($this->rakLib->isTerminated()){
 			$this->network->unregisterInterface($this);
 
-			$this->server->getLogger()->critical("RakLib Thread crashed, disabling interface");
+			throw new \Exception("RakLib Thread crashed");
 		}
 
 		return $work;

@@ -2,8 +2,8 @@
 
 /*
  *
- *    ____ _                   _
- *  / ___| | _____      _____| |_ ___  _ __   ___
+ *    ____ _                   _                   
+ *  / ___| | _____      _____| |_ ___  _ __   ___ 
  * | |  _| |/ _ \ \ /\ / / __| __/ _ \| '_ \ / _ \
  * | |_| | | (_) \ V  V /\__ \ || (_) | | | |  __/
  *  \____|_|\___/ \_/\_/ |___/\__\___/|_| |_|\___|
@@ -20,11 +20,11 @@
 
 namespace raklib\server;
 
-use pocketmine\Thread;
 
-class RakLibServer extends Thread{
+class RakLibServer extends \Thread{
 	protected $port;
 	protected $interface;
+	/** @var \ThreadedLogger */
 	protected $logger;
 	protected $loader;
 
@@ -32,39 +32,59 @@ class RakLibServer extends Thread{
 
 	protected $shutdown;
 
-	/** @var \parallel\Channel */
+	/** @var \Threaded */
 	protected $externalQueue;
-	/** @var \parallel\Channel */
+	/** @var \Threaded */
 	protected $internalQueue;
-	/** @var string */
-	protected $extChanName = "";
-	/** @var string */
-	protected $intChanName = "";
 
 	protected $mainPath;
 
-	/** @var resource|null */
-	private $process = null;
-	/** @var resource|null */
-	private $stdoutPipe = null;
-
-	public function __construct($port, $interface = "0.0.0.0"){
+	/**
+	 * @param \ThreadedLogger $logger
+	 * @param \ClassLoader    $loader
+	 * @param int             $port
+	 * @param string          $interface
+	 *
+	 * @throws \Throwable
+	 */
+	public function __construct(\ThreadedLogger $logger, \ClassLoader $loader, $port, $interface = "0.0.0.0"){
 		$this->port = (int) $port;
 		if($port < 1 or $port > 65536){
 			throw new \Exception("Invalid port range");
 		}
 
 		$this->interface = $interface;
+		$this->logger = $logger;
+		$this->loader = $loader;
+		$loadPaths = [];
+		$this->addDependency($loadPaths, new \ReflectionClass($logger));
+		$this->addDependency($loadPaths, new \ReflectionClass($loader));
+		$this->loadPaths = array_reverse($loadPaths);
 		$this->shutdown = false;
-		$this->mainPath = \Phar::running(true) !== "" ? \Phar::running(true) : \getcwd() . DIRECTORY_SEPARATOR;
 
-		$id = spl_object_id($this);
-		$this->extChanName = "rak_ext_{$id}";
-		$this->intChanName = "rak_int_{$id}";
-		$this->externalQueue = \parallel\Channel::make($this->extChanName, \parallel\Channel::Infinite);
-		$this->internalQueue = \parallel\Channel::make($this->intChanName, \parallel\Channel::Infinite);
+		$this->externalQueue = new \Threaded;
+		$this->internalQueue = new \Threaded;
 
+		if(\Phar::running(true) !== ""){
+			$this->mainPath = \Phar::running(true);
+		}else{
+			$this->mainPath = \getcwd() . DIRECTORY_SEPARATOR;
+		}
 		$this->start();
+	}
+
+	protected function addDependency(array &$loadPaths, \ReflectionClass $dep){
+		if($dep->getFileName() !== false){
+			$loadPaths[$dep->getName()] = $dep->getFileName();
+		}
+
+		if($dep->getParentClass() instanceof \ReflectionClass){
+			$this->addDependency($loadPaths, $dep->getParentClass());
+		}
+
+		foreach($dep->getInterfaces() as $interface){
+			$this->addDependency($loadPaths, $interface);
+		}
 	}
 
 	public function isShutdown(){
@@ -83,142 +103,140 @@ class RakLibServer extends Thread{
 		return $this->interface;
 	}
 
+	/**
+	 * @return \ThreadedLogger
+	 */
+	public function getLogger(){
+		return $this->logger;
+	}
+
+	/**
+	 * @return \Threaded
+	 */
 	public function getExternalQueue(){
 		return $this->externalQueue;
 	}
 
+	/**
+	 * @return \Threaded
+	 */
 	public function getInternalQueue(){
 		return $this->internalQueue;
 	}
 
 	public function pushMainToThreadPacket($str){
-		$this->internalQueue->send($str);
+		$this->internalQueue[] = $str;
 	}
 
 	public function readMainToThreadPacket(){
-		try{
-			return $this->internalQueue->recv();
-		}catch(\parallel\Channel\Error\Closed $e){
-			return "";
-		}
+		return $this->internalQueue->shift();
 	}
 
 	public function pushThreadToMainPacket($str){
-		$this->externalQueue->send($str);
+		$this->externalQueue[] = $str;
 	}
 
-	public function start(int $options = 0){
-		$phpBinary = PHP_BINARY;
-		$bootstrapPath = \pocketmine\PATH;
-		$bootstrapFile = $bootstrapPath . "src/raklib/server/raklib_bootstrap.php";
+	public function readThreadToMainPacket(){
+		return $this->externalQueue->shift();
+	}
 
-		$env = [
-			"RAKLIB_BOOTSTRAP_PATH" => $bootstrapPath,
-			"RAKLIB_PORT" => (string) $this->port,
-			"RAKLIB_INTERFACE" => $this->interface,
-			"RAKLIB_MAIN_PATH" => $this->mainPath,
-			"RAKLIB_INT_CHAN" => $this->intChanName,
-			"RAKLIB_EXT_CHAN" => $this->extChanName,
-		];
+	public function shutdownHandler(){
+		if($this->shutdown !== true){
+			$this->getLogger()->emergency("RakLib crashed!");
+		}
+	}
 
-		$descriptorspec = [
-			0 => ["pipe", "r"],  // stdin
-			1 => ["pipe", "w"],  // stdout - RakLib output
-			2 => ["pipe", "w"],  // stderr
-		];
-
-		$this->process = @proc_open(
-			$phpBinary . " " . escapeshellarg($bootstrapFile),
-			$descriptorspec,
-			$pipes,
-			null,
-			$env
-		);
-
-		if($this->process === false){
-			echo "[RakLib] Failed to start RakLib process\n";
+	public function errorHandler($errno, $errstr, $errfile, $errline, $context, $trace = null){
+		if(error_reporting() === 0){
 			return false;
 		}
+		$errorConversion = [
+			E_ERROR => "E_ERROR",
+			E_WARNING => "E_WARNING",
+			E_PARSE => "E_PARSE",
+			E_NOTICE => "E_NOTICE",
+			E_CORE_ERROR => "E_CORE_ERROR",
+			E_CORE_WARNING => "E_CORE_WARNING",
+			E_COMPILE_ERROR => "E_COMPILE_ERROR",
+			E_COMPILE_WARNING => "E_COMPILE_WARNING",
+			E_USER_ERROR => "E_USER_ERROR",
+			E_USER_WARNING => "E_USER_WARNING",
+			E_USER_NOTICE => "E_USER_NOTICE",
+			E_STRICT => "E_STRICT",
+			E_RECOVERABLE_ERROR => "E_RECOVERABLE_ERROR",
+			E_DEPRECATED => "E_DEPRECATED",
+			E_USER_DEPRECATED => "E_USER_DEPRECATED",
+		];
+		$errno = isset($errorConversion[$errno]) ? $errorConversion[$errno] : $errno;
+		if(($pos = strpos($errstr, "\n")) !== false){
+			$errstr = substr($errstr, 0, $pos);
+		}
+		$oldFile = $errfile;
+		$errfile = $this->cleanPath($errfile);
 
-		// Close stdin (we use channel for communication)
-		fclose($pipes[0]);
-		// Store stdout pipe for reading RakLib output
-		$this->stdoutPipe = $pipes[1];
-		stream_set_blocking($this->stdoutPipe, false);
-		// Close stderr
-		fclose($pipes[2]);
+		$this->getLogger()->debug("An $errno error happened: \"$errstr\" in \"$errfile\" at line $errline");
+
+		foreach(($trace = $this->getTrace($trace === null ? 3 : 0, $trace)) as $i => $line){
+			$this->getLogger()->debug($line);
+		}
 
 		return true;
 	}
 
-	public function readThreadToMainPacket(){
-		if($this->stdoutPipe === null){
-			return "";
-		}
-		// Non-blocking read from stdout pipe
-		$r = [$this->stdoutPipe];
-		$w = null;
-		$e = null;
-		if(@stream_select($r, $w, $e, 0, 0) > 0){
-			$header = @fread($this->stdoutPipe, 4);
-			if($header === false or strlen($header) < 4){
-				return "";
+	public function getTrace($start = 1, $trace = null){
+		if($trace === null){
+			if(function_exists("xdebug_get_function_stack")){
+				$trace = array_reverse(xdebug_get_function_stack());
+			}else{
+				$e = new \Exception();
+				$trace = $e->getTrace();
 			}
-			$len = unpack("N", $header)[1];
-			$data = "";
-			while(strlen($data) < $len){
-				$chunk = @fread($this->stdoutPipe, $len - strlen($data));
-				if($chunk === false or $chunk === "") break;
-				$data .= $chunk;
-			}
-			return $data;
-		}
-		return "";
-	}
-
-	public function quit(){
-		$this->shutdown = true;
-
-		// Send shutdown signal via channel
-		try{
-			$this->internalQueue->send("\x7f"); // PACKET_EMERGENCY_SHUTDOWN
-		}catch(\Throwable $e){}
-
-		// Close channels
-		try{
-			\parallel\Channel::destroy($this->extChanName);
-		}catch(\Throwable $e){}
-		try{
-			\parallel\Channel::destroy($this->intChanName);
-		}catch(\Throwable $e){}
-
-		// Close process pipes
-		if($this->stdoutPipe){
-			@fclose($this->stdoutPipe);
 		}
 
-		// Terminate the RakLib process
-		if($this->process){
-			$status = @proc_get_status($this->process);
-			if($status !== false && $status["running"]){
-				@proc_terminate($this->process, 15); // SIGTERM
-				$timeout = 5;
-				while($timeout > 0){
-					$status = @proc_get_status($this->process);
-					if($status === false || !$status["running"]) break;
-					usleep(100000);
-					$timeout -= 0.1;
+		$messages = [];
+		$j = 0;
+		for($i = (int) $start; isset($trace[$i]); ++$i, ++$j){
+			$params = "";
+			if(isset($trace[$i]["args"]) or isset($trace[$i]["params"])){
+				if(isset($trace[$i]["args"])){
+					$args = $trace[$i]["args"];
+				}else{
+					$args = $trace[$i]["params"];
 				}
-				if($timeout <= 0){
-					@proc_terminate($this->process, 9); // SIGKILL
+				foreach($args as $name => $value){
+					$params .= (is_object($value) ? get_class($value) . " " . (method_exists($value, "__toString") ? $value->__toString() : "object") : gettype($value) . " " . @strval($value)) . ", ";
 				}
 			}
-			@proc_close($this->process);
-			$this->process = null;
+			$messages[] = "#$j " . (isset($trace[$i]["file"]) ? $this->cleanPath($trace[$i]["file"]) : "") . "(" . (isset($trace[$i]["line"]) ? $trace[$i]["line"] : "") . "): " . (isset($trace[$i]["class"]) ? $trace[$i]["class"] . (($trace[$i]["type"] === "dynamic" or $trace[$i]["type"] === "->") ? "->" : "::") : "") . $trace[$i]["function"] . "(" . substr($params, 0, -2) . ")";
 		}
+
+		return $messages;
 	}
 
-	public function getThreadName(){
-		return "RakLib";
+	public function cleanPath($path){
+		return rtrim(str_replace(["\\", ".php", "phar://", rtrim(str_replace(["\\", "phar://"], ["/", ""], $this->mainPath), "/")], ["/", "", "", ""], $path), "/");
 	}
+
+	public function run(){
+		//Load removed dependencies, can't use require_once()
+		foreach($this->loadPaths as $name => $path){
+			if(!class_exists($name, false) and !interface_exists($name, false)){
+				require($path);
+			}
+		}
+		$this->loader->register(true);
+
+		gc_enable();
+		error_reporting(-1);
+		ini_set("display_errors", 1);
+		ini_set("display_startup_errors", 1);
+
+		set_error_handler([$this, "errorHandler"], E_ALL);
+		register_shutdown_function([$this, "shutdownHandler"]);
+
+
+		$socket = new UDPServerSocket($this->getLogger(), $this->port, $this->interface);
+		new SessionManager($this, $socket);
+	}
+
 }

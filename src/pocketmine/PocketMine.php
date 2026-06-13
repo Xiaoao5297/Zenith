@@ -92,19 +92,19 @@ namespace pocketmine {
 		@define('pocketmine\PATH', \getcwd() . DIRECTORY_SEPARATOR);
 	}
 
-	if(version_compare("8.3", PHP_VERSION) > 0){
-		echo "[注意] PHP 8.3 以上版本才支持 PocketMine-MP。" . PHP_EOL;
+	if(version_compare("7.3", PHP_VERSION) > 0){
+		echo "[注意] PHP 7.3 以上版本才支持 PocketMine-MP。" . PHP_EOL;
 		echo "[注意] 请使用主页提供的安装程序。" . PHP_EOL;
-		echo "[CRITICAL] You must use PHP >= 8.3" . PHP_EOL;
+		echo "[CRITICAL] You must use PHP >= 7.3" . PHP_EOL;
 		echo "[CRITICAL] Please use the installer provided on the homepage." . PHP_EOL;
 		exit(1);
 	}
 
-	if(!extension_loaded("parallel")){
-		echo "[注意] 无法找到 parallel 扩展。" . PHP_EOL;
-		echo "[注意] 请安装 parallel 扩展（PHP 8.3 推荐使用 pecl install parallel）。" . PHP_EOL;
-		echo "[CRITICAL] Unable to find the parallel extension." . PHP_EOL;
-		echo "[CRITICAL] Please install the parallel extension (pecl install parallel for PHP 8.3)." . PHP_EOL;
+	if(!extension_loaded("pthreads")){
+		echo "[注意] 无法找到 pthreads 扩展。" . PHP_EOL;
+		echo "[注意] 请使用主页提供的安装程序。" . PHP_EOL;
+		echo "[CRITICAL] Unable to find the pthreads extension." . PHP_EOL;
+		echo "[CRITICAL] Please use the installer provided on the homepage." . PHP_EOL;
 		exit(1);
 	}
 
@@ -399,6 +399,16 @@ namespace pocketmine {
 		++$errors;
 	}
 
+	$pthreads_version = phpversion("pthreads");
+	if(substr_count($pthreads_version, ".") < 2){
+		$pthreads_version = "0.$pthreads_version";
+	}
+	if(version_compare($pthreads_version, "3.1.5") < 0){
+		$logger->critical("无法找到符合要求的 pthreads 扩展。");
+		$logger->critical("pthreads >= 3.1.5 is required, while you have $pthreads_version.");
+		++$errors;
+	}
+
 	if(!extension_loaded("uopz")){
 		//$logger->notice("Couldn't find the uopz extension. Some functions may be limited");
 	}
@@ -486,6 +496,7 @@ namespace pocketmine {
 	$killer->start();
 
 	$logger->shutdown();
+	$logger->join();
 
 	echo "Server has stopped" . Terminal::$FORMAT_RESET . "\n";
 

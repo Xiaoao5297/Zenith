@@ -25,6 +25,6 @@
 namespace pocketmine\level\generator\object;
 
 
-abstract class GenisysObject{
+abstract class Object{
 
 }

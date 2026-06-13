@@ -22,28 +22,13 @@
 namespace pocketmine;
 
 /**
- * Base class for all custom threading classes.
- * Uses parallel\Runtime and parallel\Channel instead of pthreads.
+ * This class must be extended by all custom threading classes
  */
-abstract class Thread{
+abstract class Thread extends \Thread{
 
 	/** @var \ClassLoader */
 	protected $classLoader;
 	protected $isKilled = false;
-
-	/** @var \parallel\Runtime|null */
-	protected $runtime = null;
-	/** @var \parallel\Future|null */
-	protected $future = null;
-
-	/** @var \parallel\Channel|null  Communication: main -> thread */
-	protected $inChan = null;
-	/** @var \parallel\Channel|null  Communication: thread -> main */
-	protected $outChan = null;
-	/** @var string */
-	protected $inChanName = "";
-	/** @var string */
-	protected $outChanName = "";
 
 	public function getClassLoader(){
 		return $this->classLoader;
@@ -67,177 +52,32 @@ abstract class Thread{
 		}
 	}
 
-	/**
-	 * Start the thread in a parallel Runtime.
-	 * Subclasses should call parent::start() or implement their own parallel bootstrap.
-	 */
-	public function start(){
+	public function start(int $options = PTHREADS_INHERIT_ALL){
 		ThreadManager::getInstance()->add($this);
 
-		if($this->isRunning()){
-			return false;
-		}
-
-		$id = spl_object_id($this);
-		$inName = "thr_in_{$id}";
-		$outName = "thr_out_{$id}";
-
-		$this->inChanName = $inName;
-		$this->outChanName = $outName;
-		$this->inChan = \parallel\Channel::make($inName, \parallel\Channel::Infinite);
-		$this->outChan = \parallel\Channel::make($outName, \parallel\Channel::Infinite);
-
-		if($this->getClassLoader() === null){
-			$this->setClassLoader();
-		}
-
-		$className = get_class($this);
-		$threadData = serialize($this->getThreadData());
-		$bootstrapPath = \pocketmine\PATH;
-
-		$this->runtime = new \parallel\Runtime();
-		$this->future = $this->runtime->run(function($className, $threadData, $bootstrapPath, $inName, $outName){
-			require_once $bootstrapPath . "src/spl/ClassLoader.php";
-			require_once $bootstrapPath . "src/spl/BaseClassLoader.php";
-			require_once $bootstrapPath . "src/pocketmine/CompatibleClassLoader.php";
-
-			$loader = new CompatibleClassLoader();
-			$loader->addPath($bootstrapPath . "src");
-			$loader->addPath($bootstrapPath . "src" . DIRECTORY_SEPARATOR . "spl");
-			$loader->register(true);
-
-			$data = unserialize($threadData);
-			$inChan = \parallel\Channel::open($inName);
-			$outChan = \parallel\Channel::open($outName);
-
-			$ref = new \ReflectionClass($className);
-			$instance = $ref->newInstanceWithoutConstructor();
-
-			// Inject channel references via reflection
-			$setChan = function($chan, $name) use ($ref, $instance){
-				$prop = $ref->getProperty($name);
-				$prop->setAccessible(true);
-				$prop->setValue($instance, $chan);
-			};
-			$setChan($inChan, "inChan");
-			$setChan($outChan, "outChan");
-
-			// Restore serialized properties
-			foreach($data as $prop => $value){
-				if($ref->hasProperty($prop) and $prop !== "runtime" and $prop !== "future" and $prop !== "inChan" and $prop !== "outChan"){
-					$p = $ref->getProperty($prop);
-					$p->setAccessible(true);
-					$p->setValue($instance, $value);
-				}
+		if(!$this->isRunning() and !$this->isJoined() and !$this->isTerminated()){
+			if($this->getClassLoader() === null){
+				$this->setClassLoader();
 			}
-
-			// Run any custom initialization
-			if(method_exists($instance, "internalInit")){
-				$instance->internalInit($data);
-			}
-
-			$instance->run();
-		}, [$className, $threadData, $bootstrapPath, $inName, $outName]);
-
-		return true;
-	}
-
-	/**
-	 * Returns data to be serialized and passed to the thread.
-	 * Override in subclasses to include constructor arguments.
-	 */
-	protected function getThreadData() : array{
-		return [];
-	}
-
-	/**
-	 * Called inside the thread after the object is reconstructed.
-	 * Override to perform custom initialization from serialized data.
-	 */
-	protected function internalInit(array $data) : void{
-	}
-
-	/**
-	 * Send data FROM the main thread TO this thread.
-	 */
-	public function pushMainToThreadPacket($str){
-		$this->inChan?->send($str);
-	}
-
-	/**
-	 * Read data sent FROM this thread back to the main thread (blocking).
-	 */
-	public function readThreadToMainPacket(){
-		try{
-			return $this->outChan?->recv();
-		}catch(\parallel\Channel\Error\Closed $e){
-			return null;
+			return parent::start($options);
 		}
+
+		return false;
 	}
 
 	/**
-	 * Called by the thread to read data FROM the main thread (blocking).
-	 */
-	protected function readMainToThreadPacket(){
-		try{
-			return $this->inChan?->recv();
-		}catch(\parallel\Channel\Error\Closed $e){
-			return null;
-		}
-	}
-
-	/**
-	 * Called by the thread to send data TO the main thread.
-	 */
-	protected function pushThreadToMainPacket($str){
-		$this->outChan?->send($str);
-	}
-
-	public function isRunning() : bool{
-		return $this->future !== null and !$this->future->done();
-	}
-
-	public function isJoined() : bool{
-		return $this->future === null || $this->future->done();
-	}
-
-	public function isTerminated() : bool{
-		return $this->runtime === null || $this->future === null;
-	}
-
-	/**
-	 * Stop the thread.
+	 * Stops the thread using the best way possible. Try to stop it yourself before calling this.
 	 */
 	public function quit(){
 		$this->isKilled = true;
 
-		// Close channels to unblock recv()
-		try{
-			if($this->inChanName !== ""){
-				\parallel\Channel::destroy($this->inChanName);
-				$this->inChan = null;
-				$this->inChanName = "";
+		$this->notify();
+
+		if(!$this->isJoined()){
+			if(!$this->isTerminated()){
+				$this->join();
 			}
-		}catch(\Throwable $e){
 		}
-
-		try{
-			if($this->outChanName !== ""){
-				\parallel\Channel::destroy($this->outChanName);
-				$this->outChan = null;
-				$this->outChanName = "";
-			}
-		}catch(\Throwable $e){
-		}
-
-		// Close runtime
-		try{
-			$this->runtime?->close();
-		}catch(\Throwable $e){
-		}
-
-		$this->runtime = null;
-		$this->future = null;
 
 		ThreadManager::getInstance()->remove($this);
 	}

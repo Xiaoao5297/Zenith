@@ -120,7 +120,7 @@ abstract class BaseFullChunk implements FullChunk{
 
 		for($x = 0; $x < 16; ++$x){
 			for($z = 0; $z < 16; ++$z){
-				$biome = Biome::getBiome(ord($data[($z << 4) + $x]));
+				$biome = Biome::getBiome(ord($data{($z << 4) + $x}));
 				$this->setBiomeId($x, $z, $biome->getId());
 				$c = $biome->getColor();
 				$this->setBiomeColor($x, $z, $c >> 16, ($c >> 8) & 0xff, $c & 0xff);
@@ -140,7 +140,7 @@ abstract class BaseFullChunk implements FullChunk{
 							continue;
 						}
 
-						if(((int) $nbt["Pos"][0] >> 4) !== $this->x or ((int) $nbt["Pos"][2] >> 4) !== $this->z){
+						if(($nbt["Pos"][0] >> 4) !== $this->x or ($nbt["Pos"][2] >> 4) !== $this->z){
 							$changed = true;
 							continue; //Fixes entities allocated in wrong chunks.
 						}
@@ -163,7 +163,7 @@ abstract class BaseFullChunk implements FullChunk{
 							continue;
 						}
 
-						if(((int) $nbt["x"] >> 4) !== $this->x or ((int) $nbt["z"] >> 4) !== $this->z){
+						if(($nbt["x"] >> 4) !== $this->x or ($nbt["z"] >> 4) !== $this->z){
 							$changed = true;
 							continue; //Fixes tiles allocated in wrong chunks.
 						}
@@ -309,7 +309,7 @@ abstract class BaseFullChunk implements FullChunk{
 
 		$column = $this->getBlockIdColumn($x, $z);
 		for($y = 127; $y >= 0; --$y){
-			if($column[$y] !== "\x00"){
+			if($column{$y} !== "\x00"){
 				$this->setHeightMap($x, $z, $y);
 				return $y;
 			}

@@ -28,7 +28,7 @@ use pocketmine\Server;
  *
  * WARNING: Do not call PocketMine-MP API methods, or save objects from/on other Threads!!
  */
-abstract class AsyncTask{
+abstract class AsyncTask extends \Threaded implements \Collectable{
 
 	/** @var AsyncWorker $worker */
 	public $worker = null;
@@ -45,9 +45,6 @@ abstract class AsyncTask{
 
 	private $isFinished = false;
 
-	/**
-	 * @return bool
-	 */
 	public function isGarbage() : bool{
 		return $this->isGarbage;
 	}
@@ -56,9 +53,6 @@ abstract class AsyncTask{
 		$this->isGarbage = true;
 	}
 
-	/**
-	 * @return bool
-	 */
 	public function isFinished() : bool{
 		return $this->isFinished;
 	}
@@ -72,13 +66,12 @@ abstract class AsyncTask{
 				$this->onRun();
 			}catch(\Throwable $e){
 				$this->crashed = true;
-				if($this->worker !== null){
-					$this->worker->handleException($e);
-				}
+				$this->worker->handleException($e);
 			}
 		}
 
 		$this->isFinished = true;
+		//$this->setGarbage();
 	}
 
 	public function isCrashed(){
@@ -170,8 +163,8 @@ abstract class AsyncTask{
 	}
 
 	public function cleanObject(){
-		foreach(get_object_vars($this) as $p => $v){
-			if(!in_array($p, ["isFinished", "isGarbage", "cancelRun", "crashed", "taskId", "serialized"])){
+		foreach($this as $p => $v){
+			if(!($v instanceof \Threaded) and !in_array($p, ["isFinished", "isGarbage", "cancelRun"])){
 				$this->{$p} = null;
 			}
 		}
