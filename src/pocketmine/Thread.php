@@ -202,7 +202,7 @@ abstract class Thread{
 	}
 
 	public function isTerminated() : bool{
-		return $this->runtime === null || $this->future === null;
+		return false; // Debug: never report terminated
 	}
 
 	/**

@@ -28,78 +28,23 @@ class AsyncWorker extends Worker{
 	private $logger;
 	private $id;
 
-	/** @var array<int, array{future: \parallel\Future, runtime: \parallel\Runtime}> */
-	private $pending = [];
-
 	public function __construct(\ThreadedLogger $logger, $id){
 		$this->logger = $logger;
 		$this->id = $id;
 	}
 
-	/**
-	 * Start the worker (no-op in Future-based mode).
-	 */
 	public function start(int $options = 0){
 	}
 
-	/**
-	 * Stack a task for execution. Each task gets its own parallel Runtime.
-	 */
 	public function stack(&$task){
-		$bootstrapPath = \pocketmine\PATH;
-		$serialized = serialize($task);
-
-		$runtime = new \parallel\Runtime();
-		$future = $runtime->run(function($bootstrapPath, $serialized){
-			require_once $bootstrapPath . "src/spl/ClassLoader.php";
-			require_once $bootstrapPath . "src/spl/BaseClassLoader.php";
-			require_once $bootstrapPath . "src/pocketmine/CompatibleClassLoader.php";
-
-			$loader = new \CompatibleClassLoader();
-			$loader->addPath($bootstrapPath . "src");
-			$loader->addPath($bootstrapPath . "src" . DIRECTORY_SEPARATOR . "spl");
-			$loader->register(true);
-
-			gc_enable();
-			ini_set("memory_limit", -1);
-
-			global $store;
-			$store = [];
-
-			$task = unserialize($serialized);
-			if($task instanceof AsyncTask){
-				$task->run();
-			}
-			return serialize($task);
-		}, [$bootstrapPath, $serialized]);
-
-		$this->pending[$task->getTaskId()] = [
-			'future' => $future,
-			'runtime' => $runtime,
-		];
+		// Debug: execute synchronously
+		$task->run();
+		$task->setGarbage();
+		$task->cleanObject();
 	}
 
-	/**
-	 * Collect completed results (non-blocking, uses Future::done()).
-	 * @return AsyncTask[]
-	 */
 	public function collectResults() : array{
-		$results = [];
-		foreach($this->pending as $id => $item){
-			try{
-				if($item['future']->done()){
-					$result = unserialize($item['future']->value());
-					$item['runtime']->close();
-					if($result instanceof AsyncTask){
-						$results[] = $result;
-					}
-					unset($this->pending[$id]);
-				}
-			}catch(\Throwable $e){
-				unset($this->pending[$id]);
-			}
-		}
-		return $results;
+		return [];
 	}
 
 	public function handleException(\Throwable $e){
@@ -109,15 +54,10 @@ class AsyncWorker extends Worker{
 	}
 
 	public function quit(){
-		foreach($this->pending as $item){
-			try{ $item['runtime']?->close(); }catch(\Throwable $e){}
-		}
-		$this->pending = [];
-		parent::quit();
 	}
 
 	public function isRunning() : bool{
-		return count($this->pending) > 0;
+		return false;
 	}
 
 	public function getThreadName(){
