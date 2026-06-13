@@ -65,7 +65,7 @@ class RakLibInterface implements ServerInstance, AdvancedSourceInterface{
 		if($this->rakLib->isTerminated()){
 			$this->network->unregisterInterface($this);
 
-			throw new \Exception("RakLib Thread crashed");
+			$this->server->getLogger()->critical("RakLib Thread crashed, disabling interface");
 		}
 
 		return $work;
