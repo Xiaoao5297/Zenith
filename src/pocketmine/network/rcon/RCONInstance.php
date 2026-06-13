@@ -174,34 +174,7 @@ class RCONInstance extends Thread{
 	}
 
 	public function getCmd(){
-		// Check if a pending cmd future has completed
-		if($this->pendingCmdFuture !== null){
-			try{
-				if($this->pendingCmdFuture->done()){
-					$cmd = $this->pendingCmdFuture->value();
-					$this->pendingCmdFuture = null;
-					return $cmd;
-				}
-			}catch(\Throwable $e){
-				$this->pendingCmdFuture = null;
-			}
-			return null;
-		}
-
-		// Start a new future to read one command from the channel (blocks until available)
-		if($this->cmdChanName === ""){
-			return null;
-		}
-		$chanName = $this->cmdChanName;
-		$this->pendingCmdFuture = \parallel\run(function($chanName){
-			$chan = \parallel\Channel::open($chanName);
-			try{
-				return $chan->recv();
-			}catch(\parallel\Channel\Error\Closed $e){
-				return null;
-			}
-		}, [$chanName]);
-
+		// RCON command reading disabled in parallel mode to avoid Runtime-per-tick overhead
 		return null;
 	}
 
