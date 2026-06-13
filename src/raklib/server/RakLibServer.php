@@ -40,10 +40,13 @@ class RakLibServer extends Thread{
 	protected $extChanName = "";
 	/** @var string */
 	protected $intChanName = "";
-	/** @var resource|null */
-	protected $dataSocket = null;
 
 	protected $mainPath;
+
+	/** @var resource|null */
+	private $process = null;
+	/** @var resource|null */
+	private $stdoutPipe = null;
 
 	public function __construct($port, $interface = "0.0.0.0"){
 		$this->port = (int) $port;
@@ -56,7 +59,9 @@ class RakLibServer extends Thread{
 		$this->mainPath = \Phar::running(true) !== "" ? \Phar::running(true) : \getcwd() . DIRECTORY_SEPARATOR;
 
 		$id = spl_object_id($this);
+		$this->extChanName = "rak_ext_{$id}";
 		$this->intChanName = "rak_int_{$id}";
+		$this->externalQueue = \parallel\Channel::make($this->extChanName, \parallel\Channel::Infinite);
 		$this->internalQueue = \parallel\Channel::make($this->intChanName, \parallel\Channel::Infinite);
 
 		$this->start();
@@ -103,85 +108,66 @@ class RakLibServer extends Thread{
 	}
 
 	public function start(int $options = 0){
+		$phpBinary = PHP_BINARY;
 		$bootstrapPath = \pocketmine\PATH;
-		$port = $this->port;
-		$interface = $this->interface;
-		$mainPath = $this->mainPath;
-		$intChanName = $this->intChanName;
+		$bootstrapFile = $bootstrapPath . "src/raklib/server/raklib_bootstrap.php";
 
-		// Create socket pair for non-blocking data channel (RakLib -> main)
-		$sockets = @stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
-		if($sockets === false){
-			echo "[RakLib] Failed to create socket pair\n";
+		$env = [
+			"RAKLIB_BOOTSTRAP_PATH" => $bootstrapPath,
+			"RAKLIB_PORT" => (string) $this->port,
+			"RAKLIB_INTERFACE" => $this->interface,
+			"RAKLIB_MAIN_PATH" => $this->mainPath,
+			"RAKLIB_INT_CHAN" => $this->intChanName,
+			"RAKLIB_EXT_CHAN" => $this->extChanName,
+		];
+
+		$descriptorspec = [
+			0 => ["pipe", "r"],  // stdin
+			1 => ["pipe", "w"],  // stdout - RakLib output
+			2 => ["pipe", "w"],  // stderr
+		];
+
+		$this->process = @proc_open(
+			$phpBinary . " " . escapeshellarg($bootstrapFile),
+			$descriptorspec,
+			$pipes,
+			null,
+			$env
+		);
+
+		if($this->process === false){
+			echo "[RakLib] Failed to start RakLib process\n";
 			return false;
 		}
-		$dataSocket = $sockets[0];  // main thread side
-		$proxySocket = $sockets[1]; // proxy side (sent to Runtime)
-		stream_set_blocking($dataSocket, false);
-		stream_set_blocking($proxySocket, false);
 
-		$this->runtime = new \parallel\Runtime();
-		$this->future = $this->runtime->run(function($bootstrapPath, $port, $interface, $mainPath, $intChanName, $proxySocket){
-			require_once $bootstrapPath . "src/spl/ClassLoader.php";
-			require_once $bootstrapPath . "src/spl/BaseClassLoader.php";
-			require_once $bootstrapPath . "src/pocketmine/CompatibleClassLoader.php";
-			require_once $bootstrapPath . "src/raklib/server/RakLibDummyLogger.php";
-			require_once $bootstrapPath . "src/raklib/server/RakLibProxy.php";
-
-			$loader = new \CompatibleClassLoader();
-			$loader->addPath($bootstrapPath . "src");
-			$loader->addPath($bootstrapPath . "src" . DIRECTORY_SEPARATOR . "spl");
-			$loader->register(true);
-
-			$intChan = \parallel\Channel::open($intChanName);
-
-			$proxy = new RakLibProxy($intChan, $proxySocket, $mainPath);
-			$proxy->shutdown = false;
-
-			gc_enable();
-			error_reporting(-1);
-			ini_set("display_errors", 1);
-			ini_set("display_startup_errors", 1);
-
-			set_error_handler(function($errno, $errstr, $errfile, $errline) use ($proxy){
-				if(error_reporting() === 0) return false;
-				$errfile = $proxy->cleanPath($errfile);
-				echo "[RakLib] Error: \"$errstr\" in \"$errfile\" at line $errline\n";
-				return true;
-			}, E_ALL);
-
-			register_shutdown_function(function() use ($proxy){
-				if(!$proxy->isShutdown()){
-					echo "[RakLib] RakLib crashed!\n";
-				}
-			});
-
-			$socket = new UDPServerSocket($proxy->getLogger(), $port, $interface);
-			new SessionManager($proxy, $socket);
-		}, [$bootstrapPath, $port, $interface, $mainPath, $intChanName, $proxySocket]);
-
-		$this->dataSocket = $dataSocket;
+		// Close stdin (we use channel for communication)
+		fclose($pipes[0]);
+		// Store stdout pipe for reading RakLib output
+		$this->stdoutPipe = $pipes[1];
+		stream_set_blocking($this->stdoutPipe, false);
+		// Close stderr
+		fclose($pipes[2]);
 
 		return true;
 	}
 
 	public function readThreadToMainPacket(){
-		if(!isset($this->dataSocket) or $this->dataSocket === null){
+		if($this->stdoutPipe === null){
 			return "";
 		}
-		// Non-blocking read from data socket
-		$r = [$this->dataSocket];
+		// Non-blocking read from stdout pipe
+		$r = [$this->stdoutPipe];
 		$w = null;
 		$e = null;
-		if(stream_select($r, $w, $e, 0, 0) > 0){
-			$header = @fread($this->dataSocket, 4);
+		if(@stream_select($r, $w, $e, 0, 0) > 0){
+			$header = @fread($this->stdoutPipe, 4);
 			if($header === false or strlen($header) < 4){
 				return "";
 			}
 			$len = unpack("N", $header)[1];
 			$data = "";
 			while(strlen($data) < $len){
-				$chunk = @fread($this->dataSocket, $len - strlen($data));
+				$chunk = @fread($this->stdoutPipe, $len - strlen($data));
 				if($chunk === false or $chunk === "") break;
 				$data .= $chunk;
 			}
@@ -190,23 +176,46 @@ class RakLibServer extends Thread{
 		return "";
 	}
 
-	public function run(){
-	}
-
 	public function quit(){
 		$this->shutdown = true;
+
+		// Send shutdown signal via channel
 		try{
-			if($this->dataSocket){
-				@fclose($this->dataSocket);
-				$this->dataSocket = null;
-			}
+			$this->internalQueue->send("\x7f"); // PACKET_EMERGENCY_SHUTDOWN
+		}catch(\Throwable $e){}
+
+		// Close channels
+		try{
+			\parallel\Channel::destroy($this->extChanName);
 		}catch(\Throwable $e){}
 		try{
 			\parallel\Channel::destroy($this->intChanName);
 		}catch(\Throwable $e){}
-		try{
-			$this->runtime?->close();
-		}catch(\Throwable $e){}
+
+		// Close process pipes
+		if($this->stdoutPipe){
+			@fclose($this->stdoutPipe);
+		}
+
+		// Terminate the RakLib process
+		if($this->process){
+			$status = @proc_get_status($this->process);
+			if($status !== false && $status["running"]){
+				@proc_terminate($this->process, 15); // SIGTERM
+				$timeout = 5;
+				while($timeout > 0){
+					$status = @proc_get_status($this->process);
+					if($status === false || !$status["running"]) break;
+					usleep(100000);
+					$timeout -= 0.1;
+				}
+				if($timeout <= 0){
+					@proc_terminate($this->process, 9); // SIGKILL
+				}
+			}
+			@proc_close($this->process);
+			$this->process = null;
+		}
 	}
 
 	public function getThreadName(){
