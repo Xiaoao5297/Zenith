@@ -2536,7 +2536,6 @@ private function lookupAddress($address) {
 
 			$this->getLogger()->debug($this->getLanguage()->translateString("pocketmine.server.debug.closeConsole"));
 			$this->console->shutdown();
-			$this->console->notify();
 
 			$this->getLogger()->debug($this->getLanguage()->translateString("pocketmine.server.debug.stopNetworkInterfaces"));
 			foreach($this->network->getInterfaces() as $interface){
