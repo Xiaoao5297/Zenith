@@ -25,14 +25,14 @@ use pocketmine\Thread;
 
 class CommandReader extends Thread{
 	private $readline;
-	/** @var \parallel\Channel */
-	protected $buffer;
+	/** @var resource */
+	private $readSocket = null;
+	/** @var resource */
+	private $writeSocket = null;
 	private $shutdown = false;
 	private $stdin;
 	/** @var \parallel\Runtime|null */
 	private $readerRuntime = null;
-	/** @var string */
-	private $bufferName = "";
 
 	public function __construct(){
 		$this->stdin = fopen("php://stdin", "r");
@@ -42,8 +42,16 @@ class CommandReader extends Thread{
 		}else{
 			$this->readline = false;
 		}
-		$this->bufferName = "cmd_" . spl_object_id($this);
-		$this->buffer = \parallel\Channel::make($this->bufferName, \parallel\Channel::Infinite);
+
+		// Create socket pair for non-blocking line reading
+		$sockets = @stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+		if($sockets !== false){
+			$this->readSocket = $sockets[0];
+			$this->writeSocket = $sockets[1];
+			stream_set_blocking($this->readSocket, false);
+			stream_set_blocking($this->writeSocket, false);
+		}
+
 		$this->start();
 	}
 
@@ -57,30 +65,34 @@ class CommandReader extends Thread{
 	 * @return string|null
 	 */
 	public function getLine(){
-		try{
-			return $this->buffer->tryRecv();
-		}catch(\parallel\Channel\Error\Existence $e){
-			return null;
-		}catch(\parallel\Channel\Error\Closed $e){
+		if($this->readSocket === null or $this->readSocket === false){
 			return null;
 		}
+		$r = [$this->readSocket];
+		$w = null;
+		$e = null;
+		if(stream_select($r, $w, $e, 0, 0) > 0){
+			$line = @fgets($this->readSocket);
+			if($line !== false and $line !== ""){
+				return trim($line);
+			}
+		}
+		return null;
 	}
 
 	public function start(int $options = 0){
-		$bufferName = "cmd_" . spl_object_id($this);
-
+		$writeSocket = $this->writeSocket;
 		$readlineMode = $this->readline;
 
 		$this->readerRuntime = new \parallel\Runtime();
 
-		$this->future = $this->readerRuntime->run(function($bufferName, $readlineMode){
-			$buffer = \parallel\Channel::open($bufferName);
+		$this->future = $this->readerRuntime->run(function($writeSocket, $readlineMode){
 			$stdin = fopen("php://stdin", "r");
 
 			if($readlineMode){
-				$cb = function($line) use ($buffer){
+				$cb = function($line) use ($writeSocket){
 					if($line !== ""){
-						$buffer->send($line);
+						@fwrite($writeSocket, $line . "\n");
 						readline_add_history($line);
 					}
 				};
@@ -99,7 +111,7 @@ class CommandReader extends Thread{
 					if(!$readlineMode){
 						$line = trim(fgets($stdin));
 						if($line !== ""){
-							$buffer->send($line);
+							@fwrite($writeSocket, $line . "\n");
 						}
 					}else{
 						readline_callback_read_char();
@@ -111,13 +123,18 @@ class CommandReader extends Thread{
 				readline_callback_handler_remove();
 			}
 			fclose($stdin);
-		}, [$bufferName, $readlineMode]);
+			@fclose($writeSocket);
+		}, [$writeSocket, $readlineMode]);
 	}
 
 	public function quit(){
 		$this->shutdown();
 		try{
-			\parallel\Channel::destroy($this->bufferName);
+			if($this->readSocket){ @fclose($this->readSocket); $this->readSocket = null; }
+		}catch(\Throwable $e){
+		}
+		try{
+			if($this->writeSocket){ @fclose($this->writeSocket); $this->writeSocket = null; }
 		}catch(\Throwable $e){
 		}
 		try{
@@ -127,10 +144,5 @@ class CommandReader extends Thread{
 	}
 
 	public function run(){
-		// No-op
-	}
-
-	public function getThreadName(){
-		return "Console";
 	}
 }
