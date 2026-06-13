@@ -107,20 +107,7 @@ class MainLogger extends \AttachableThreadedLogger{
 				file_put_contents($logFile, $chunk, FILE_APPEND);
 			}
 
-			// Drain remaining messages
-			while(true){
-				try{
-					$chunk = $chan->tryRecv();
-					if($chunk === null or $chunk === "__SHUTDOWN__"){
-						break;
-					}
-					file_put_contents($logFile, $chunk, FILE_APPEND);
-				}catch(\parallel\Channel\Error\Existence $e){
-					break;
-				}catch(\parallel\Channel\Error\Closed $e){
-					break;
-				}
-			}
+			// Shutdown - exit the writer
 		}, [$logFile, $chanName]);
 	}
 
