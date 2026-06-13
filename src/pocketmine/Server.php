@@ -263,6 +263,8 @@ class Server{
 	private $network;
 
 	private $networkCompressionAsync = true;
+	/** @var MapData */
+	private $MapData = null;
 	public $networkCompressionLevel = 7;
 	// public $InCoreVersion = "0.7Alpha";
 

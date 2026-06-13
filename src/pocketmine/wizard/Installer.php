@@ -38,6 +38,7 @@ class Installer{
 	const DEFAULT_LEVEL_TYPE = "DEFAULT";
 
 	private $defaultLang;
+	private $lang;
 
 	public function __construct(){
 		echo "[*] InCore Pro 配置程序\n";
