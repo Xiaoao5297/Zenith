@@ -32,18 +32,18 @@ abstract class Thread{
 	protected $isKilled = false;
 
 	/** @var \parallel\Runtime|null */
-	private $runtime = null;
+	protected $runtime = null;
 	/** @var \parallel\Future|null */
 	protected $future = null;
 
 	/** @var \parallel\Channel|null  Communication: main -> thread */
-	private $inChan = null;
+	protected $inChan = null;
 	/** @var \parallel\Channel|null  Communication: thread -> main */
-	private $outChan = null;
+	protected $outChan = null;
 	/** @var string */
-	private $inChanName = "";
+	protected $inChanName = "";
 	/** @var string */
-	private $outChanName = "";
+	protected $outChanName = "";
 
 	public function getClassLoader(){
 		return $this->classLoader;
