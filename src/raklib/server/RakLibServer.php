@@ -36,6 +36,10 @@ class RakLibServer extends Thread{
 	protected $externalQueue;
 	/** @var \parallel\Channel */
 	protected $internalQueue;
+	/** @var string */
+	protected $extChanName = "";
+	/** @var string */
+	protected $intChanName = "";
 
 	protected $mainPath;
 
@@ -55,8 +59,11 @@ class RakLibServer extends Thread{
 		$this->shutdown = false;
 		$this->mainPath = \Phar::running(true) !== "" ? \Phar::running(true) : \getcwd() . DIRECTORY_SEPARATOR;
 
-		$this->externalQueue = \parallel\Channel::make("rak_ext_" . spl_object_id($this), \parallel\Channel::Infinite);
-		$this->internalQueue = \parallel\Channel::make("rak_int_" . spl_object_id($this), \parallel\Channel::Infinite);
+		$id = spl_object_id($this);
+		$this->extChanName = "rak_ext_{$id}";
+		$this->intChanName = "rak_int_{$id}";
+		$this->externalQueue = \parallel\Channel::make($this->extChanName, \parallel\Channel::Infinite);
+		$this->internalQueue = \parallel\Channel::make($this->intChanName, \parallel\Channel::Infinite);
 
 		$this->start();
 	}
@@ -122,8 +129,8 @@ class RakLibServer extends Thread{
 		$port = $this->port;
 		$interface = $this->interface;
 		$mainPath = $this->mainPath;
-		$extChanName = $this->externalQueue->getName();
-		$intChanName = $this->internalQueue->getName();
+		$extChanName = $this->extChanName;
+		$intChanName = $this->intChanName;
 
 		$this->runtime = new \parallel\Runtime();
 		$this->future = $this->runtime->run(function($bootstrapPath, $port, $interface, $mainPath, $extChanName, $intChanName){
@@ -268,10 +275,10 @@ class RakLibServer extends Thread{
 	public function quit(){
 		$this->shutdown = true;
 		try{
-			\parallel\Channel::destroy($this->externalQueue->getName());
+			\parallel\Channel::destroy($this->extChanName);
 		}catch(\Throwable $e){}
 		try{
-			\parallel\Channel::destroy($this->internalQueue->getName());
+			\parallel\Channel::destroy($this->intChanName);
 		}catch(\Throwable $e){}
 		try{
 			$this->runtime?->close();

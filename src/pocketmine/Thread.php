@@ -40,6 +40,10 @@ abstract class Thread{
 	private $inChan = null;
 	/** @var \parallel\Channel|null  Communication: thread -> main */
 	private $outChan = null;
+	/** @var string */
+	private $inChanName = "";
+	/** @var string */
+	private $outChanName = "";
 
 	public function getClassLoader(){
 		return $this->classLoader;
@@ -78,6 +82,8 @@ abstract class Thread{
 		$inName = "thr_in_{$id}";
 		$outName = "thr_out_{$id}";
 
+		$this->inChanName = $inName;
+		$this->outChanName = $outName;
 		$this->inChan = \parallel\Channel::make($inName, \parallel\Channel::Infinite);
 		$this->outChan = \parallel\Channel::make($outName, \parallel\Channel::Infinite);
 
@@ -207,19 +213,19 @@ abstract class Thread{
 
 		// Close channels to unblock recv()
 		try{
-			if($this->inChan !== null){
-				$name = $this->inChan->getName();
-				\parallel\Channel::destroy($name);
+			if($this->inChanName !== ""){
+				\parallel\Channel::destroy($this->inChanName);
 				$this->inChan = null;
+				$this->inChanName = "";
 			}
 		}catch(\Throwable $e){
 		}
 
 		try{
-			if($this->outChan !== null){
-				$name = $this->outChan->getName();
-				\parallel\Channel::destroy($name);
+			if($this->outChanName !== ""){
+				\parallel\Channel::destroy($this->outChanName);
 				$this->outChan = null;
+				$this->outChanName = "";
 			}
 		}catch(\Throwable $e){
 		}

@@ -78,11 +78,11 @@ class MainLogger extends \AttachableThreadedLogger{
 	 * Start the background file writer using parallel.
 	 */
 	private function startWriter(){
-		$this->logChan = \parallel\Channel::make("logger_" . spl_object_id($this), \parallel\Channel::Infinite);
+		$chanName = "logger_" . spl_object_id($this);
+		$this->logChan = \parallel\Channel::make($chanName, \parallel\Channel::Infinite);
 		$this->writerRuntime = new \parallel\Runtime();
 
 		$logFile = $this->logFile;
-		$chanName = $this->logChan->getName();
 
 		$this->writerFuture = $this->writerRuntime->run(function($logFile, $chanName){
 			$chan = \parallel\Channel::open($chanName);

@@ -24,6 +24,10 @@ class RCONInstance extends Thread{
 	private $cmdChan = null;
 	/** @var \parallel\Channel|null */
 	private $respChan = null;
+	/** @var string */
+	private $cmdChanName = "";
+	/** @var string */
+	private $respChanName = "";
 
 	public function isWaiting(){
 		return $this->waiting === true;
@@ -48,11 +52,12 @@ class RCONInstance extends Thread{
 
 	public function start(int $options = 0){
 		$id = spl_object_id($this);
-		$this->cmdChan = \parallel\Channel::make("rcon_cmd_{$id}", \parallel\Channel::Infinite);
-		$this->respChan = \parallel\Channel::make("rcon_resp_{$id}", \parallel\Channel::Infinite);
-
-		$cmdChanName = $this->cmdChan->getName();
-		$respChanName = $this->respChan->getName();
+		$cmdChanName = "rcon_cmd_{$id}";
+		$respChanName = "rcon_resp_{$id}";
+		$this->cmdChan = \parallel\Channel::make($cmdChanName, \parallel\Channel::Infinite);
+		$this->respChan = \parallel\Channel::make($respChanName, \parallel\Channel::Infinite);
+		$this->cmdChanName = $cmdChanName;
+		$this->respChanName = $respChanName;
 		$password = $this->password;
 		$maxClients = $this->maxClients;
 		$socket = $this->socket;
@@ -193,10 +198,10 @@ class RCONInstance extends Thread{
 	public function quit(){
 		$this->stop = true;
 		try{
-			if($this->cmdChan) \parallel\Channel::destroy($this->cmdChan->getName());
+			if($this->cmdChanName !== "") \parallel\Channel::destroy($this->cmdChanName);
 		}catch(\Throwable $e){}
 		try{
-			if($this->respChan) \parallel\Channel::destroy($this->respChan->getName());
+			if($this->respChanName !== "") \parallel\Channel::destroy($this->respChanName);
 		}catch(\Throwable $e){}
 		try{
 			$this->runtime?->close();

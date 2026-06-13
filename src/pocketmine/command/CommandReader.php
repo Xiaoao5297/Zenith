@@ -31,6 +31,8 @@ class CommandReader extends Thread{
 	private $stdin;
 	/** @var \parallel\Runtime|null */
 	private $readerRuntime = null;
+	/** @var string */
+	private $bufferName = "";
 
 	public function __construct(){
 		$this->stdin = fopen("php://stdin", "r");
@@ -40,7 +42,8 @@ class CommandReader extends Thread{
 		}else{
 			$this->readline = false;
 		}
-		$this->buffer = \parallel\Channel::make("cmd_" . spl_object_id($this), \parallel\Channel::Infinite);
+		$this->bufferName = "cmd_" . spl_object_id($this);
+		$this->buffer = \parallel\Channel::make($this->bufferName, \parallel\Channel::Infinite);
 		$this->start();
 	}
 
@@ -64,7 +67,8 @@ class CommandReader extends Thread{
 	}
 
 	public function start(int $options = 0){
-		$bufferName = $this->buffer->getName();
+		$bufferName = "cmd_" . spl_object_id($this);
+
 		$readlineMode = $this->readline;
 
 		$this->readerRuntime = new \parallel\Runtime();
@@ -113,7 +117,7 @@ class CommandReader extends Thread{
 	public function quit(){
 		$this->shutdown();
 		try{
-			\parallel\Channel::destroy($this->buffer->getName());
+			\parallel\Channel::destroy($this->bufferName);
 		}catch(\Throwable $e){
 		}
 		try{

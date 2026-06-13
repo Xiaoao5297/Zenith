@@ -8,6 +8,10 @@ class SynapseClient extends Thread{
 
 	/** @var \parallel\Channel */
 	private $externalQueue, $internalQueue;
+	/** @var string */
+	private $extChanName = "";
+	/** @var string */
+	private $intChanName = "";
 	private $mainPath;
 	private $needAuth = false;
 
@@ -20,8 +24,11 @@ class SynapseClient extends Thread{
 
 		$this->shutdown = false;
 
-		$this->externalQueue = \parallel\Channel::make("syn_ext_" . spl_object_id($this), \parallel\Channel::Infinite);
-		$this->internalQueue = \parallel\Channel::make("syn_int_" . spl_object_id($this), \parallel\Channel::Infinite);
+		$id = spl_object_id($this);
+		$this->extChanName = "syn_ext_{$id}";
+		$this->intChanName = "syn_int_{$id}";
+		$this->externalQueue = \parallel\Channel::make($this->extChanName, \parallel\Channel::Infinite);
+		$this->internalQueue = \parallel\Channel::make($this->intChanName, \parallel\Channel::Infinite);
 
 		if(\Phar::running(true) !== ""){
 			$this->mainPath = \Phar::running(true);
@@ -49,10 +56,10 @@ class SynapseClient extends Thread{
 	public function quit(){
 		$this->shutdown = true;
 		try{
-			\parallel\Channel::destroy($this->externalQueue->getName());
+			\parallel\Channel::destroy($this->extChanName);
 		}catch(\Throwable $e){}
 		try{
-			\parallel\Channel::destroy($this->internalQueue->getName());
+			\parallel\Channel::destroy($this->intChanName);
 		}catch(\Throwable $e){}
 	}
 
@@ -61,8 +68,8 @@ class SynapseClient extends Thread{
 		$port = $this->port;
 		$interface = $this->interface;
 		$mainPath = $this->mainPath;
-		$extName = $this->externalQueue->getName();
-		$intName = $this->internalQueue->getName();
+		$extName = $this->extChanName;
+		$intName = $this->intChanName;
 
 		$this->runtime = new \parallel\Runtime();
 		$this->future = $this->runtime->run(function($bootstrapPath, $port, $interface, $mainPath, $extName, $intName){
