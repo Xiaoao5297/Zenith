@@ -153,7 +153,7 @@ class Synapse{
 	}
 
 	public function getPacket($buffer){
-		$pid = ord($buffer{1});
+		$pid = ord($buffer[1]);
 
 		if(($data = $this->server->getNetwork()->getPacket($pid)) === null){
 			return null;

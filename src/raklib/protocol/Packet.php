@@ -44,7 +44,7 @@ abstract class Packet
 
         $buffer = "";
         for (; $len > 0; --$len, ++$this->offset) {
-            $buffer .= $this->buffer{$this->offset};
+            $buffer .= $this->buffer[$this->offset];
         }
 
         return $buffer;
@@ -77,7 +77,7 @@ abstract class Packet
 
     protected function getByte()
     {
-        return \ord($this->buffer{$this->offset++});
+        return \ord($this->buffer[$this->offset++]);
     }
 
     protected function getString()
@@ -98,7 +98,7 @@ abstract class Packet
 
     protected function feof()
     {
-        return !isset($this->buffer{$this->offset});
+        return !isset($this->buffer[$this->offset]);
     }
 
     protected function put($str)

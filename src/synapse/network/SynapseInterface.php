@@ -82,7 +82,7 @@ class SynapseInterface{
 	 * @return DataPacket
 	 */
 	public function getPacket($buffer) {
-		$pid = ord($buffer{0});
+		$pid = ord($buffer[0]);
 		/** @var DataPacket $class */
 		$class = $this->packetPool[$pid];
 		if ($class !== null) {

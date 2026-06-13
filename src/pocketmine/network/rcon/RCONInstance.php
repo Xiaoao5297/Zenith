@@ -130,7 +130,7 @@ class RCONInstance extends Thread{
 
 						switch($packetType){
 							case 3: // Login
-								if($statuses[$n] !== 0){ $statuses[$n] = -1; continue; }
+								if($statuses[$n] !== 0){ $statuses[$n] = -1; continue 2; }
 								if($payload === $password){
 									$pk = Binary::writeLInt($requestID) . Binary::writeLInt(2) . "\x00\x00";
 									socket_write($client, Binary::writeLInt(strlen($pk)) . $pk);
@@ -142,7 +142,7 @@ class RCONInstance extends Thread{
 								}
 								break;
 							case 2: // Command
-								if($statuses[$n] !== 1){ $statuses[$n] = -1; continue; }
+								if($statuses[$n] !== 1){ $statuses[$n] = -1; continue 2; }
 								if(strlen($payload) > 0){
 									$cmdChan->send(ltrim($payload));
 									$waiting = true;
@@ -153,7 +153,7 @@ class RCONInstance extends Thread{
 								}
 								break;
 							default:
-								if($statuses[$n] !== 1){ $statuses[$n] = -1; continue; }
+								if($statuses[$n] !== 1){ $statuses[$n] = -1; continue 2; }
 								$pk = Binary::writeLInt($requestID) . Binary::writeLInt(0) . "\x00\x00";
 								socket_write($client, Binary::writeLInt(strlen($pk)) . $pk);
 								break;
