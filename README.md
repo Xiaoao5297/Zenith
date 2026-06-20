@@ -28,7 +28,7 @@ Incore 适合希望在 PocketMine-MP 上运行稳定服务器的开发者，尤�
 2. 获取 Incore
 	- 通过 git 克隆仓库：
     ```sh
-	  git clone https://github.com/yourname/Incore-Pro.git
+	  git clone https://github.com/Xiaoao5297/Incore-Pro.git
     ``` 
 	- 进入目录：
 	  `cd Incore-Pro`
