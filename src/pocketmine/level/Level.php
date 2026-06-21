@@ -962,7 +962,8 @@ class Level implements ChunkManager, Metadatable{
 			}
 
 			if(count($this->blockCache) > 2048){
-				$this->blockCache = [];
+				// 保留最近的一半缓存，避免大量 bulk 操作后完全丢失热点缓存
+				$this->blockCache = array_slice($this->blockCache, -1024, null, true);
 			}
 
 		}
@@ -2928,10 +2929,18 @@ class Level implements ChunkManager, Metadatable{
 		}
 		if($spawn instanceof Vector3){
 			$v = $spawn->floor();
-			$chunk = $this->getChunk($v->x >> 4, $v->z >> 4, false);
-			$x = $v->x & 0x0f;
-			$z = $v->z & 0x0f;
-			if($chunk !== null){
+
+			// 尝试原始位置，如果危险则沿 +X 方向逐步探索，避免出生在岩浆/基岩上
+			$dangerIds = [Block::LAVA, Block::STILL_LAVA, Block::FIRE];
+			for($step = 0; $step <= 15; $step += 3){
+				$wx = $v->x + $step;
+				$wz = $v->z;
+				$chunk = $this->getChunk($wx >> 4, $wz >> 4, false);
+				if($chunk === null){
+					continue;
+				}
+				$x = $wx & 0x0f;
+				$z = $wz & 0x0f;
 				$y = (int) min(126, $v->y);
 				$wasAir = ($chunk->getBlockId($x, $y - 1, $z) === 0);
 				for(; $y > 0; --$y){
@@ -2954,17 +2963,20 @@ class Level implements ChunkManager, Metadatable{
 						$b = $chunk->getFullBlock($x, $y, $z);
 						$block = Block::get($b >> 4, $b & 0x0f);
 						if(!$this->isFullBlock($block)){
-							return new Position($spawn->x, $y === (int) $spawn->y ? $spawn->y : $y, $spawn->z, $this);
+							$feetId = $chunk->getBlockId($x, $y, $z);
+							$headId = $chunk->getBlockId($x, $y + 1, $z);
+							if(!in_array($feetId, $dangerIds, true) and !in_array($headId, $dangerIds, true)){
+								return new Position($wx, $y === (int) $v->y ? $spawn->y : $y, $wz, $this);
+							}
 						}
 					}else{
 						++$y;
 					}
 				}
-
-				$v->y = $y;
 			}
 
-			return new Position($spawn->x, $v->y, $spawn->z, $this);
+			// 所有位置探索完毕仍找不到安全点，保底返回
+			return new Position($spawn->x, 64, $spawn->z, $this);
 		}
 
 		return false;

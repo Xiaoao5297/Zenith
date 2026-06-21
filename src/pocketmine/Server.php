@@ -262,6 +262,9 @@ class Server{
 	/** @var Network */
 	private $network;
 
+	/** @var \pocketmine\anticheat\AntiCheat */
+	private $antiCheat;
+
 	private $networkCompressionAsync = true;
 	public $networkCompressionLevel = 7;
 	// public $InCoreVersion = "0.7Alpha";
@@ -1944,6 +1947,8 @@ class Server{
 			$this->network = new Network($this);
 			$this->network->setName($this->getMotd());
 
+			$this->antiCheat = new \pocketmine\anticheat\AntiCheat($this);
+
 
 			$this->logger->info($this->getLanguage()->translateString("pocketmine.server.info", [
 				$this->getName(),
@@ -2930,6 +2935,13 @@ private function lookupAddress($address) {
 	 */
 	public function getNetwork(){
 		return $this->network;
+	}
+
+	/**
+	 * @return \pocketmine\anticheat\AntiCheat
+	 */
+	public function getAntiCheat(){
+		return $this->antiCheat;
 	}
 
 	/**

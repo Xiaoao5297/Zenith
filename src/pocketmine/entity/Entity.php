@@ -9,7 +9,6 @@ use pocketmine\block\Block;
 use pocketmine\block\Fire;
 use pocketmine\block\Portal;
 use pocketmine\block\PressurePlate;
-use pocketmine\block\Water;
 use pocketmine\block\SlimeBlock;
 use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\event\entity\EntityDespawnEvent;
@@ -127,6 +126,33 @@ abstract class Entity extends Location implements Metadatable{
 	/** @var Entity[] */
 	private static $knownEntities = [];
 	private static $shortNames = [];
+
+	/** @var bool[] 缓存有实体碰撞的方块 ID（避免创建 Block 对象） */
+	private static $collisionBlockIds = null;
+
+	/**
+	 * 初始化碰撞方块 ID 表。
+	 * 与 block/HasEntityCollision 接口保持同步。
+	 */
+	private static function initCollisionBlockIds(){
+		if(self::$collisionBlockIds === null){
+			self::$collisionBlockIds = [
+				Block::WATER => true,
+				Block::STILL_WATER => true,
+				Block::LAVA => true,
+				11 => true, // STILL_LAVA
+				Block::COBWEB => true,
+				Block::FIRE => true,
+				Block::PORTAL => true,
+				Block::VINE => true,
+				Block::STONE_PRESSURE_PLATE => true,
+				Block::WOODEN_PRESSURE_PLATE => true,
+				Block::CACTUS => true,
+				Block::LADDER => true,
+				Block::SLIME_BLOCK => true,
+			];
+		}
+	}
 
 	/**
 	 * @var Player[]
@@ -680,6 +706,11 @@ abstract class Entity extends Location implements Metadatable{
 		}
 		$this->setLastDamageCause($source);
 
+		// 反作弊：受击追踪（击退检测等）
+		if($this instanceof \pocketmine\Player and \pocketmine\anticheat\AntiCheat::getInstance() !== null){
+			\pocketmine\anticheat\AntiCheat::getInstance()->onEntityDamage($this, $source);
+		}
+
 		$this->setHealth($this->getHealth() - $source->getFinalDamage());
 		return true;
 	}
@@ -867,7 +898,6 @@ abstract class Entity extends Location implements Metadatable{
 		Timings::$timerEntityBaseTick->startTiming();
 		//TODO: check vehicles
 
-		$this->blocksAround = null;
 		$this->justCreated = false;
 
 		if(!$this->isAlive()){
@@ -1165,22 +1195,39 @@ abstract class Entity extends Location implements Metadatable{
 	}
 
 	public function isInsideOfWater(){
-		$block = $this->level->getBlock($this->temporalVector->setComponents(Math::floorFloat($this->x), Math::floorFloat($y = ($this->y + $this->getEyeHeight())), Math::floorFloat($this->z)));
+		$x = Math::floorFloat($this->x);
+		$eyeY = $this->y + $this->getEyeHeight();
+		$floorY = Math::floorFloat($eyeY);
+		$z = Math::floorFloat($this->z);
 
-		if($block instanceof Water){
-			$f = ($block->y + 1) - ($block->getFluidHeightPercent() - 0.1111111);
-			return $y < $f;
+		$id = $this->level->getBlockIdAt($x, $floorY, $z);
+
+		if($id === Block::WATER or $id === Block::STILL_WATER){
+			$data = $this->level->getBlockDataAt($x, $floorY, $z);
+			$d = $data >= 8 ? 0 : $data;
+			$f = ($floorY + 1) - ((($d + 1) / 9) - 0.1111111);
+			return $eyeY < $f;
 		}
 
 		return false;
 	}
 
 	public function isInsideOfSolid(){
-		$block = $this->level->getBlock($this->temporalVector->setComponents(Math::floorFloat($this->x), Math::floorFloat($y = ($this->y + $this->getEyeHeight())), Math::floorFloat($this->z)));
+		$x = Math::floorFloat($this->x);
+		$eyeY = Math::floorFloat($this->y + $this->getEyeHeight());
+		$z = Math::floorFloat($this->z);
 
+		$id = $this->level->getBlockIdAt($x, $eyeY, $z);
+
+		// 快速路径：非实心方块直接返回，避免创建 Block 对象
+		if($id === 0 or !Block::$solid[$id]){
+			return false;
+		}
+
+		$block = $this->level->getBlock($this->temporalVector->setComponents($x, $eyeY, $z));
 		$bb = $block->getBoundingBox();
 
-		if($bb !== null and $block->isSolid() and !$block->isTransparent() and $bb->intersectsWith($this->getBoundingBox())){
+		if($bb !== null and !$block->isTransparent() and $bb->intersectsWith($this->getBoundingBox())){
 			return true;
 		}
 		return false;
@@ -1214,6 +1261,7 @@ abstract class Entity extends Location implements Metadatable{
 		$this->y = $this->boundingBox->minY - $this->ySize;
 		$this->z = ($this->boundingBox->minZ + $this->boundingBox->maxZ) / 2;
 
+		$this->blocksAround = null;
 		$this->checkChunks();
 
 		if(!$this->onGround or $dy != 0){
@@ -1367,6 +1415,7 @@ abstract class Entity extends Location implements Metadatable{
 			$this->y = $this->boundingBox->minY - $this->ySize;
 			$this->z = ($this->boundingBox->minZ + $this->boundingBox->maxZ) / 2;
 
+			$this->blocksAround = null;
 			$this->checkChunks();
 
 			$this->checkGroundState($movX, $movY, $movZ, $dx, $dy, $dz);
@@ -1411,11 +1460,15 @@ abstract class Entity extends Location implements Metadatable{
 
 			$this->blocksAround = [];
 
+			self::initCollisionBlockIds();
+
 			for($z = $minZ; $z <= $maxZ; ++$z){
 				for($x = $minX; $x <= $maxX; ++$x){
 					for($y = $minY; $y <= $maxY; ++$y){
-						$block = $this->level->getBlock($this->temporalVector->setComponents($x, $y, $z));
-						if($block->hasEntityCollision()){
+						$id = $this->level->getBlockIdAt($x, $y, $z);
+						// 快速路径：只有已知有实体碰撞的方块才创建 Block 对象
+						if(isset(self::$collisionBlockIds[$id])){
+							$block = $this->level->getBlock($this->temporalVector->setComponents($x, $y, $z));
 							$this->blocksAround[Level::blockHash($block->x, $block->y, $block->z)] = $block;
 						}
 					}
@@ -1528,6 +1581,7 @@ abstract class Entity extends Location implements Metadatable{
 		//$this->boundingBox->setBounds($pos->x - $radius, $pos->y, $pos->z - $radius, $pos->x + $radius, $pos->y + $this->height, $pos->z + $radius);
 		$this->recalculateBoundingBox();
 
+		$this->blocksAround = null;
 		$this->checkChunks();
 
 		return true;

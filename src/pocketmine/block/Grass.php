@@ -70,16 +70,27 @@ class Grass extends Solid{
 
 	public function onUpdate($type){
 		if($type === Level::BLOCK_UPDATE_RANDOM){
-			$block = $this->getLevel()->getBlock(new Vector3($this->x, $this->y, $this->z));
-			if($block->getSide(1)->getLightLevel() < 4){
+			$block = $this->getLevel()->getBlock($this);
+			$above = $block->getSide(1);
+
+			// 水覆盖：草方块变为泥土（无论光照）
+			$aboveId = $above->getId();
+			if($aboveId === Block::WATER or $aboveId === Block::STILL_WATER){
 				Server::getInstance()->getPluginManager()->callEvent($ev = new BlockSpreadEvent($block, $this, new Dirt()));
-			}elseif($block->getSide(1)->getLightLevel() >= 9){
+				if(!$ev->isCancelled()){
+					$this->getLevel()->setBlock($this, $ev->getNewState());
+				}
+				return;
+			}
+
+			// 光照充足时草方块蔓延
+			if($this->getLevel()->getFullLight($above) >= 9){
 				for($l = 0; $l < 4; ++$l){
 					$x = mt_rand($this->x - 1, $this->x + 1);
 					$y = mt_rand($this->y - 2, $this->y + 2);
 					$z = mt_rand($this->z - 1, $this->z + 1);
 					$block = $this->getLevel()->getBlock(new Vector3($x, $y, $z));
-					if($block->getId() === Block::DIRT && $block->getDamage() === 0x0F && $block->getSide(1)->getLightLevel() >= 4 && $block->z <= 2){
+					if($block->getId() === Block::DIRT && $block->getDamage() === 0x0F && $this->getLevel()->getFullLight($block->getSide(1)) >= 4 && $block->z <= 2){
 						Server::getInstance()->getPluginManager()->callEvent($ev = new BlockSpreadEvent($block, $this, new Grass()));
 						if(!$ev->isCancelled()){
 							$this->getLevel()->setBlock($block, $ev->getNewState());

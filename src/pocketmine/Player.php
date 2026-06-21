@@ -1730,6 +1730,11 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 				$this->server->getPluginManager()->callEvent($ev);
 
+				// 反作弊移动检测
+				if(!$ev->isCancelled() and $this->server->getAntiCheat()->isEnabled()){
+					$this->server->getAntiCheat()->onPlayerMove($this, $from, $to);
+				}
+
 				if(!($revert = $ev->isCancelled())){ //Yes, this is intended
 					//$teleported = false;
 					if($this->server->netherEnabled){
@@ -3452,6 +3457,17 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 						$ev->setCancelled();
 					}
 
+					// 反作弊攻击检测
+					if(!$ev->isCancelled() and $this->server->getAntiCheat()->isEnabled()){
+						$this->server->getAntiCheat()->onPlayerAttack($this, $target, $ev);
+						if($ev->isCancelled()){
+							if($item->isTool() and $this->isSurvival()){
+								$this->inventory->sendContents($this);
+							}
+							break;
+						}
+					}
+
 					if($target->attack($ev->getFinalDamage(), $ev) === true){
 						$ev->useArmors();
 					}
@@ -4209,6 +4225,13 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			$this->connected = false;
 			if(strlen($this->getName()) > 0){
 				$this->server->getPluginManager()->callEvent($ev = new PlayerQuitEvent($this, $message, true));
+
+				// 反作弊：清理玩家数据
+				$ac = \pocketmine\anticheat\AntiCheat::getInstance();
+				if($ac !== null){
+					$ac->clearPlayerData($this->getName());
+				}
+
 				if($this->loggedIn === true and $ev->getAutoSave()){
 					$this->save();
 				}
