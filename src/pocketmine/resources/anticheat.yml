@@ -1,0 +1,117 @@
+# ============================================================
+# AntiCheat Configuration / 反作弊配置文件
+# Auto-generated on first run / 首次启动自动生成
+# ============================================================
+
+# ---- General Settings / 通用设置 ----
+settings:
+  # Enable/disable the anti-cheat system / 是否启用反作弊系统
+  enabled: true
+
+  # Broadcast cheat alerts to operators / 向 OP 广播作弊通知
+  broadcast-to-ops: true
+
+  # Log cheat alerts to console / 在控制台输出检测日志
+  log-to-console: true
+
+  # Max daily violations before permanent ban / 每日违规上限（达到后永久封禁）
+  max-daily-violations: 5
+
+# ---- Punishment Settings / 惩罚设置 ----
+punishments:
+  # Violation count threshold for ban+kick / 违规次数达到此值后自动封禁+踢出
+  threshold: 3
+
+# ---- Detection Modules / 检测模块 ----
+checks:
+  # === Movement Speed / 移动速度检测 ===
+  speed:
+    enabled: true
+    max-walk-speed: 7.0        # Max walking speed (blocks/sec) / 行走最大速度（方块/秒）
+    max-sprint-speed: 9.0      # Max sprinting speed / 冲刺最大速度
+    max-fly-speed: 15.0        # Max flying speed / 飞行最大速度
+    rollback: true             # Rollback position on violation / 违规时回滚位置
+    max-violations: 5          # Violation threshold for punishment / 触发封禁的违规次数
+
+  # === Attack / 攻击检测 ===
+  attack:
+    enabled: true
+    max-attacks-per-second: 10      # Max attacks per second / 每秒最大攻击次数
+    max-damage-multiplier: 1.5      # Max damage multiplier / 伤害倍数上限
+    max-rotation-per-tick: 90.0     # KillAura rotation check / KillAura 旋转角度检测
+    max-violations: 1
+
+  # === Reach / 距离检测 ===
+  reach:
+    enabled: true
+    max-attack-reach: 4.5        # Max entity attack reach / 最大攻击距离
+    max-block-reach: 5.5         # Max block interaction reach / 最大方块交互距离
+    max-interact-reach: 5.5      # Max interaction reach / 最大交互距离
+    max-container-reach: 5.5     # Max container access reach / 最大容器访问距离
+    cooldown: 300
+    max-violations: 4
+
+  # === Hitbox / 命中框检测 ===
+  hitbox:
+    enabled: true
+    max-horizontal-range: 0.3
+    max-violations: 4
+
+  # === Teleport / 异常传送检测 ===
+  teleport:
+    enabled: true
+    max-distance: 10.0           # Max movement distance per tick / 每 tick 最大移动距离
+    max-violations: 4
+
+  # === Knockback / 防击退检测 ===
+  knockback:
+    enabled: true
+    min-knockback-distance: 0.3  # Min expected knockback distance / 预期最小击退距离
+    required-count: 3            # Consecutive failures before action / 连续违规次数
+    max-violations: 1
+
+  # === Item / 物品检测 ===
+  item:
+    enabled: true
+    check-stack: true            # Check illegal item stacking / 检测非法堆叠
+    check-32k: true              # Check 32k enchanted weapons / 检测 32k 附魔武器
+    check-enchantments: true     # Check illegal enchantments / 检测非法附魔
+    check-nbt: true              # Check abnormal NBT data / 检测异常 NBT 数据
+    banned-items: []             # Banned item ID list / 禁用物品 ID 列表
+    max-violations: 1
+
+  # === X-Ray / 透视检测 ===
+  xray:
+    enabled: true
+    min-blocks-before-check: 30         # Min blocks mined before check starts / 开始检测前最少挖掘方块数
+    thresholds:
+      common: 15                        # Common ores (coal/iron) ratio % / 普通矿石（煤/铁）比例阈值 %
+      rare: 5                           # Rare ores (gold/lapis/redstone) ratio % / 稀有矿石比例阈值 %
+      precious: 2                       # Precious ores (diamond/emerald) ratio % / 珍贵矿石比例阈值 %
+    check-exposed: true                 # Exclude exposed ores / 排除裸露在空气中的矿石
+    reset-interval: 180000              # Stat reset interval (ms) / 统计数据重置间隔（毫秒）
+    max-violations: 2
+
+  # === Flight / 飞行检测 ===
+  fly:
+    enabled: true
+    max-air-ticks: 30          # Max air ticks before flagging / 空中滞留最大 tick 数
+    max-hover-height: 2.5      # Max hover height above ground / 悬浮最大高度
+    max-violations: 5
+
+  # === NoFall / 摔落检测 ===
+  nofall:
+    enabled: true
+    max-violations: 3
+
+  # === AutoClicker / 自动连点检测 ===
+  autoclicker:
+    enabled: true
+    max-cps: 15                # Max clicks per second / 每秒最大点击次数
+    consistency-threshold: 8.0 # Click interval std-dev threshold / 点击间隔标准差阈值
+    max-violations: 1
+
+  # === Timer / 游戏加速检测 ===
+  timer:
+    enabled: true
+    max-violations: 5

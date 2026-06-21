@@ -79,17 +79,27 @@ class AntiCheat{
 	private function initConfig(){
 		$dataPath = $this->server->getDataPath();
 
-		// 加载 anti-cheat 配置
-		$defaultConfig = $this->getDefaultConfig();
-		$this->config = new Config($dataPath . "anticheat.yml", Config::YAML, $defaultConfig);
-		$this->config->save();
+		// 首次启动时复制带注释的默认配置
+		if(!file_exists($dataPath . "anticheat.yml")){
+			$resourcePath = $this->server->getFilePath() . "src/pocketmine/resources/anticheat.yml";
+			if(file_exists($resourcePath)){
+				copy($resourcePath, $dataPath . "anticheat.yml");
+			}
+		}
+
+		// 加载配置
+		$this->config = new Config($dataPath . "anticheat.yml", Config::YAML, $this->getDefaultConfig());
 
 		// 加载消息配置
-		$defaultMessages = $this->getDefaultMessages();
-		$this->messages = new Config($dataPath . "anticheat_messages.yml", Config::YAML, $defaultMessages);
-		$this->messages->save();
+		if(!file_exists($dataPath . "anticheat_messages.yml")){
+			$resourcePath = $this->server->getFilePath() . "src/pocketmine/resources/anticheat_messages.yml";
+			if(file_exists($resourcePath)){
+				copy($resourcePath, $dataPath . "anticheat_messages.yml");
+			}
+		}
+		$this->messages = new Config($dataPath . "anticheat_messages.yml", Config::YAML, $this->getDefaultMessages());
 
-		// 加载每日违规记录
+		// 每日违规记录
 		$this->dailyWarnings = new Config($dataPath . "anticheat_daily.yml", Config::YAML, []);
 		$this->dailyWarnings->save();
 

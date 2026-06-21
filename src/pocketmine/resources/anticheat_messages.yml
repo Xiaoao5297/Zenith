@@ -1,0 +1,19 @@
+# ============================================================
+# AntiCheat Messages / 反作弊消息模板
+# Auto-generated on first run / 首次启动自动生成
+# ============================================================
+
+# Cheat detection alert / 检测到作弊时的通知消息
+cheat-detected: "§c[AntiCheat] §e{player} §f疑似作弊 §7[{check}] §f{detail}"
+
+# Kick message / 踢出原因
+kick-message: "§c[AntiCheat] 你因作弊被踢出服务器\n§7原因: {check}"
+
+# Ban message / 封禁原因
+ban-message: "§c[AntiCheat] 你因作弊被封禁\n§7原因: {check}"
+
+# Warning message / 警告消息
+warning-message: "§c[AntiCheat] 警告! 检测到异常行为: {check}"
+
+# Item removed notification / 非法物品移除提示
+item-removed: "§c[AntiCheat] 非法物品已移除: {item}"
