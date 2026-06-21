@@ -51,17 +51,27 @@ fi
 if [ -f ./PocketMine-iTX.phar ]; then
     POCKETMINE_FILE="./PocketMine-iTX.phar"
 elif [ -f ./Genisys*.phar ]; then
-    POCKETMINE_FILE="./Genisys*.phar"
+    # 修复通配符问题
+    POCKETMINE_FILE=$(ls ./Genisys*.phar 2>/dev/null | head -n1)
 elif [ -f ./PocketMine-MP.phar ]; then
     POCKETMINE_FILE="./PocketMine-MP.phar"
 elif [ -f ./src/pocketmine/PocketMine.php ]; then
     POCKETMINE_FILE="./src/pocketmine/PocketMine.php"
-elif [ -f ./Incore*.phar ]; then
-    POCKETMINE_FILE="./Incore*.phar"
+elif ls ./Incore*.phar 1> /dev/null 2>&1; then
+    # 修复通配符问题
+    POCKETMINE_FILE=$(ls ./Incore*.phar 2>/dev/null | head -n1)
 else
     echo "[ERROR] 未找到 PocketMine 核心"
     exit 1
 fi
+
+# 检查是否找到了有效的核心文件
+if [ -z "$POCKETMINE_FILE" ] || [ ! -f "$POCKETMINE_FILE" ]; then
+    echo "[ERROR] 未找到有效的 PocketMine 核心文件"
+    exit 1
+fi
+
+echo "[INFO] 使用核心文件: $POCKETMINE_FILE"
 
 # 设置 php.ini 路径
 # PHP_INI_FILE="/usr/local/php73/lib/php.ini"
