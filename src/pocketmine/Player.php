@@ -2277,7 +2277,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 		//TODO add more stuff after authentication is available
 		if(!$valid){
-			$this->close("", $this->getLanguage()->translateString("disconnectionScreen.invalidSession"));
+			$this->close("", $this->server->getLanguage()->translateString("disconnectionScreen.invalidSession"));
 			return;
 		}
 
@@ -2315,11 +2315,11 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 	protected function processLogin(){
 		if(!$this->server->isWhitelisted(strtolower($this->getName()))){
-			$this->close($this->getLeaveMessage(), $this->getLanguage()->translateString("player.join.noPermission"));
+			$this->close($this->getLeaveMessage(), $this->server->getLanguage()->translateString("player.join.noPermission"));
 
 			return;
 		}elseif($this->server->getNameBans()->isBanned(strtolower($this->getName())) or $this->server->getIPBans()->isBanned($this->getAddress()) or $this->server->getCIDBans()->isBanned($this->randomClientId)){
-			$this->close($this->getLeaveMessage(), TextFormat::RED . $this->getLanguage()->translateString("player.join.banned"));
+			$this->close($this->getLeaveMessage(), TextFormat::RED . $this->server->getLanguage()->translateString("player.join.banned"));
 
 			return;
 		}
@@ -2333,13 +2333,13 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 		foreach($this->server->getOnlinePlayers() as $p){
 			if($p !== $this and strtolower($p->getName()) === strtolower($this->getName())){
-				if($p->kick($this->getLanguage()->translateString("player.join.duplicate")) === false){
-					$this->close($this->getLeaveMessage(), $this->getLanguage()->translateString("player.join.duplicate"));
+				if($p->kick($this->server->getLanguage()->translateString("player.join.duplicate")) === false){
+					$this->close($this->getLeaveMessage(), $this->server->getLanguage()->translateString("player.join.duplicate"));
 					return;
 				}
 			}elseif($p->loggedIn and $this->getUniqueId()->equals($p->getUniqueId())){
-				if($p->kick($this->getLanguage()->translateString("player.join.duplicate")) === false){
-					$this->close($this->getLeaveMessage(), $this->getLanguage()->translateString("player.join.duplicate"));
+				if($p->kick($this->server->getLanguage()->translateString("player.join.duplicate")) === false){
+					$this->close($this->getLeaveMessage(), $this->server->getLanguage()->translateString("player.join.duplicate"));
 					return;
 				}
 			}
@@ -2385,7 +2385,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		}
 
 		if(!($nbt instanceof CompoundTag)){
-			$this->close($this->getLeaveMessage(), $this->getLanguage()->translateString("disconnectionScreen.invalidData"));
+			$this->close($this->getLeaveMessage(), $this->server->getLanguage()->translateString("disconnectionScreen.invalidData"));
 
 			return;
 		}
