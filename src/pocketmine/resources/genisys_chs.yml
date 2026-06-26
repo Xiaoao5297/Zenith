@@ -36,6 +36,8 @@ player:
  keep-experience: true
  #如果玩家加入时崩溃，请将此值设置为10以下。禁用=-1
  chunk-radius: -1
+ #附魔等级上限（默认 32767，与原版一致；设为较小值如 10 可防止 32k 武器）
+ max-enchant-level: 32767
 
 nether:
  #选择是否允许下界，下界维度会自动生成

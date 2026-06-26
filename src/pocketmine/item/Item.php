@@ -1507,7 +1507,14 @@ class Item{
 
 		foreach($this->getNamedTag()->ench as $entry){
 			$e = Enchantment::getEnchantment($entry["id"]);
-			$e->setLevel($entry["lvl"]);
+			// 从 genisys.yml 读取附魔等级上限，默认 32767（原版上限）
+			$server = \pocketmine\Server::getInstance();
+			$maxLevel = 32767;
+			if($server !== null){
+				$maxLevel = (int) $server->getAdvancedProperty("settings.max-enchant-level", 32767);
+			}
+			$level = min((int) $entry["lvl"], $maxLevel);
+			$e->setLevel($level);
 			$enchantments[] = $e;
 		}
 

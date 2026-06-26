@@ -36,6 +36,8 @@ player:
  keep-experience: true
  #如果玩家加入时崩溃，请将此值设置为10以下。禁用=-1
  chunk-radius: -1
+ #Max enchantment level cap (default 32767, vanilla behavior; set lower like 10 to block 32k weapons)
+ max-enchant-level: 32767
 
 nether:
  #选择是否允许下界，下界维度会自动生成
