@@ -3445,7 +3445,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 					// 攻击冷却限制，防止同 tick 多次攻击
 					$now = microtime(true);
-					if(($now - ($this->lastAttackTime ?? 0)) < 0.15){
+					if(($now - ($this->lastAttackTime ?? 0)) < $this->server->attackCooldown){
 						break;
 					}
 					$this->lastAttackTime = $now;
@@ -3902,7 +3902,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 
 
-				if($this->currentTransaction === null or $this->currentTransaction->getCreationTime() < (microtime(true) - 2)){
+				if($this->currentTransaction === null or $this->currentTransaction->getCreationTime() < (microtime(true) - $this->server->transactionTimeout)){
 					if($this->currentTransaction !== null){
 						foreach($this->currentTransaction->getInventories() as $inventory){
 							if($inventory instanceof PlayerInventory){

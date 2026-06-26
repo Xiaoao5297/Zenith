@@ -353,6 +353,9 @@ class Server{
 	public $aiHolder = null;
 	public $inventoryNum = 36;
 	public $hungerTimer = 80;
+	public $maxEntitiesPerChunk = 64;
+	public $attackCooldown = 0.15;
+	public $transactionTimeout = 2;
 	public $version;
 	public $allowSnowGolem;
 	public $allowIronGolem;
@@ -1630,6 +1633,9 @@ class Server{
 		$this->lightningTime = $this->getAdvancedProperty("level.lightning-time", 200);
 		$this->lightningFire = $this->getAdvancedProperty("level.lightning-fire", false);
 		$this->expWriteAhead = $this->getAdvancedProperty("server.experience-cache", 200);
+		$this->maxEntitiesPerChunk = $this->getAdvancedProperty("player.max-entities-per-chunk", 64);
+		$this->attackCooldown = (float) $this->getAdvancedProperty("player.attack-cooldown", 0.15);
+		$this->transactionTimeout = (int) $this->getAdvancedProperty("player.transaction-timeout", 2);
 		$this->aiEnabled = $this->getAdvancedProperty("ai.enable", false);
 		$this->aiConfig = [
 			"cow" => $this->getAdvancedProperty("ai.cow", true),

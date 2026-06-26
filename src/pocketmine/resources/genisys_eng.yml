@@ -38,6 +38,12 @@ player:
  chunk-radius: -1
  #Max enchantment level cap (default 32767, vanilla behavior; set lower like 10 to block 32k weapons)
  max-enchant-level: 32767
+ #Attack cooldown in seconds (default 0.15)
+ attack-cooldown: 0.15
+ #Inventory transaction timeout in seconds (default 2)
+ transaction-timeout: 2
+ #Max entities per chunk (default 64)
+ max-entities-per-chunk: 64
 
 nether:
  #选择是否允许下界，下界维度会自动生成
