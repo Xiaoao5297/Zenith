@@ -86,6 +86,7 @@ class Session{
 
 	/** @var DataPacket[] */
 	private $recoveryQueue = [];
+	private $recoveryRetry = [];
 
 	/** @var DataPacket[][] */
 	private $splitPackets = [];
@@ -523,10 +524,19 @@ class Session{
 					$packet->decode();
 					foreach($packet->packets as $seq){
 						if(isset($this->recoveryQueue[$seq])){
+							// 限制重传次数，防止 NACK 放大攻击
+							$retry = ($this->recoveryRetry[$seq] ?? 0) + 1;
+							if($retry > 5){
+								unset($this->recoveryQueue[$seq]);
+								unset($this->recoveryRetry[$seq]);
+								continue;
+							}
+							$this->recoveryRetry[$seq] = $retry;
 							$pk = $this->recoveryQueue[$seq];
 							$pk->seqNumber = $this->sendSeqNumber++;
 							$this->packetToSend[] = $pk;
 							unset($this->recoveryQueue[$seq]);
+							unset($this->recoveryRetry[$seq]);
 						}
 					}
 				}
@@ -535,7 +545,10 @@ class Session{
 		}elseif($packet::$ID > 0x00 and $packet::$ID < 0x80){ //Not Data packet :)
 			$packet->decode();
 			if($packet instanceof OPEN_CONNECTION_REQUEST_1){
-				$packet->protocol; //TODO: check protocol number and refuse connections
+				if($packet->protocol !== \raklib\RakLib::PROTOCOL){
+					$this->disconnect("protocol version mismatch");
+					return;
+				}
 				$pk = new OPEN_CONNECTION_REPLY_1();
 				$pk->mtuSize = $packet->mtuSize;
 				$pk->serverID = $this->sessionManager->getID();
@@ -544,7 +557,7 @@ class Session{
 			}elseif($this->state === self::STATE_CONNECTING_1 and $packet instanceof OPEN_CONNECTION_REQUEST_2){
 				$this->id = $packet->clientID;
 				if($packet->serverPort === $this->sessionManager->getPort() or !$this->sessionManager->portChecking){
- 					$this->mtuSize = min(abs($packet->mtuSize), 1432);  //MTU — (Max IP Header Size) — (UDP Header Size) = 1500 — 60 — 8 = 1432 
+ 					$this->mtuSize = max(400, min(abs($packet->mtuSize), 1432)); //MTU 下限 400，防碎片风暴 
  					$pk = new OPEN_CONNECTION_REPLY_2();
 					$pk->mtuSize = $this->mtuSize;
 					$pk->serverID = $this->sessionManager->getID();
