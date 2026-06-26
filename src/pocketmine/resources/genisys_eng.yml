@@ -44,6 +44,34 @@ player:
  transaction-timeout: 2
  #Max entities per chunk (default 64)
  max-entities-per-chunk: 64
+ #Spawn invulnerability ticks (default 60 = 3s)
+ spawn-invulnerability-ticks: 60
+ #Portal cooldown ticks (default 80 = 4s)
+ portal-cooldown-ticks: 80
+ #Starvation damage interval in ticks (default 20 = 1s)
+ starvation-interval: 20
+ #Food usage rate when sprinting (default 500)
+ food-usage-sprint: 500
+ #Food usage rate when walking (default 250)
+ food-usage-walk: 250
+ #Health regeneration interval in ticks (default 80 = 4s)
+ regeneration-interval: 80
+ #Food threshold for health regeneration (default 18)
+ regeneration-food-threshold: 18
+ #Max block interaction distance (default 13)
+ interact-distance: 13
+ #Spawn protection radius (default 16, -1 to disable)
+ spawn-protection-radius: 16
+
+performance:
+ #Max concurrent connections (default 4096)
+ max-sessions: 4096
+ #Session timeout in seconds (default 10)
+ session-timeout: 10
+ #Max packets per tick per IP (default 150)
+ packet-limit: 150
+ #IP block duration in seconds (default 300 = 5min)
+ block-timeout: 300
 
 nether:
  #选择是否允许下界，下界维度会自动生成

@@ -44,6 +44,34 @@ player:
  transaction-timeout: 2
  #每个区块最大实体数量（默认 64）
  max-entities-per-chunk: 64
+ #出生无敌时间（tick，默认 60 = 3 秒）
+ spawn-invulnerability-ticks: 60
+ #传送门使用冷却（tick，默认 80 = 4 秒）
+ portal-cooldown-ticks: 80
+ #饥饿伤害间隔（tick，默认 20 = 1 秒）
+ starvation-interval: 20
+ #冲刺时食物消耗速率（默认 500）
+ food-usage-sprint: 500
+ #步行时食物消耗速率（默认 250）
+ food-usage-walk: 250
+ #生命恢复触发间隔（tick，默认 80 = 4 秒）
+ regeneration-interval: 80
+ #生命恢复所需最低食物值（默认 18）
+ regeneration-food-threshold: 18
+ #方块交互最大距离（默认 13）
+ interact-distance: 13
+ #生成保护半径（默认 16，-1 禁用）
+ spawn-protection-radius: 16
+
+performance:
+ #最大同时连接数（默认 4096）
+ max-sessions: 4096
+ #Session 超时断开（秒，默认 10）
+ session-timeout: 10
+ #每 tick 每 IP 数据包上限（默认 150）
+ packet-limit: 150
+ #IP 封禁默认时长（秒，默认 300 = 5 分钟）
+ block-timeout: 300
 
 nether:
  #选择是否允许下界，下界维度会自动生成

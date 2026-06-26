@@ -356,6 +356,19 @@ class Server{
 	public $maxEntitiesPerChunk = 64;
 	public $attackCooldown = 0.15;
 	public $transactionTimeout = 2;
+	public $spawnInvulnerabilityTicks = 60;
+	public $portalCooldownTicks = 80;
+	public $starvationInterval = 20;
+	public $foodUsageSprint = 500;
+	public $foodUsageWalk = 250;
+	public $regenerationInterval = 80;
+	public $regenerationFoodThreshold = 18;
+	public $interactDistance = 13;
+	public $spawnProtectionRadius = 16;
+	public $maxSessions = 4096;
+	public $sessionTimeout = 10;
+	public $maxPacketPerIp = 150;
+	public $blockTimeout = 300;
 	public $version;
 	public $allowSnowGolem;
 	public $allowIronGolem;
@@ -1636,6 +1649,19 @@ class Server{
 		$this->maxEntitiesPerChunk = $this->getAdvancedProperty("player.max-entities-per-chunk", 64);
 		$this->attackCooldown = (float) $this->getAdvancedProperty("player.attack-cooldown", 0.15);
 		$this->transactionTimeout = (int) $this->getAdvancedProperty("player.transaction-timeout", 2);
+		$this->spawnInvulnerabilityTicks = (int) $this->getAdvancedProperty("player.spawn-invulnerability-ticks", 60);
+		$this->portalCooldownTicks = (int) $this->getAdvancedProperty("player.portal-cooldown-ticks", 80);
+		$this->starvationInterval = (int) $this->getAdvancedProperty("player.starvation-interval", 20);
+		$this->foodUsageSprint = (int) $this->getAdvancedProperty("player.food-usage-sprint", 500);
+		$this->foodUsageWalk = (int) $this->getAdvancedProperty("player.food-usage-walk", 250);
+		$this->regenerationInterval = (int) $this->getAdvancedProperty("player.regeneration-interval", 80);
+		$this->regenerationFoodThreshold = (int) $this->getAdvancedProperty("player.regeneration-food-threshold", 18);
+		$this->interactDistance = (int) $this->getAdvancedProperty("player.interact-distance", 13);
+		$this->spawnProtectionRadius = (int) $this->getAdvancedProperty("player.spawn-protection-radius", 16);
+		$this->maxSessions = (int) $this->getAdvancedProperty("performance.max-sessions", 4096);
+		$this->sessionTimeout = (int) $this->getAdvancedProperty("performance.session-timeout", 10);
+		$this->maxPacketPerIp = (int) $this->getAdvancedProperty("performance.packet-limit", 150);
+		$this->blockTimeout = (int) $this->getAdvancedProperty("performance.block-timeout", 300);
 		$this->aiEnabled = $this->getAdvancedProperty("ai.enable", false);
 		$this->aiConfig = [
 			"cow" => $this->getAdvancedProperty("ai.cow", true),

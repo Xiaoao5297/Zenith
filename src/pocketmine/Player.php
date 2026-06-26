@@ -996,7 +996,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		$pk->status = PlayStatusPacket::PLAYER_SPAWN;
 		$this->dataPacket($pk);
 
-		$this->noDamageTicks = 60;
+		$this->noDamageTicks = $this->server->spawnInvulnerabilityTicks;
 
 		foreach($this->usedChunks as $index => $c){
 			Level::getXZ($index, $chunkX, $chunkZ);
@@ -1888,7 +1888,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 		if($this->spawned){
 			if($this->server->netherEnabled){
-				if(($this->isCreative() or $this->isSurvival() and $this->server->getTick() - $this->portalTime >= 80) and $this->portalTime > 0){
+				if(($this->isCreative() or $this->isSurvival() and $this->server->getTick() - $this->portalTime >= $this->server->portalCooldownTicks) and $this->portalTime > 0){
 					if($this->server->netherLevel instanceof Level){
 						if($this->getLevel() != $this->server->netherLevel){
 							$this->fromPos = $this->getPosition();
@@ -1972,7 +1972,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			}
 
 			if($this->server->foodEnabled){
-				if($this->starvationTick >= 20){
+				if($this->starvationTick >= $this->server->starvationInterval){
 					$ev = new EntityDamageEvent($this, EntityDamageEvent::CAUSE_STARVATION, 1);
 					if($this->getHealth() > $this->server->hungerHealth) $this->attack(1, $ev);
 					$this->starvationTick = 0;
@@ -1983,9 +1983,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 				if($this->isMoving() && $this->isSurvival()){
 					if($this->isSprinting()){
-						$this->foodUsageTime += 500;
+						$this->foodUsageTime += $this->server->foodUsageSprint;
 					}else{
-						$this->foodUsageTime += 250;
+						$this->foodUsageTime += $this->server->foodUsageWalk;
 					}
 				}
 
@@ -1994,7 +1994,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					$this->subtractFood(1);
 				}
 
-				if((($currentTick % 80) == 0) and $this->getHealth() < $this->getMaxHealth() && $this->getFood() >= 18 && $this->foodEnabled){
+				if((($currentTick % $this->server->regenerationInterval) == 0) and $this->getHealth() < $this->getMaxHealth() && $this->getFood() >= $this->server->regenerationFoodThreshold && $this->foodEnabled){
 					$ev = new EntityRegainHealthEvent($this, 1, EntityRegainHealthEvent::CAUSE_EATING);
 					$this->heal(1, $ev);
 				}
@@ -2776,7 +2776,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				if($packet->face >= 0 and $packet->face <= 5){ //Use Block, place
 					$this->setDataFlag(self::DATA_FLAGS, self::DATA_FLAG_ACTION, false);
 
-					if(!$this->canInteract($blockVector->add(0.5, 0.5, 0.5), 13) or $this->isSpectator()){
+					if(!$this->canInteract($blockVector->add(0.5, 0.5, 0.5), $this->server->interactDistance) or $this->isSpectator()){
 
 					}elseif($this->isCreative()){
 						$item = $this->inventory->getItemInHand();
@@ -3221,7 +3221,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 						$this->extinguish();
 						$this->setDataProperty(self::DATA_AIR, self::DATA_TYPE_SHORT, 300);
 						$this->deadTicks = 0;
-						$this->noDamageTicks = 60;
+						$this->noDamageTicks = $this->server->spawnInvulnerabilityTicks;
 
 						$this->removeAllEffects();
 						$this->setHealth($this->getMaxHealth());
