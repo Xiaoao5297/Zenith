@@ -51,7 +51,11 @@ class OpCommand extends VanillaCommand{
 
 		$name = array_shift($args);
 
-		$player = $sender->getServer()->getOfflinePlayer($name);
+		$player = $sender->getServer()->getPlayer($name);
+		if($player === null){
+			$sender->sendMessage(new TranslationContainer("commands.generic.player.notFound"));
+			return true;
+		}
 		Command::broadcastCommandMessage($sender, new TranslationContainer("commands.op.success", [$player->getName()]));
 		if($player instanceof Player){
 			$player->sendMessage(TextFormat::GRAY . "你成为了管理员!");
