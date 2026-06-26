@@ -34,6 +34,10 @@ class IntArrayTag extends NamedTag{
 	public function read(NBT $nbt){
 		 [];
 		$size = $nbt->getInt();
+		// 限制 IntArray 大小防止 OOM 攻击（32768*4=128KB）
+		if($size < 0 or $size > 32768){
+			$size = 0;
+		}
 		$this->value = array_values(unpack($nbt->endianness === NBT::LITTLE_ENDIAN ? "V*" : "N*", $nbt->get($size * 4)));
 	}
 
