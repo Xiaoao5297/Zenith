@@ -63,16 +63,6 @@ player:
  #Spawn protection radius (default 16, -1 to disable)
  spawn-protection-radius: 16
 
-performance:
- #Max concurrent connections (default 4096)
- max-sessions: 4096
- #Session timeout in seconds (default 10)
- session-timeout: 10
- #Max packets per tick per IP (default 150)
- packet-limit: 150
- #IP block duration in seconds (default 300 = 5min)
- block-timeout: 300
-
 nether:
  #选择是否允许下界，下界维度会自动生成
  allow-nether: true

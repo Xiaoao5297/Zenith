@@ -1,0 +1,51 @@
+# RakLib 网络层配置文件
+# 首次启动自动生成，修改后重启服务器生效
+
+# 基本设置
+settings:
+  # 最大同时连接数（默认 4096）
+  max-sessions: 4096
+  # Session 超时断开（秒，默认 10）
+  session-timeout: 10
+  # 每 tick 每 IP 数据包上限（默认 150），超限自动封禁
+  packet-limit: 150
+  # IP 封禁默认时长（秒，默认 300 = 5 分钟）
+  block-timeout: 300
+  # 每 tick 最多发送的数据包数（默认 16）
+  send-limit: 16
+  # Ping 检测间隔 tick（默认 40 = 2 秒）
+  ping-interval: 40
+  # IP 计数衰减系数（每 tick 乘此值，默认 0.75）
+  ip-sec-decay: 0.75
+
+# 可靠传输
+reliability:
+  # 可靠传输窗口大小（默认 2048）
+  window-size: 2048
+  # Ping 采样窗口大小（默认 20）
+  ping-window: 20
+
+# MTU 设置
+mtu:
+  # 初始 MTU 大小（默认 508）
+  init-mtu: 508
+  # MTU 下限（默认 400，防碎片风暴）
+  min-mtu: 400
+  # MTU 上限（默认 1432）
+  max-mtu: 1432
+
+# 分片包
+split:
+  # 分片包超时时间（秒，默认 30）
+  timeout: 30
+  # 最大并发分片组数（默认 4）
+  max-split-count: 4
+  # 每组最大分片数（默认 128）
+  max-split-size: 128
+
+# 封禁
+ban:
+  # Packet 封禁阈值（封禁时长的倍数，默认 2.0）
+  packet-ban-multiplier: 2.0
+  # 封禁默认时长（秒，默认 300）
+  default-timeout: 300

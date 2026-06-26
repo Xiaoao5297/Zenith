@@ -67,7 +67,11 @@ class SessionManager{
 
 	protected $name = "";
 
-	protected $packetLimit = 150; // limit will fix some one-thread flooders
+	protected $packetLimit = 150;
+	protected $maxSessions = 4096;
+	protected $blockTimeout = 300;
+	protected $ipSecDecay = 0.75;
+	protected $pingInterval = 40;
 
 	protected $shutdown = false;
 
@@ -85,6 +89,14 @@ class SessionManager{
 		$this->registerPackets();
 
 		$this->serverId = mt_rand(0, PHP_INT_MAX);
+
+		// 加载配置
+		$opts = $server->getOptions();
+		$this->packetLimit = (int) ($opts["packet-limit"] ?? 150);
+		$this->maxSessions = (int) ($opts["max-sessions"] ?? 4096);
+		$this->blockTimeout = (int) ($opts["block-timeout"] ?? 300);
+		$this->ipSecDecay = (float) ($opts["ip-sec-decay"] ?? 0.75);
+		$this->pingInterval = (int) ($opts["ping-interval"] ?? 40);
 
 		$this->run();
 	}
@@ -122,7 +134,7 @@ class SessionManager{
 		foreach($this->sessions as $session){
 			$session->update($time);
 
-			if(($this->ticks % 40) == 0){
+			if(($this->ticks % $this->pingInterval) == 0){
 				$this->streamPing($session);
 			}
 		}
@@ -131,8 +143,7 @@ class SessionManager{
 			if($count >= $this->packetLimit){
 				$this->blockAddress($address);
 			}
-			// 衰减而非清空：每 tick 减半，平滑速率限制
-			$this->ipSec[$address] = (int) ($count * 0.75);
+			$this->ipSec[$address] = (int) ($count * $this->ipSecDecay);
 			if($this->ipSec[$address] <= 0){
 				unset($this->ipSec[$address]);
 			}
@@ -258,21 +269,21 @@ class SessionManager{
 	}
 
 	private function checkSessions(){
-		if(count($this->sessions) > 4096){
+		if(count($this->sessions) > $this->maxSessions){
 			foreach($this->sessions as $i => $s){
 				if($s->isTemporal()){
 					unset($this->sessions[$i]);
-					if(count($this->sessions) <= 4096){
+					if(count($this->sessions) <= $this->maxSessions){
 						break;
 					}
 				}
 			}
 			// 清理非活跃 session
-			if(count($this->sessions) > 4096){
+			if(count($this->sessions) > $this->maxSessions){
 				foreach($this->sessions as $i => $s){
 					if(!$s->isActive()){
 						unset($this->sessions[$i]);
-						if(count($this->sessions) <= 4096){
+						if(count($this->sessions) <= $this->maxSessions){
 							break;
 						}
 					}
@@ -364,7 +375,10 @@ class SessionManager{
 		return false;
 	}
 
-	public function blockAddress($address, $timeout = 300){
+	public function blockAddress($address, $timeout = -1){
+		if($timeout === -1){
+			$timeout = $this->blockTimeout;
+		}
 		$final = microtime(true) + $timeout;
 		if(!isset($this->block[$address]) or $timeout === -1){
 			if($timeout === -1){

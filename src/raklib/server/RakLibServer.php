@@ -38,16 +38,18 @@ class RakLibServer extends \Thread{
 	protected $internalQueue;
 
 	protected $mainPath;
+	protected $options;
 
 	/**
 	 * @param \ThreadedLogger $logger
 	 * @param \ClassLoader    $loader
 	 * @param int             $port
 	 * @param string          $interface
+	 * @param array           $options
 	 *
 	 * @throws \Throwable
 	 */
-	public function __construct(\ThreadedLogger $logger, \ClassLoader $loader, $port, $interface = "0.0.0.0"){
+	public function __construct(\ThreadedLogger $logger, \ClassLoader $loader, $port, $interface = "0.0.0.0", array $options = []){
 		$this->port = (int) $port;
 		if($port < 1 or $port > 65536){
 			throw new \Exception("Invalid port range");
@@ -56,6 +58,7 @@ class RakLibServer extends \Thread{
 		$this->interface = $interface;
 		$this->logger = $logger;
 		$this->loader = $loader;
+		$this->options = $options;
 		$loadPaths = [];
 		$this->addDependency($loadPaths, new \ReflectionClass($logger));
 		$this->addDependency($loadPaths, new \ReflectionClass($loader));
@@ -101,6 +104,10 @@ class RakLibServer extends \Thread{
 
 	public function getInterface(){
 		return $this->interface;
+	}
+
+	public function getOptions(){
+		return $this->options;
 	}
 
 	/**

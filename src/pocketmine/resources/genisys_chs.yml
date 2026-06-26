@@ -63,16 +63,6 @@ player:
  #生成保护半径（默认 16，-1 禁用）
  spawn-protection-radius: 16
 
-performance:
- #最大同时连接数（默认 4096）
- max-sessions: 4096
- #Session 超时断开（秒，默认 10）
- session-timeout: 10
- #每 tick 每 IP 数据包上限（默认 150）
- packet-limit: 150
- #IP 封禁默认时长（秒，默认 300 = 5 分钟）
- block-timeout: 300
-
 nether:
  #选择是否允许下界，下界维度会自动生成
  allow-nether: true

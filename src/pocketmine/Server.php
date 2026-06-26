@@ -365,10 +365,6 @@ class Server{
 	public $regenerationFoodThreshold = 18;
 	public $interactDistance = 13;
 	public $spawnProtectionRadius = 16;
-	public $maxSessions = 4096;
-	public $sessionTimeout = 10;
-	public $maxPacketPerIp = 150;
-	public $blockTimeout = 300;
 	public $version;
 	public $allowSnowGolem;
 	public $allowIronGolem;
@@ -1658,10 +1654,6 @@ class Server{
 		$this->regenerationFoodThreshold = (int) $this->getAdvancedProperty("player.regeneration-food-threshold", 18);
 		$this->interactDistance = (int) $this->getAdvancedProperty("player.interact-distance", 13);
 		$this->spawnProtectionRadius = (int) $this->getAdvancedProperty("player.spawn-protection-radius", 16);
-		$this->maxSessions = (int) $this->getAdvancedProperty("performance.max-sessions", 4096);
-		$this->sessionTimeout = (int) $this->getAdvancedProperty("performance.session-timeout", 10);
-		$this->maxPacketPerIp = (int) $this->getAdvancedProperty("performance.packet-limit", 150);
-		$this->blockTimeout = (int) $this->getAdvancedProperty("performance.block-timeout", 300);
 		$this->aiEnabled = $this->getAdvancedProperty("ai.enable", false);
 		$this->aiConfig = [
 			"cow" => $this->getAdvancedProperty("ai.cow", true),

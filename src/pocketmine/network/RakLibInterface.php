@@ -8,6 +8,7 @@ use pocketmine\network\protocol\Info as ProtocolInfo;
 use pocketmine\network\protocol\Info;
 use pocketmine\Player;
 use pocketmine\Server;
+use pocketmine\utils\Config;
 use pocketmine\utils\MainLogger;
 use raklib\protocol\EncapsulatedPacket;
 use raklib\RakLib;
@@ -43,7 +44,57 @@ class RakLibInterface implements ServerInstance, AdvancedSourceInterface{
 		$this->server = $server;
 		$this->identifiers = [];
 
-		$this->rakLib = new RakLibServer($this->server->getLogger(), $this->server->getLoader(), $this->server->getPort(), $this->server->getIp() === "" ? "0.0.0.0" : $this->server->getIp());
+		// 加载 RakLib 配置
+		$configPath = $server->getDataPath() . "raklib.yml";
+		$defaultConfig = [
+			"settings" => [
+				"max-sessions" => 4096,
+				"session-timeout" => 10,
+				"packet-limit" => 150,
+				"block-timeout" => 300,
+				"send-limit" => 16,
+				"ping-interval" => 40,
+				"ip-sec-decay" => 0.75,
+			],
+			"reliability" => [
+				"window-size" => 2048,
+				"ping-window" => 20,
+			],
+			"mtu" => [
+				"init-mtu" => 508,
+				"min-mtu" => 400,
+				"max-mtu" => 1432,
+			],
+			"split" => [
+				"timeout" => 30,
+				"max-split-count" => 4,
+				"max-split-size" => 128,
+			],
+			"ban" => [
+				"packet-ban-multiplier" => 2.0,
+				"default-timeout" => 300,
+			],
+		];
+		if(!file_exists($configPath)){
+			$resourcePath = $server->getFilePath() . "src/pocketmine/resources/raklib.yml";
+			if(file_exists($resourcePath)){
+				copy($resourcePath, $configPath);
+			}
+		}
+		$config = new \pocketmine\utils\Config($configPath, \pocketmine\utils\Config::YAML, $defaultConfig);
+		$raklibConfig = $config->getAll();
+
+		// 展平配置为 options 数组
+		$options = [];
+		foreach($raklibConfig as $section => $values){
+			if(is_array($values)){
+				foreach($values as $key => $val){
+					$options[$key] = $val;
+				}
+			}
+		}
+
+		$this->rakLib = new RakLibServer($this->server->getLogger(), $this->server->getLoader(), $this->server->getPort(), $this->server->getIp() === "" ? "0.0.0.0" : $this->server->getIp(), $options);
 		$this->interface = new ServerHandler($this->rakLib, $this);
 	}
 
