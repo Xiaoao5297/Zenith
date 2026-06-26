@@ -25,6 +25,13 @@ class ExtractPharCommand extends VanillaCommand{
 			return true;
 		}
 		if(!isset($args[0]) or !file_exists($args[0])) return \false;
+		// 限制只能解压插件目录下的 Phar，防止路径遍历
+		$realPath = realpath($args[0]);
+		$pluginPath = realpath($sender->getServer()->getPluginPath());
+		if($realPath === false or $pluginPath === false or strpos($realPath, $pluginPath) !== 0){
+			$sender->sendMessage(TextFormat::RED . "Usage: ".$this->usageMessage);
+			return true;
+		}
 		$folderPath = $sender->getServer()->getPluginPath().DIRECTORY_SEPARATOR . "Genisys" . DIRECTORY_SEPARATOR . basename($args[0]);
 		if(file_exists($folderPath)){
 			$sender->sendMessage("Phar already exists, overwriting...");
