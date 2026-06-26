@@ -38,6 +38,7 @@ use pocketmine\block\Leaves2;
 use pocketmine\block\NetherWart;
 use pocketmine\block\MelonStem;
 use pocketmine\block\Mycelium;
+use pocketmine\entity\Effect;
 use pocketmine\block\Potato;
 use pocketmine\block\PumpkinStem;
 use pocketmine\block\RedMushroom;
@@ -1618,7 +1619,7 @@ class Level implements ChunkManager, Metadatable{
 				return false;
 			}
 
-			/*$breakTime = $target->getBreakTime($item);
+			$breakTime = $target->getBreakTime($item);
 
 			if($player->isCreative() and $breakTime > 0.15){
 				$breakTime = 0.15;
@@ -1636,7 +1637,7 @@ class Level implements ChunkManager, Metadatable{
 
 			if(!$ev->getInstaBreak() and ($player->lastBreak + $breakTime) > microtime(true)){
 				return false;
-			}*/
+			}
 
 			$player->lastBreak = microtime(true);
 
