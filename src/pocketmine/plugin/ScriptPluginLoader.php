@@ -87,6 +87,7 @@ class ScriptPluginLoader implements PluginLoader{
 		$content = file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
 
 		$data = [];
+		$isScript = false;
 
 		$insideHeader = false;
 		foreach($content as $line){
@@ -98,9 +99,11 @@ class ScriptPluginLoader implements PluginLoader{
 				$key = $matches[1];
 				$content = trim($matches[3] ?? "");
 
-				if($key === "notscript"){
+				if($key === "script"){
+					$isScript = true;
+				}elseif($key === "notscript"){
 					return null;
- 				}
+				}
 
 				$data[$key] = $content;
 			}
@@ -109,7 +112,7 @@ class ScriptPluginLoader implements PluginLoader{
 				break;
 			}
 		}
-		if($insideHeader){
+		if($insideHeader and $isScript){
 			return new PluginDescription($data);
 		}
 
