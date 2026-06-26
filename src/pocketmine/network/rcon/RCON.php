@@ -29,12 +29,12 @@ class RCON{
 		$this->server = $server;
 		$this->workers = [];
 		$this->password = (string) $password;
-		$this->server->getLogger()->info("Starting remote control listener");
 		if($this->password === ""){
 			$this->server->getLogger()->critical("RCON can't be started: Empty password");
-
+			$this->threads = 0;
 			return;
 		}
+		$this->server->getLogger()->info("Starting remote control listener");
 		$this->threads = (int) max(1, $threads);
 		$this->clientsPerThread = (int) max(1, $clientsPerThread);
 		$this->socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
