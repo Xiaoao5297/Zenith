@@ -32,7 +32,12 @@ class ByteArrayTag extends NamedTag{
 	}
 
 	public function read(NBT $nbt){
-		$this->value = $nbt->get($nbt->getInt());
+		$len = $nbt->getInt();
+		// 限制 ByteArray 大小防止 OOM 攻击
+		if($len < 0 or $len > 2097152){
+			$len = 0;
+		}
+		$this->value = $nbt->get($len);
 	}
 
 	public function write(NBT $nbt){
