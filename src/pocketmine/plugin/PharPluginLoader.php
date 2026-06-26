@@ -83,6 +83,13 @@ class PharPluginLoader implements PluginLoader{
 	 */
 	public function getPluginDescription($file){
 		$phar = new \Phar($file);
+		// 验证 Phar 签名，防止加载恶意修改的插件
+		try{
+			$phar->getSignature();
+		}catch(\PharException $e){
+			$this->server->getLogger()->warning("插件 " . basename($file) . " 签名验证失败，拒绝加载");
+			return null;
+		}
 		if(isset($phar["plugin.yml"])){
 			$pluginYml = $phar["plugin.yml"];
 			if($pluginYml instanceof \PharFileInfo){
