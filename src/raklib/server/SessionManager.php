@@ -194,9 +194,7 @@ class SessionManager{
 					$pk->pingID = $packet->pingID;
 					$pk->serverName = $this->getName();
 					$this->sendPacket($pk, $source, $port);
-                                        }elseif($pid === UNCONNECTED_PING::$ID){
-                                        //Ignore it...
-					}elseif(($packet = $this->getPacketFromPool($pid)) !== null){
+				}elseif(($packet = $this->getPacketFromPool($pid)) !== null){
 					$packet->buffer = $buffer;
 					$this->getSession($source, $port)->handlePacket($packet);
 				}else{
