@@ -131,8 +131,13 @@ class SessionManager{
 			if($count >= $this->packetLimit){
 				$this->blockAddress($address);
 			}
+			// 衰减而非清空：每 tick 减半，平滑速率限制
+			$this->ipSec[$address] = (int) ($count * 0.75);
+			if($this->ipSec[$address] <= 0){
+				unset($this->ipSec[$address]);
+			}
 		}
-		$this->ipSec = [];
+		// $this->ipSec = []; // 移除：原代码每 tick 清空导致速率限制无效
 
 
 		if(($this->ticks & 0b1111) === 0){
