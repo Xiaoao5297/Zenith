@@ -73,6 +73,7 @@ class NBT{
 	private $offset;
 	public $endianness;
 	private $data;
+	private $readDepth = 0;
 
 
 	/**
@@ -459,6 +460,7 @@ class NBT{
 	public function read($buffer, $doMultiple = false){
 		$this->offset = 0;
 		$this->buffer = $buffer;
+		$this->readDepth = 0;
 		$this->data = $this->readTag();
 		if($doMultiple and $this->offset < strlen($this->buffer)){
 			$this->data = [$this->data];
@@ -503,6 +505,11 @@ class NBT{
 	}
 
 	public function readTag(){
+		// 限制 NBT 嵌套深度，防止栈溢出/OOM
+		$this->readDepth++;
+		if($this->readDepth > 256){
+			return new EndTag();
+		}
 		switch($this->getByte()){
 			case NBT::TAG_Byte:
 				$tag = new ByteTag($this->getString());
