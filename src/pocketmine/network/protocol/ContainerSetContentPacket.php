@@ -24,12 +24,12 @@ class ContainerSetContentPacket extends DataPacket{
 
 	public function decode(){
 		$this->windowid = $this->getByte();
-		$count = $this->getShort();
+		$count = min($this->getShort(), 256); // 限制槽位上限，防 CPU DoS
 		for($s = 0; $s < $count and !$this->feof(); ++$s){
 			$this->slots[$s] = $this->getSlot();
 		}
 		if($this->windowid === self::SPECIAL_INVENTORY){
-			$count = $this->getShort();
+			$count = min($this->getShort(), 256);
 			for($s = 0; $s < $count and !$this->feof(); ++$s){
 				$this->hotbar[$s] = $this->getInt();
 			}
