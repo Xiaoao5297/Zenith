@@ -2772,6 +2772,14 @@ class Level implements ChunkManager, Metadatable{
 			}
 			return false;
 		}
+		// 区块数据基本合法性检查：确保区块包含正确的 section 数量
+		if(method_exists($chunk, 'getBlockId') and $chunk instanceof \pocketmine\level\format\FullChunk){
+			$testId = $chunk->getBlockId(0, 0, 0);
+			if($testId < 0 or $testId > 255){
+				$this->server->getLogger()->warning("区块 [$x, $z] 数据异常，跳过加载");
+				return false;
+			}
+		}
 
 		if($this->provider->getProviderName() == "mcregion"){
 			if($chunk->getBiomeColor(0, 0) == [0, 0, 0]){
