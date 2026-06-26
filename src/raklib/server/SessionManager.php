@@ -267,6 +267,17 @@ class SessionManager{
 					}
 				}
 			}
+			// 清理非活跃 session
+			if(count($this->sessions) > 4096){
+				foreach($this->sessions as $i => $s){
+					if(!$s->isActive()){
+						unset($this->sessions[$i]);
+						if(count($this->sessions) <= 4096){
+							break;
+						}
+					}
+				}
+			}
 		}
 	}
 
