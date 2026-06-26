@@ -371,8 +371,7 @@ abstract class Liquid extends Transparent{
             if($block instanceof Lava){
                 $this->triggerLavaMixEffects($block);
             }elseif($block->getId() > 0){
-                // 直接替换方块，不触发 useBreakOn（防止液体流动刷掉落物）
-                $this->getLevel()->setBlock($block, Block::get(Block::AIR, 0), false);
+                $this->getLevel()->useBreakOn($block);
             }
 
             $this->getLevel()->setBlock($block, Block::get($this->getId(), $newFlowDecay), true);
