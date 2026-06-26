@@ -193,6 +193,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	public $loggedIn = false;
 	public $gamemode;
 	public $lastBreak;
+	public $lastAttackTime = 0.0;
 
 	protected $windowCnt = 2;
 	/** @var \SplObjectStorage<Inventory> */
@@ -3442,6 +3443,13 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 						EntityDamageEvent::MODIFIER_BASE => $damageBase,
 					];
 
+					// 攻击冷却限制，防止同 tick 多次攻击
+					$now = microtime(true);
+					if(($now - ($this->lastAttackTime ?? 0)) < 0.15){
+						break;
+					}
+					$this->lastAttackTime = $now;
+
 					if(!$this->canInteract($target, 8)){
 						$cancelled = true;
 					}elseif($target instanceof Player){
@@ -3729,7 +3737,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 
 				/** @var Item[] $ingredients */
-				$canCraft = true;//0.13.1大量物品本地配方出现问题,无法解决,使用极端(唯一)方法修复.
 				$ingredients = $packet->input;
 				$result = $packet->output[0];
 
