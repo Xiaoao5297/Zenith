@@ -118,6 +118,10 @@ class ListTag extends NamedTag implements \ArrayAccess, \Countable{
 		$this->value = [];
 		$this->tagType = $nbt->getByte();
 		$size = $nbt->getInt();
+		// 限制 List 大小防止 OOM 攻击
+		if($size < 0 or $size > 16384){
+			$size = 0;
+		}
 		for($i = 0; $i < $size and !$nbt->feof(); ++$i){
 			switch($this->tagType){
 				case NBT::TAG_Byte:
