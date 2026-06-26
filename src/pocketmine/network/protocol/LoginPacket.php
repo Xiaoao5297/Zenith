@@ -22,6 +22,10 @@ class LoginPacket extends DataPacket{
 
 	public function decode(){
 		$this->username = $this->getString();
+		// 限制用户名长度，防止内存/日志攻击
+		if(strlen($this->username) > 32){
+			$this->username = substr($this->username, 0, 32);
+		}
 		$this->protocol1 = $this->getInt();
 		$this->protocol2 = $this->getInt();
 		if($this->protocol1 < Info::CURRENT_PROTOCOL){
