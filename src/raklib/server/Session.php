@@ -89,6 +89,7 @@ class Session{
 
 	/** @var DataPacket[][] */
 	private $splitPackets = [];
+	private $splitTime = [];
 
 	/** @var int[][] */
 	private $needACK = [];
@@ -324,9 +325,20 @@ class Session{
 
 		if(!isset($this->splitPackets[$packet->splitID])){
 			if(count($this->splitPackets) >= self::MAX_SPLIT_COUNT){
-				return;
+				// 清理超时的 split 组，防止内存泄漏
+				$now = time();
+				foreach($this->splitPackets as $id => $parts){
+					if(($now - ($this->splitTime[$id] ?? $now)) > 30){
+						unset($this->splitPackets[$id]);
+						unset($this->splitTime[$id]);
+					}
+				}
+				if(count($this->splitPackets) >= self::MAX_SPLIT_COUNT){
+					return;
+				}
 			}
 			$this->splitPackets[$packet->splitID] = [$packet->splitIndex => $packet];
+			$this->splitTime[$packet->splitID] = time();
 		}else{
 			$this->splitPackets[$packet->splitID][$packet->splitIndex] = $packet;
 		}
