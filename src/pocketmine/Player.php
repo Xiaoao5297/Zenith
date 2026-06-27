@@ -1736,6 +1736,10 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					$this->server->getAntiCheat()->onPlayerMove($this, $from, $to);
 				}
 
+				if($this->closed){
+					return;
+				}
+
 				if(!($revert = $ev->isCancelled())){ //Yes, this is intended
 					//$teleported = false;
 					if($this->server->netherEnabled){

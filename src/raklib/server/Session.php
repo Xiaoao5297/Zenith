@@ -570,7 +570,7 @@ class Session{
 		return round((array_sum($this->pingAverage) / count($this->pingAverage)) * 1000);
 	}
 
-	public function close(){
+	public function close($reason = "unknown"){
 		$this->addEncapsulatedToQueue(EncapsulatedPacket::fromBinary("\x60\x00\x08\x00\x00\x00\x00\x00\x00\x00\x15")); //CLIENT_DISCONNECT packet 0x15
 		$this->sessionManager = null;
 	}
