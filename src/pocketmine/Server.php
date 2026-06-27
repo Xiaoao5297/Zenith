@@ -265,6 +265,9 @@ class Server{
 	/** @var \pocketmine\anticheat\AntiCheat */
 	private $antiCheat;
 
+	/** @var \pocketmine\web\WebPanel */
+	private $webPanel;
+
 	private $networkCompressionAsync = true;
 	public $networkCompressionLevel = 7;
 	// public $InCoreVersion = "0.7Alpha";
@@ -1973,6 +1976,13 @@ class Server{
 
 			$this->antiCheat = new \pocketmine\anticheat\AntiCheat($this);
 
+			// 启动 Web 控制面板
+			$webPort = (int) $this->getAdvancedProperty("player.web-panel-port", 0);
+			if($webPort > 0){
+				$this->webPanel = new \pocketmine\web\WebPanel($this, $webPort);
+				$this->webPanel->start();
+			}
+
 
 			$this->logger->info($this->getLanguage()->translateString("pocketmine.server.info", [
 				$this->getName(),
@@ -2537,6 +2547,9 @@ private function lookupAddress($address) {
 			if($this->rcon instanceof RCON){
 				$this->rcon->stop();
 			}
+			if($this->webPanel instanceof \pocketmine\web\WebPanel){
+				$this->webPanel->shutdown();
+			}
 
 			if($this->getProperty("network.upnp-forwarding", false) === true){
 				$this->logger->info("[UPnP] Removing port forward...");
@@ -3095,6 +3108,9 @@ private function lookupAddress($address) {
 		$this->network->processInterfaces();
 		if($this->isSynapseEnabled()){
 			$this->synapse->tick();
+		}
+		if($this->webPanel !== null){
+			$this->webPanel->tick();
 		}
 
 		if($this->rcon !== null){

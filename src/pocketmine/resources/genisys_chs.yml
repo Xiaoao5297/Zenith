@@ -62,6 +62,8 @@ player:
  interact-distance: 13
  #生成保护半径（默认 16，-1 禁用）
  spawn-protection-radius: 16
+ #Web 控制面板端口（设为 0 禁用，默认 8080）
+ web-panel-port: 8080
 
 nether:
  #选择是否允许下界，下界维度会自动生成
