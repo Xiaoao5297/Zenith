@@ -35,6 +35,9 @@ class WebPanel{
 			return;
 		}
 
+		@socket_set_option($this->socket, SOL_SOCKET, SO_REUSEADDR, 1);
+		@socket_set_option($this->socket, SOL_SOCKET, SO_REUSEPORT, 1);
+
 		if(!@socket_bind($this->socket, "0.0.0.0", $this->port)){
 			$this->server->getLogger()->error("WebPanel: 无法绑定端口 {$this->port}");
 			return;
