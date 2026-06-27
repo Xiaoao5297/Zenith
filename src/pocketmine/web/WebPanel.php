@@ -204,9 +204,9 @@ td{color:#8b949e}
 </div>
 
 <div class="charts">
-<div><canvas id="ch-tps" height="80"></canvas><div class="l">TPS</div></div>
-<div><canvas id="ch-mem" height="80"></canvas><div class="l">Memory MB</div></div>
-<div><canvas id="ch-load" height="80"></canvas><div class="l">Load %</div></div>
+<div><canvas id="ch-tps"></canvas><div class="l">TPS</div></div>
+<div><canvas id="ch-mem"></canvas><div class="l">Memory MB</div></div>
+<div><canvas id="ch-load"></canvas><div class="l">Load %</div></div>
 </div>
 
 <table><thead><tr><th>Player</th><th>Ping</th><th>World</th></tr></thead><tbody id="player-list"></tbody></table>
@@ -224,14 +224,32 @@ td{color:#8b949e}
 
 <script>
 var buf={tps:[],mem:[],load:[]};
-function draw(id,data,max,color){
- var c=document.getElementById(id),w=c.width=160,h=c.height=80,ctx=c.getContext('2d');
+function draw(id,data,color){
+ var c=document.getElementById(id),ctx=c.getContext('2d');
+ var w=300,h=90,pad=30;
+ c.width=w*2;c.height=h*2;c.style.width=w+'px';c.style.height=h+'px';
+ ctx.scale(2,2);
  ctx.clearRect(0,0,w,h);
- if(data.length<2)return;
+ var plotW=w-pad;
+ if(data.length<2){ctx.fillStyle='#484f58';ctx.font='10px monospace';ctx.fillText('--',pad,50);return}
+ var mx=Math.max.apply(null,data);
+ mx=Math.ceil(mx*1.1);if(mx<1)mx=1;
+
+ // grid + labels
+ ctx.strokeStyle='#21262d';ctx.lineWidth=0.5;
+ ctx.fillStyle='#484f58';ctx.font='9px monospace';ctx.textAlign='right';
+ for(var i=0;i<3;i++){
+  var v=i==0?mx:i==1?Math.round(mx/2):0;
+  var y=h-10-(v/mx*(h-20));
+  ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(w,y);ctx.stroke();
+  ctx.fillText(v,pad-4,y+3);
+ }
+
+ // line
  ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=1.5;
- var step=w/(60-1),x=0;
+ var step=plotW/(Math.min(data.length,60)-1),x=pad;
  data.slice(-60).forEach(function(v,i){
-  var y=h-(v/max*h);
+  var y=h-10-(v/mx*(h-20));
   if(i==0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
   x+=step;
  });
@@ -250,9 +268,9 @@ function update(){
   buf.mem.push(sys.memory);if(buf.mem.length>60)buf.mem.shift();
   buf.load.push(s.tpsUsage);if(buf.load.length>60)buf.load.shift();
 
-  draw('ch-tps',buf.tps,20,'#58a6ff');
-  draw('ch-mem',buf.mem,Math.max(512,sys.memoryPeak*1.2),'#3fb950');
-  draw('ch-load',buf.load,100,'#d29922');
+  draw('ch-tps',buf.tps,'#58a6ff');
+  draw('ch-mem',buf.mem,'#3fb950');
+  draw('ch-load',buf.load,'#d29922');
 
   var pl=document.getElementById('player-list');pl.innerHTML='';
   d.players.forEach(function(p){pl.innerHTML+='<tr><td>'+esc(p.name)+'</td><td>'+p.ping+'ms</td><td>'+esc(p.level)+'</td></tr>'});
