@@ -570,8 +570,26 @@ class Session{
 		return round((array_sum($this->pingAverage) / count($this->pingAverage)) * 1000);
 	}
 
-	public function close($reason = "unknown"){
-		$this->addEncapsulatedToQueue(EncapsulatedPacket::fromBinary("\x60\x00\x08\x00\x00\x00\x00\x00\x00\x00\x15")); //CLIENT_DISCONNECT packet 0x15
+	public function close(){
+		// 立即发送发送队列中未发送的包
+		if(count($this->sendQueue->packets) > 0){
+			$this->sendQueue->seqNumber = $this->sendSeqNumber++;
+			$this->sendPacket($this->sendQueue);
+			$this->sendQueue = new DATA_PACKET_4();
+		}
+		if(count($this->packetToSend) > 0){
+			foreach($this->packetToSend as $pk){
+				$pk->encode();
+				$this->sendPacket($pk);
+			}
+			$this->packetToSend = [];
+		}
+		// 发送 CLIENT_DISCONNECT (RakNet 0x15)
+		$disconnect = EncapsulatedPacket::fromBinary("\x60\x00\x08\x00\x00\x00\x00\x00\x00\x00\x15");
+		$pk = new DATA_PACKET_0();
+		$pk->seqNumber = $this->sendSeqNumber++;
+		$pk->packets[] = $disconnect->toBinary();
+		$this->sendPacket($pk);
 		$this->sessionManager = null;
 	}
 }
