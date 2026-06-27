@@ -170,76 +170,92 @@ class WebPanel{
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{$motd} - 面板</title>
+<title>{$motd}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#111;color:#ccc;padding:20px;max-width:900px;margin:0 auto}
-h1{font-size:20px;margin-bottom:16px;color:#e94560}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
-.card{background:#1a1a2e;padding:12px;border-radius:6px;text-align:center}
-.card .v{font-size:22px;font-weight:bold;color:#e94560}
-.card .l{font-size:11px;color:#666;margin-top:2px}
-.good{color:#4ecca3}
-.warn{color:#ffc107}
-.bad{color:#e94560}
-h2{font-size:14px;margin:12px 0 6px;color:#e94560}
-table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:13px}
-th,td{padding:4px 8px;text-align:left;border-bottom:1px solid #222}
-th{background:#1a1a2e;color:#888;font-size:11px;text-transform:uppercase}
-td{color:#ccc}
-.footer{text-align:center;color:#444;font-size:11px;margin-top:20px}
+body{font-family:"SF Mono",Menlo,monospace;background:#0d1117;color:#8b949e;padding:16px;max-width:960px;margin:0 auto;font-size:13px}
+h1{font-size:16px;color:#c9d1d9;margin-bottom:12px;font-weight:400}
+.row{display:flex;gap:8px;margin-bottom:12px}
+.row>*{flex:1}
+.stat{background:#161b22;border:1px solid #21262d;padding:10px;border-radius:4px;text-align:center}
+.stat .n{font-size:20px;color:#58a6ff;font-weight:600}
+.stat .l{font-size:10px;color:#484f58;margin-top:2px;text-transform:uppercase}
+.charts{display:flex;gap:8px;margin-bottom:12px}
+.charts>div{background:#161b22;border:1px solid #21262d;padding:8px;border-radius:4px;flex:1}
+.charts canvas{display:block;width:100%;height:80px}
+.charts .l{font-size:10px;color:#484f58;text-align:center;margin-top:4px;text-transform:uppercase}
+table{width:100%;border-collapse:collapse;margin-bottom:12px}
+th,td{padding:3px 6px;text-align:left;border-bottom:1px solid #21262d}
+th{color:#484f58;font-size:10px;font-weight:400;text-transform:uppercase}
+td{color:#8b949e}
+.info td:first-child{color:#484f58;width:80px}
+.footer{text-align:center;color:#21262d;font-size:10px;margin-top:20px}
 </style>
 </head>
 <body>
-<h1>⚡ {$motd}</h1>
+<h1>{$motd}</h1>
 
-<div class="grid" id="stats">
-<div class="card"><div class="v" id="s-players">0/0</div><div class="l">玩家</div></div>
-<div class="card"><div class="v" id="s-tps">0</div><div class="l">TPS</div></div>
-<div class="card"><div class="v" id="s-load">0%</div><div class="l">负载</div></div>
-<div class="card"><div class="v" id="s-mem">0 MB</div><div class="l">内存</div></div>
-<div class="card"><div class="v" id="s-peak">0 MB</div><div class="l">峰值</div></div>
-<div class="card"><div class="v" id="s-uptime">0</div><div class="l">运行</div></div>
+<div class="row" id="stats">
+<div class="stat"><div class="n" id="s-players">0</div><div class="l">Players</div></div>
+<div class="stat"><div class="n" id="s-tps">0</div><div class="l">TPS</div></div>
+<div class="stat"><div class="n" id="s-load">0%</div><div class="l">Load</div></div>
+<div class="stat"><div class="n" id="s-mem">0</div><div class="l">MB</div></div>
+<div class="stat"><div class="n" id="s-uptime">0</div><div class="l">Uptime</div></div>
 </div>
 
-<h2>👤 玩家 <span id="player-count" style="color:#666;font-size:12px">0</span></h2>
-<table><thead><tr><th>名字</th><th>延迟</th><th>IP</th><th>世界</th></tr></thead><tbody id="player-list"></tbody></table>
-<p id="no-players" style="color:#444;font-size:13px">暂无玩家</p>
+<div class="charts">
+<div><canvas id="ch-tps" height="80"></canvas><div class="l">TPS</div></div>
+<div><canvas id="ch-mem" height="80"></canvas><div class="l">Memory MB</div></div>
+<div><canvas id="ch-load" height="80"></canvas><div class="l">Load %</div></div>
+</div>
 
-<h2>🌍 世界</h2>
-<table><thead><tr><th>世界</th><th>玩家</th><th>实体</th><th>区块</th></tr></thead><tbody id="level-list"></tbody></table>
+<table><thead><tr><th>Player</th><th>Ping</th><th>World</th></tr></thead><tbody id="player-list"></tbody></table>
 
-<h2>📊 信息</h2>
-<table>
-<tr><td style="color:#666">服务端</td><td>{$version} (API {$apiVer})</td></tr>
-<tr><td style="color:#666">MCPE</td><td>{$mcpeVer}</td></tr>
-<tr><td style="color:#666">PHP</td><td>{$phpVer}</td></tr>
-<tr><td style="color:#666">系统</td><td>{$os}</td></tr>
-<tr><td style="color:#666">端口</td><td>{$port}</td></tr>
-<tr><td style="color:#666">模式</td><td>{$gm}</td></tr>
+<table class="info">
+<tr><td>Version</td><td>{$version}</td></tr>
+<tr><td>MCPE</td><td>{$mcpeVer}</td></tr>
+<tr><td>PHP</td><td>{$phpVer}</td></tr>
+<tr><td>OS</td><td>{$os}</td></tr>
+<tr><td>Port</td><td>{$port}</td></tr>
+<tr><td>Gamemode</td><td>{$gm}</td></tr>
 </table>
 
-<div class="footer">InCore Pro &middot; 实时更新</div>
+<div class="footer">InCore Pro</div>
 
 <script>
-function cls(v){return v>=18?'good':v>=10?'warn':'bad'}
+var buf={tps:[],mem:[],load:[]};
+function draw(id,data,max,color){
+ var c=document.getElementById(id),w=c.width=160,h=c.height=80,ctx=c.getContext('2d');
+ ctx.clearRect(0,0,w,h);
+ if(data.length<2)return;
+ ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=1.5;
+ var step=w/(60-1),x=0;
+ data.slice(-60).forEach(function(v,i){
+  var y=h-(v/max*h);
+  if(i==0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  x+=step;
+ });
+ ctx.stroke();
+}
 function update(){
- fetch('/api').then(r=>r.json()).then(d=>{
-  var s=d.server, sys=d.system;
+ fetch('/api').then(function(r){return r.json()}).then(function(d){
+  var s=d.server,sys=d.system;
   document.getElementById('s-players').textContent=sys.players+'/'+sys.maxPlayers;
-  var tps=document.getElementById('s-tps');tps.textContent=s.tps;tps.className='v '+cls(s.tps);
-  var ld=document.getElementById('s-load');ld.textContent=s.tpsUsage+'%';ld.className='v '+cls(100-s.tpsUsage);
-  document.getElementById('s-mem').textContent=sys.memory+'MB';
-  document.getElementById('s-peak').textContent=sys.memoryPeak+'MB';
+  document.getElementById('s-tps').textContent=s.tps;
+  document.getElementById('s-load').textContent=s.tpsUsage+'%';
+  document.getElementById('s-mem').textContent=sys.memory;
   document.getElementById('s-uptime').textContent=s.uptime;
 
-  var pl=document.getElementById('player-list');pl.innerHTML='';
-  document.getElementById('player-count').textContent=sys.players;
-  document.getElementById('no-players').style.display=d.players.length?'none':'block';
-  d.players.forEach(function(p){pl.innerHTML+='<tr><td>'+esc(p.name)+'</td><td>'+p.ping+'ms</td><td>'+esc(p.ip)+'</td><td>'+esc(p.level)+'</td></tr>'});
+  buf.tps.push(s.tps);if(buf.tps.length>60)buf.tps.shift();
+  buf.mem.push(sys.memory);if(buf.mem.length>60)buf.mem.shift();
+  buf.load.push(s.tpsUsage);if(buf.load.length>60)buf.load.shift();
 
-  var ll=document.getElementById('level-list');ll.innerHTML='';
-  d.levels.forEach(function(l){ll.innerHTML+='<tr><td>'+esc(l.name)+'</td><td>'+l.players+'</td><td>'+l.entities+'</td><td>'+l.chunks+'</td></tr>'});
+  draw('ch-tps',buf.tps,20,'#58a6ff');
+  draw('ch-mem',buf.mem,Math.max(512,sys.memoryPeak*1.2),'#3fb950');
+  draw('ch-load',buf.load,100,'#d29922');
+
+  var pl=document.getElementById('player-list');pl.innerHTML='';
+  d.players.forEach(function(p){pl.innerHTML+='<tr><td>'+esc(p.name)+'</td><td>'+p.ping+'ms</td><td>'+esc(p.level)+'</td></tr>'});
  }).catch(function(){})
 }
 function esc(s){var d=document.createElement('div');d.appendChild(document.createTextNode(s));return d.innerHTML}
