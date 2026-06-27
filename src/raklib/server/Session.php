@@ -546,8 +546,11 @@ class Session{
 			$packet->decode();
 			if($packet instanceof OPEN_CONNECTION_REQUEST_1){
 				if($packet->protocol !== \raklib\RakLib::PROTOCOL){
-					$this->disconnect("protocol version mismatch");
-					return;
+					// MCPE 0.14.x 使用 RakNet 协议 5，接受 5-6
+					if($packet->protocol < 5 or $packet->protocol > 6){
+						$this->disconnect("protocol version mismatch");
+						return;
+					}
 				}
 				$pk = new OPEN_CONNECTION_REPLY_1();
 				$pk->mtuSize = $packet->mtuSize;
