@@ -77,11 +77,12 @@ class SpeedCheck extends Check{
 			$this->antiCheat->logCheat($name, "Speed", $detail);
 
 			if($this->playerData[$lower . "_violations"] >= $this->maxViolations){
-				$this->antiCheat->punish($player, "Speed", $this->playerData[$lower . "_violations"]);
 				if($this->getConfig()["rollback"] ?? true){
 					$player->teleport($from);
 				}
+				$this->antiCheat->punish($player, "Speed", $this->playerData[$lower . "_violations"]);
 				$this->playerData[$lower . "_violations"] = 0;
+				return;
 			}
 		}
 	}

@@ -301,7 +301,7 @@ class AntiCheat{
 			// 每日上限：永久封禁
 			$banMsg = $this->getMessage("ban-message", ["check" => $checkName]);
 			$this->server->getNameBans()->addBan($playerName, $banMsg, null, "AntiCheat");
-			$player->kick($banMsg, false);
+			$player->close("", $banMsg, true);
 			$this->server->broadcastMessage("§5§l===========================");
 			$this->server->broadcastMessage("§5    " . $playerName . " 被反作弊吃掉了!");
 			$this->server->broadcastMessage("§5§l===========================");
@@ -311,7 +311,7 @@ class AntiCheat{
 		if($violationCount >= $this->punishThreshold){
 			// 达到阈值：封禁 + 踢出
 			$this->server->getNameBans()->addBan($playerName, $reason, null, "AntiCheat");
-			$player->kick($reason, false);
+			$player->close("", $reason, true);
 
 			$this->server->broadcastMessage("§5§l============================================");
 			$this->server->broadcastMessage("§5    " . $playerName . " §c因作弊被封禁 §7[" . $checkName . "]");

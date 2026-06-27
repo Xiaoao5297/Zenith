@@ -88,6 +88,7 @@ class FlyCheck extends Check{
 				if($violation >= $maxViolations){
 					$player->teleport($from);
 					$this->antiCheat->punish($player, "FlyCheck", $violation);
+					return;
 				}
 			}
 		}
@@ -102,6 +103,7 @@ class FlyCheck extends Check{
 			if($violation >= $maxViolations){
 				$player->teleport($from);
 				$this->antiCheat->punish($player, "FlyCheck", $violation);
+				return;
 			}
 		}
 
