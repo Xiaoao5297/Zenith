@@ -152,27 +152,14 @@ class WebPanel{
 
 	private function renderDashboard() : string{
 		$server = $this->server;
-		$online = count($server->getOnlinePlayers());
-		$max = $server->getMaxPlayers();
-		$tps = $server->getTicksPerSecond();
-		$tickUsage = $server->getTickUsage();
-		$mem = round(memory_get_usage(true) / 1024 / 1024, 1);
-		$peak = round(memory_get_peak_usage(true) / 1024 / 1024, 1);
-		$uptime = $this->formatUptime(microtime(true) - \pocketmine\START_TIME);
-		$levels = $server->getLevels();
-		$tpsClass = $tps >= 18 ? "good" : ($tps >= 10 ? "warn" : "bad");
-		$loadClass = $tickUsage < 50 ? "good" : ($tickUsage < 80 ? "warn" : "bad");
-		$noPlayers = $online === 0 ? "<p style='color:#666'>暂无玩家在线</p>" : "";
-
-		$playerRows = "";
-		foreach($server->getOnlinePlayers() as $p){
-			$playerRows .= "<tr><td>{$p->getName()}</td><td>{$p->getPing()}ms</td><td>{$p->getAddress()}</td><td>{$p->getLevel()->getName()}</td></tr>";
-		}
-
-		$levelRows = "";
-		foreach($levels as $level){
-			$levelRows .= "<tr><td>{$level->getName()}</td><td>" . count($level->getPlayers()) . "</td><td>" . count($level->getEntities()) . "</td><td>" . count($level->getChunks()) . "</td></tr>";
-		}
+		$motd = htmlspecialchars($server->getMotd(), ENT_QUOTES, 'UTF-8');
+		$version = htmlspecialchars($server->getPocketMineVersion(), ENT_QUOTES, 'UTF-8');
+		$apiVer = htmlspecialchars($server->getApiVersion(), ENT_QUOTES, 'UTF-8');
+		$mcpeVer = htmlspecialchars($server->getVersion(), ENT_QUOTES, 'UTF-8');
+		$phpVer = htmlspecialchars(PHP_VERSION, ENT_QUOTES, 'UTF-8');
+		$os = htmlspecialchars(PHP_OS, ENT_QUOTES, 'UTF-8');
+		$port = (int) $server->getPort();
+		$gm = htmlspecialchars($server->getGamemode(), ENT_QUOTES, 'UTF-8');
 
 		return <<<HTML
 <!DOCTYPE html>
@@ -180,66 +167,81 @@ class WebPanel{
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{$server->getMotd()} - 控制面板</title>
+<title>{$motd} - 面板</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#1a1a2e;color:#eee;padding:20px}
-h1{font-size:24px;margin-bottom:20px;color:#e94560}
-h2{font-size:18px;margin:20px 0 10px;color:#0f3460;background:#e94560;display:inline-block;padding:4px 12px;border-radius:4px;color:#fff}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px}
-.card{background:#16213e;padding:15px;border-radius:8px;text-align:center}
-.card .value{font-size:28px;font-weight:bold;color:#e94560}
-.card .label{font-size:12px;color:#888;margin-top:4px}
-.card .good{color:#4ecca3}
-.card .warn{color:#ffc107}
-.card .bad{color:#e94560}
-table{width:100%;border-collapse:collapse;margin-bottom:20px}
-th,td{padding:8px 12px;text-align:left;border-bottom:1px solid #333}
-th{background:#0f3460;color:#eee;font-size:13px}
-td{font-size:14px}
-tr:hover{background:#1a1a3e}
-.footer{margin-top:30px;text-align:center;color:#555;font-size:12px}
-a{color:#4ecca3;text-decoration:none}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#111;color:#ccc;padding:20px;max-width:900px;margin:0 auto}
+h1{font-size:20px;margin-bottom:16px;color:#e94560}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+.card{background:#1a1a2e;padding:12px;border-radius:6px;text-align:center}
+.card .v{font-size:22px;font-weight:bold;color:#e94560}
+.card .l{font-size:11px;color:#666;margin-top:2px}
+.good{color:#4ecca3}
+.warn{color:#ffc107}
+.bad{color:#e94560}
+h2{font-size:14px;margin:12px 0 6px;color:#e94560}
+table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:13px}
+th,td{padding:4px 8px;text-align:left;border-bottom:1px solid #222}
+th{background:#1a1a2e;color:#888;font-size:11px;text-transform:uppercase}
+td{color:#ccc}
+.footer{text-align:center;color:#444;font-size:11px;margin-top:20px}
 </style>
 </head>
 <body>
-<h1>⚡ {$server->getMotd()}</h1>
+<h1>⚡ {$motd}</h1>
 
-<div class="grid">
-<div class="card"><div class="value">{$online}/{$max}</div><div class="label">在线玩家</div></div>
-<div class="card"><div class="value {$tpsClass}">{$tps}</div><div class="label">TPS</div></div>
-<div class="card"><div class="value {$loadClass}">{$tickUsage}%</div><div class="label">Tick 负载</div></div>
-<div class="card"><div class="value">{$mem}MB</div><div class="label">内存使用</div></div>
-<div class="card"><div class="value">{$peak}MB</div><div class="label">内存峰值</div></div>
-<div class="card"><div class="value">{$uptime}</div><div class="label">运行时间</div></div>
+<div class="grid" id="stats">
+<div class="card"><div class="v" id="s-players">0/0</div><div class="l">玩家</div></div>
+<div class="card"><div class="v" id="s-tps">0</div><div class="l">TPS</div></div>
+<div class="card"><div class="v" id="s-load">0%</div><div class="l">负载</div></div>
+<div class="card"><div class="v" id="s-mem">0 MB</div><div class="l">内存</div></div>
+<div class="card"><div class="v" id="s-peak">0 MB</div><div class="l">峰值</div></div>
+<div class="card"><div class="v" id="s-uptime">0</div><div class="l">运行</div></div>
 </div>
 
-<h2>👤 在线玩家</h2>
-<table>
-<tr><th>玩家</th><th>延迟</th><th>IP</th><th>所在世界</th></tr>
-{$playerRows}
-</table>
-{$noPlayers}
+<h2>👤 玩家 <span id="player-count" style="color:#666;font-size:12px">0</span></h2>
+<table><thead><tr><th>名字</th><th>延迟</th><th>IP</th><th>世界</th></tr></thead><tbody id="player-list"></tbody></table>
+<p id="no-players" style="color:#444;font-size:13px">暂无玩家</p>
 
-<h2>🌍 世界列表</h2>
-<table>
-<tr><th>世界</th><th>玩家</th><th>实体</th><th>区块</th></tr>
-{$levelRows}
-</table>
+<h2>🌍 世界</h2>
+<table><thead><tr><th>世界</th><th>玩家</th><th>实体</th><th>区块</th></tr></thead><tbody id="level-list"></tbody></table>
 
-<h2>📊 服务器信息</h2>
+<h2>📊 信息</h2>
 <table>
-<tr><td>版本</td><td>{$server->getPocketMineVersion()} (API {$server->getApiVersion()})</td></tr>
-<tr><td>MCPE 版本</td><td>{$server->getVersion()}</td></tr>
-<tr><td>PHP 版本</td><td>" . PHP_VERSION . "</td></tr>
-<tr><td>操作系统</td><td>" . PHP_OS . "</td></tr>
-<tr><td>端口</td><td>{$server->getPort()}</td></tr>
-<tr><td>游戏模式</td><td>{$server->getGamemode()}</td></tr>
+<tr><td style="color:#666">服务端</td><td>{$version} (API {$apiVer})</td></tr>
+<tr><td style="color:#666">MCPE</td><td>{$mcpeVer}</td></tr>
+<tr><td style="color:#666">PHP</td><td>{$phpVer}</td></tr>
+<tr><td style="color:#666">系统</td><td>{$os}</td></tr>
+<tr><td style="color:#666">端口</td><td>{$port}</td></tr>
+<tr><td style="color:#666">模式</td><td>{$gm}</td></tr>
 </table>
 
-<div class="footer">
-<a href="/">🔄 刷新</a> &middot; <a href="/api">📡 API</a> &middot; InCore Pro WebPanel
-</div>
+<div class="footer">InCore Pro &middot; 实时更新</div>
+
+<script>
+function cls(v){return v>=18?'good':v>=10?'warn':'bad'}
+function update(){
+ fetch('/api').then(r=>r.json()).then(d=>{
+  var s=d.server, sys=d.system;
+  document.getElementById('s-players').textContent=sys.players+'/'+sys.maxPlayers;
+  var tps=document.getElementById('s-tps');tps.textContent=s.tps;tps.className='v '+cls(s.tps);
+  var ld=document.getElementById('s-load');ld.textContent=s.tpsUsage+'%';ld.className='v '+cls(100-s.tpsUsage);
+  document.getElementById('s-mem').textContent=sys.memory+'MB';
+  document.getElementById('s-peak').textContent=sys.memoryPeak+'MB';
+  document.getElementById('s-uptime').textContent=s.uptime;
+
+  var pl=document.getElementById('player-list');pl.innerHTML='';
+  document.getElementById('player-count').textContent=sys.players;
+  document.getElementById('no-players').style.display=d.players.length?'none':'block';
+  d.players.forEach(function(p){pl.innerHTML+='<tr><td>'+esc(p.name)+'</td><td>'+p.ping+'ms</td><td>'+esc(p.ip)+'</td><td>'+esc(p.level)+'</td></tr>'});
+
+  var ll=document.getElementById('level-list');ll.innerHTML='';
+  d.levels.forEach(function(l){ll.innerHTML+='<tr><td>'+esc(l.name)+'</td><td>'+l.players+'</td><td>'+l.entities+'</td><td>'+l.chunks+'</td></tr>'});
+ }).catch(function(){})
+}
+function esc(s){var d=document.createElement('div');d.appendChild(document.createTextNode(s));return d.innerHTML}
+update();setInterval(update,1000);
+</script>
 </body>
 </html>
 HTML;
