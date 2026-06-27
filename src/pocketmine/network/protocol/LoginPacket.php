@@ -28,6 +28,10 @@ class LoginPacket extends DataPacket{
 		}
 		$this->protocol1 = $this->getInt();
 		$this->protocol2 = $this->getInt();
+		if($this->protocol1 < 45 or $this->protocol1 > 70){
+			$this->setBuffer(null, 0);
+			return;
+		}
 		$this->clientId = $this->getLong();
 		$this->clientUUID = $this->getUUID();
 		$this->serverAddress = $this->getString();
