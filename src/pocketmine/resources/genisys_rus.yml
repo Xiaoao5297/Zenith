@@ -1,0 +1,178 @@
+#Genisys 高级配置文件
+
+#此文件的版本
+config:
+ version: 15
+
+level:
+ #设置是否开启天气系统
+ weather: true
+ #天气随机持续时间
+ weather-random-duration-min: 6000
+ weather-random-duration-max: 12000
+ #随机闪电间隔，默认为10秒，0 = 禁用
+ lightning-time: 20000
+ #设置闪电是否带火
+ lightning-fire: false
+ #设置是否启用火的蔓延
+ fire-spread: false
+ 
+player:
+ #饥饿系统的开关
+ hunger: true
+ #当玩家因饥饿而受到攻击时的最低生命值
+ hunger-health: 10
+ #饥饿计时器，默认: 3000
+ hunger-timer: 3000
+ #选择是否开启经验系统
+ experience: true
+ #选择玩家死亡时是否保留物品栏
+ keep-inventory: true
+ #物品栏的空间大小
+ inventory-num: 36
+ #当游戏模式切换为创造模式时自动清空物品栏
+ auto-clear-inventory : false
+ #选择玩家死亡时是否保留经验
+ keep-experience: true
+ #如果玩家加入时崩溃，请将此值设置为10以下。禁用=-1
+ chunk-radius: -1
+ #Max enchantment level cap (default 32767, vanilla behavior; set lower like 10 to block 32k weapons)
+ max-enchant-level: 32767
+ #Attack cooldown in seconds (default 0.15)
+ attack-cooldown: 0.15
+ #Inventory transaction timeout in seconds (default 2)
+ transaction-timeout: 2
+ #Max entities per chunk (default 64)
+ max-entities-per-chunk: 64
+ #Spawn invulnerability ticks (default 60 = 3s)
+ spawn-invulnerability-ticks: 60
+ #Portal cooldown ticks (default 80 = 4s)
+ portal-cooldown-ticks: 80
+ #Starvation damage interval in ticks (default 20 = 1s)
+ starvation-interval: 20
+ #Food usage rate when sprinting (default 500)
+ food-usage-sprint: 500
+ #Food usage rate when walking (default 250)
+ food-usage-walk: 250
+ #Health regeneration interval in ticks (default 80 = 4s)
+ regeneration-interval: 80
+ #Food threshold for health regeneration (default 18)
+ regeneration-food-threshold: 18
+ #Max block interaction distance (default 13)
+ interact-distance: 13
+ #Spawn protection radius (default 16, -1 to disable)
+ spawn-protection-radius: 16
+
+nether:
+ #选择是否允许下界，下界维度会自动生成
+ allow-nether: true
+ #下界维度的名称
+ level-name: "nether"
+ 
+ender:
+ #选择是否允许末地，末地维度会自动生成
+ allow-ender: true
+ #末地维度的名称
+ level-name: "ender"
+ 
+skyworld:
+ #选择是否允许天域，天域维度会自动生成
+ allow-skyworld: true
+ #天域维度的名称
+ level-name: "skyworld"
+ spawn-x: 0
+ spawn-y: 64
+ spawn-z: -50
+
+server:
+ #预生成经验数据，0=禁用
+ experience-cache: 65535
+ #选择是否允许生成铁傀儡
+ allow-iron-golem: false
+ #选择是否允许生成雪傀儡
+ allow-snow-golem: false
+ #选择是否允许使用铁砧和附魔台
+ allow-anvilandenchanttable: true
+ #选择是否禁用 server.log
+ disable-log: false
+ #选择是否启用自动反飞行
+ anti-fly: true
+ #选择是否启用异步区块请求
+ async-chunk-request: true
+ #选择玩家加入时的提醒方式
+ #0 = 消息, 1 = 提示, 2 = 弹出窗口
+ player-msg-type: 0
+ login-msg: "§3@player joined the game"
+ logout-msg: "§3@player left the game"
+ #选择是否从 json 文件读取合成配方
+ recipes-from-json: false
+ #选择是否从 json 文件读取创造模式物品
+ creative-items-from-json: false
+ #选择矿车的移动方式，自由移动、跟随轨道或禁用
+ #-1=禁用, 0=自由移动, 1=跟随轨道, 2=自动
+ minecart-moving-type: 0
+ #选择是否启用移动检查（不再拉回玩家）
+ check-movement: true
+ #设置是否启用受限创造模式（不能丢弃物品，不能与箱子等交互）
+ limited-creative: false
+ #设置是否添加方块破坏粒子效果
+ destroy-block-particle: true
+ #设置是否启用喷溅药水
+ allow-splash-potion: true
+ #设置是否启用高级命令选择器
+ advanced-command-selector: false
+
+redstone:
+ ##########################################
+ ###选择是否允许红石系统###
+ ##########################################
+ #如果为 false，则红石将不会工作#
+ ##########################################
+ enable: true
+ #选择是否允许频率脉冲
+ frequency-pulse: true
+ #设置脉冲频率, 默认: 1秒
+ pulse-frequency: 1
+
+synapse:
+ #如果你想使用 Synapse API 或连接到 Synapse 服务器，请启用此选项
+ enabled: false
+ server-ip: 127.0.0.1
+ server-port: 10305
+ is-main-server: true
+ server-password: 32bitlongkey
+ description: "A Synapse client"
+
+dserver:
+ #所有多服务器统一计数的开关
+ enable: false
+ #查询自动更新
+ query-auto-update: false
+ #查询定期更新
+ query-tick-update: true
+ #Motd 中显示的最大玩家数
+ motd-max-players: 0
+ #查询中显示的最大玩家数，0=默认
+ query-max-players: 0
+ #在 Motd 中显示所有服务器的玩家总数
+ motd-all-players: false
+ #在 Query 中显示所有服务器的玩家总数
+ query-all-players: false
+ #在 Motd 中显示在线玩家数
+ motd-players: false
+ #在 Query 中显示在线玩家数
+ query-players: false
+ #更新频率, 20=1秒
+ time: 40
+ #失败时自动重试次数
+ retry-times: 3
+ #服务器列表，使用 ';' 分隔，例如: 1.example.com:19132;2.example.com:19133
+ server-list: ""
+ 
+ai:
+ #AI 总开关
+ enable: true
+ #苦力怕爆炸时是否破坏方块
+ creeper-explode-destroy-block: false
+ #选择是否允许生物自动生成
+ mobgenerate: true
