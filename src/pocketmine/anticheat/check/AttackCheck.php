@@ -140,6 +140,12 @@ class AttackCheck extends Check{
 		$recentTargets =& $this->playerData[$lower . "_targets"];
 
 		if(!empty($recentTargets) && end($recentTargets) !== $targetId){
+			if(!isset($this->playerData[$lower . "_target_switch_time"])){
+				$this->playerData[$lower . "_target_switch_time"] = 0;
+			}
+			if(!isset($this->playerData[$lower . "_switch_count"])){
+				$this->playerData[$lower . "_switch_count"] = 0;
+			}
 			if((microtime(true) - $this->playerData[$lower . "_target_switch_time"]) < 1.0){
 				$this->playerData[$lower . "_switch_count"]++;
 			}else{
