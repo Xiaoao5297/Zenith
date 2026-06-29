@@ -4,6 +4,7 @@ namespace pocketmine\web;
 
 use pocketmine\Server;
 use pocketmine\utils\TextFormat;
+use pocketmine\lang\BaseLang;
 
 class WebPanel{
 
@@ -31,7 +32,8 @@ class WebPanel{
 	public function start(){
 		$this->socket = @socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
 		if($this->socket === false){
-			$this->server->getLogger()->error("WebPanel: 无法创建 socket");
+			// $this->server->getLogger()->error("WebPanel: 无法创建 socket");
+			$this->server->getLogger()->error($this->server->getLanguage()->translateString("pocketmine.web.cannot.reateSocket", [$this->port]));
 			return;
 		}
 
@@ -39,12 +41,13 @@ class WebPanel{
 		@socket_set_option($this->socket, SOL_SOCKET, SO_REUSEPORT, 1);
 
 		if(!@socket_bind($this->socket, "0.0.0.0", $this->port)){
-			$this->server->getLogger()->error("WebPanel: 无法绑定端口 {$this->port}");
+			$this->server->getLogger()->error($this->server->getLanguage()->translateString("pocketmine.web.cannot.bindPort", [$this->port]));
 			return;
 		}
 
 		if(!@socket_listen($this->socket)){
-			$this->server->getLogger()->error("WebPanel: 无法监听端口 {$this->port}");
+			// $this->server->getLogger()->error("WebPanel: 无法监听端口 {$this->port}");
+			$this->server->getLogger()->error($this->server->getLanguage()->translateString("pocketmine.web.cannot.listenPort", [$this->port]));
 			return;
 		}
 

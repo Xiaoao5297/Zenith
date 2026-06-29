@@ -1821,7 +1821,8 @@ class Server{
 
 			$this->about();
             
-            $this->logger->info("正在加载pocketmine.yml...");
+            // $this->logger->info("正在加载pocketmine.yml...");\
+			$this->getLogger()->info($this->getLanguage()->translateString("pocketmine.loading.pocketmine.yml"));
             
 			if(!file_exists($this->dataPath . "pocketmine.yml")){
 				$content = file_get_contents($this->filePath . "src/pocketmine/resources/pocketmine.yml");
@@ -1838,7 +1839,8 @@ class Server{
 				unset($this->propertyCache["settings.language"]);
 			}
             // $this->logger->info($this->getLanguage()->translateString("pocketmine.existsyml.pm", [$name]));
-			$this->logger->info("正在加载genisys.yml...");
+			// $this->logger->info("正在加载genisys.yml...");
+			$this->getLogger()->info($this->getLanguage()->translateString("pocketmine.loading.genisys.yml"));
 
 			$lang = $this->getProperty("settings.language", BaseLang::FALLBACK_LANGUAGE);
 			if(file_exists($this->filePath . "src/pocketmine/resources/genisys_$lang.yml")){
@@ -1859,7 +1861,8 @@ class Server{
 
 			if($this->expWriteAhead > 0) $this->generateExpCache($this->expWriteAhead);
 
-			$this->logger->info("正在加载服务器配置...");
+			// $this->logger->info("正在加载服务器配置...");
+			$this->getLogger()->info($this->getLanguage()->translateString("pocketmine.loading.server.properties"));
 			$this->properties = new Config($this->dataPath . "server.properties", Config::PROPERTIES, [
 				"motd" => "Minecraft PE 0.14 Server",
 				"server-port" => 19132,
@@ -1979,6 +1982,7 @@ class Server{
 			// 启动 Web 控制面板
 			$webPort = (int) $this->getAdvancedProperty("player.web-panel-port", 0);
 			if($webPort > 0){
+				$this->getLogger()->info($this->getLanguage()->translateString("pocketmine.server.webPanelStart", [$webPort]));
 				$this->webPanel = new \pocketmine\web\WebPanel($this, $webPort);
 				$this->webPanel->start();
 			}
