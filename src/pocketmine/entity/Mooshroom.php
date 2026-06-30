@@ -8,6 +8,7 @@ use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\Player;
 use pocketmine\event\entity\EntityDamageByEntityEvent;
 use pocketmine\item\Item as ItemItem;
+use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookaroundBehavior, LookAtPlayerBehavior, PanicBehavior, findFoodBehavior, inLoveBehavior};
 
 class Mooshroom extends Animal{
 	const NETWORK_ID = 16;
@@ -15,11 +16,24 @@ class Mooshroom extends Animal{
 	public $width = 0.3;
 	public $length = 0.9;
 	public $height = 1.8;
-	
+
 	public function getName() : string{
 		return "Mooshroom";
 	}
-	
+
+	public function initEntity(){
+		$this->setMaxHealth(10);
+
+		$this->addBehavior(new inLoveBehavior($this));
+		$this->addBehavior(new PanicBehavior($this, 0.25, 2.0));
+		$this->addBehavior(new findFoodBehavior($this, 296));
+		$this->addBehavior(new StrollBehavior($this));
+		$this->addBehavior(new LookAtPlayerBehavior($this));
+		$this->addBehavior(new RandomLookaroundBehavior($this));
+
+		parent::initEntity();
+	}
+
 	public function spawnTo(Player $player){
 		$pk = new AddEntityPacket();
 		$pk->eid = $this->getId();
@@ -37,7 +51,7 @@ class Mooshroom extends Animal{
 
 		parent::spawnTo($player);
 	}
-	
+
 	public function getDrops(){
 		$drops = array(ItemItem::get(ItemItem::RED_MUSHROOM, 0, 2));
 		if ($this->lastDamageCause instanceof EntityDamageByEntityEvent and $this->lastDamageCause->getEntity() instanceof Player) {
