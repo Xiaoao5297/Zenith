@@ -4,6 +4,7 @@ namespace pocketmine\entity;
 
 use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\Player;
+use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookaroundBehavior, attackEnemyBehavior};
 
 class Blaze extends Monster{
 	const NETWORK_ID = 43;
@@ -13,11 +14,31 @@ class Blaze extends Monster{
 	public $height = 1.8;
 
 	public $dropExp = [10, 10];
-	
+
+	private $hurt = 6;
+
 	public function getName() : string{
 		return "Blaze";
 	}
-	
+
+	public function initEntity(){
+		$this->setMaxHealth(20);
+
+		$this->addBehavior(new attackEnemyBehavior($this, [20], true));
+		$this->addBehavior(new StrollBehavior($this));
+		$this->addBehavior(new RandomLookaroundBehavior($this));
+
+		parent::initEntity();
+	}
+
+	public function getHurt(){
+		return $this->hurt;
+	}
+
+	public function setHurt($hurt){
+		$this->hurt = $hurt;
+	}
+
 	public function spawnTo(Player $player){
 		$pk = new AddEntityPacket();
 		$pk->eid = $this->getId();
