@@ -63,18 +63,22 @@ class AIHolder {
 							"MobGenerate"
 						]), 20 * 60);
 		}
+		/* 已迁移到新版 Behavior 系统，不再需要
 		$this->getServer()->getScheduler()->scheduleRepeatingTask(new CallbackTask([
 					$this,
 					"TimeFix"
 				]), 10);
 		$this->getServer()->getScheduler()->scheduleRepeatingTask(new CallbackTask ([$this, "RotationTimer"]), 2);
+		*/
 		/*$this->ZombieAI = new ZombieAI($this);
 		$this->CowAI = new CowAI($this);
 		$this->PigAI = new PigAI($this);
 		$this->SheepAI = new SheepAI($this);
 		$this->ChickenAI = new ChickenAI($this);
 		$this->SpiderAI = new SpiderAI($this);*/
+		/* 已迁移到新版 Behavior 系统 (CreeperBehavior)
 		$this->CreeperAI = new CreeperAI($this);
+		*/
 		//$this->SkeletonAI = new SkeletonAI($this);
 	}
 	/*
