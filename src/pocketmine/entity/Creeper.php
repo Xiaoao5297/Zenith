@@ -11,25 +11,31 @@ use pocketmine\network\protocol\EntityEventPacket;
 use pocketmine\Player;
 use pocketmine\level\Explosion;
 use pocketmine\level\Position;
+use pocketmine\entity\ai\behavior\{CreeperBehavior, StrollBehavior, RandomLookaroundBehavior};
 
 class Creeper extends Monster{
 	const NETWORK_ID = 33;
 
 	const DATA_SWELL = 16;
 	const DATA_POWERED = 19;
-	
+
 	public $width = 0.6;
     public $length = 0.6;
     public $height = 1.8;
 
 	public $dropExp = [5, 5];
-	
+
 	public function getName() : string{
 		return "Creeper";
 	}
 
 	public function initEntity(){
 		$this->setMaxHealth(20);
+
+		$this->addBehavior(new CreeperBehavior($this));
+		$this->addBehavior(new StrollBehavior($this));
+		$this->addBehavior(new RandomLookaroundBehavior($this));
+
 		parent::initEntity();
 		if(!isset($this->namedtag->powered)){
 			$this->setPowered(false);

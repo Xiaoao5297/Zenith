@@ -5,7 +5,7 @@ namespace pocketmine\entity;
 use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\math\Vector3;
 
-abstract class FlyingAnimal extends Creature{
+abstract class FlyingAnimal extends Mob{
 
     protected $gravity = 0;
     protected $drag = 0.02;
@@ -45,7 +45,6 @@ abstract class FlyingAnimal extends Creature{
                     $this->flyDirection = null;
                 }
                 if($this->flyDirection instanceof Vector3){
-                    //var_dump($this->flyDirection);
                     $this->setMotion($this->flyDirection->multiply($this->flySpeed));
                 }else{
                     $this->flyDirection = $this->generateRandomDirection();
@@ -53,41 +52,23 @@ abstract class FlyingAnimal extends Creature{
                     $this->setMotion($this->flyDirection);
                 }
 
-                //$expectedPos = new Vector3($this->x + $this->motionX, $this->y + $this->motionY, $this->z + $this->motionZ);
-
-                //$motion = $this->flyDirection->multiply($this->flySpeed);
-                $this->move($this->motionX, $this->motionY, $this->motionZ);
-                $this->updateMovement();
-                //$this->getLevel()->addEntityMotion($this->chunk->getX(), $this->chunk->getZ(), $this->getId(), $motion->x, $motion->y, $motion->z);
-
-                //echo "EID = {$this->getId()}, motionX = $this->motionX, motionY = $this->motionY, motionZ = $this->motionZ\n";
-                /*
-
-                if($expectedPos->distanceSquared($this) > 0){
-                    $this->flyDirection = $this->generateRandomDirection();
-                    $this->flySpeed = mt_rand(50, 100) / 500;
-                }
-
-                $friction = 1 - $this->drag;
-
-                $this->motionX *= $friction;
-                $this->motionY *= 1 - $this->drag;
-                $this->motionZ *= $friction;
-*/
-                $f = sqrt(($this->motionX ** 2) + ($this->motionZ ** 2));
-                $this->yaw = (-atan2($this->motionX, $this->motionZ) * 180 / M_PI);
-                $this->pitch = (-atan2($f, $this->motionY) * 180 / M_PI);
-
-                if($this->onGround and $this->flyDirection instanceof Vector3){
-                    $this->flyDirection->y *= -1;
-                }
-
-
+                // 移动和更新由 parent::onUpdate (Mob → Creature) 处理
             }
         }
-        parent::onUpdate($currentTick);
-        //parent::entityBaseTick();
+
+        // Mob::onUpdate → Creature::onUpdate (物理移动 + EntityBaseTick) → Behavior tick
+        $hasUpdate = parent::onUpdate($currentTick);
         $this->timings->stopTiming();
+
+        // 撞地反弹 (移动后 onGround 已更新)
+        if($this->onGround and $this->flyDirection instanceof Vector3){
+            $this->flyDirection->y *= -1;
+        }
+
+        // 根据 motion 计算朝向
+        $f = sqrt(($this->motionX ** 2) + ($this->motionZ ** 2));
+        $this->yaw = (-atan2($this->motionX, $this->motionZ) * 180 / M_PI);
+        $this->pitch = (-atan2($f, $this->motionY) * 180 / M_PI);
 
         return !$this->onGround or abs($this->motionX) > 0.00001 or abs($this->motionY) > 0.00001 or abs($this->motionZ) > 0.00001;
     }
