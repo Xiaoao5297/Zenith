@@ -12,15 +12,16 @@ Incore bugs:
 - 附加：击退 base 0.4→0.6 也增强了低方块上的击退距离
 
 !002 【已修复】
-- 根因：Zombie::$height = 0，导致 bounding box 高度为 0，
-  碰撞检测 getCollisionCubes() 完全不检查上半身方块，直接穿墙
-- 修复：Zombie::$height = 0 → 1.8
-- 连带修复：Cow(0→1.3)、Chicken(0→0.7)、Wolf(注释掉→0.8) 相同问题
+- 根因：Behavior 碰撞检测 $colliding 条件为 $block->isSolid() or ($entity->height>=1 and $blockUp->isSolid())，
+  height<1 的实体只用脚部方块做碰撞检测，上身穿过方块
+- 修复：改为 $block->isSolid() or $blockUp->isSolid()，移除 height 阈值，始终检查头部方块
+- 涉及：attackEnemyBehavior、StrollBehavior
 
 !003 【已修复】
-- 根因：同 #002，height=0 导致 bounding box 无效，
-  move() 中的碰撞检测不生效，击退 motion 直接穿过方块
-- 修复：同上，height 改为正常值后 bounding box 恢复碰撞
+- 根因：height=0 导致 bounding box 仅存在于脚部 Y 平面，腰部以上方块不参与碰撞检测，
+  击退 motion 经过 move() 时 getCollisionCubes() 未拦截头部位置方块
+- 修复：knockBack() 中新增碰撞检查，在击退方向预测位置 $y+1.8 处检测方块，
+  若有实体方块则水平击退降低 80%
 
 2026/7/3 #002 bugs:
 !001 【已修复】
@@ -33,8 +34,7 @@ Incore bugs:
 
 2026/7/3 #003 bugs:
 !001 【已修复】
-- 根因：修复 height 后 onGround 正常触发，但 Creature::onUpdate 中
-  motionY *= -0.5 反弹逻辑制造了持续震荡。
-  重力每 tick -0.08 远大于任何阈值，0.01/0.04/0.08 阈值都无法阻断。
-- 修复：onGround 时直接 motionY = 0，去掉反弹。
-  跳跃/击退/坠落着陆后均稳定停在地面，不再震荡。
+- 根因：height=0→正常值的修改导致 bounding box 从平面变为3D，
+  onGround 检测从从不触发变为每次 tick 触发，
+  motionY*=0.5 反弹循环因 gravity≈0.08 而无法自稳定。
+- 修复：还原 height=0，用 #002/#003 定向修复替代 height 修复方案

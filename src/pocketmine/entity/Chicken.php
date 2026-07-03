@@ -14,7 +14,7 @@ class Chicken extends Animal{
 
 	public $width = 0.6;
 	public $length = 0.6;
-	public $height = 0.7;
+	public $height = 0;
 
 	public $dropExp = [1, 3];
 	
