@@ -1776,6 +1776,7 @@ class Server{
 		$this->autoloader = $autoloader;
 		$this->logger = $logger;
 		$this->filePath = $filePath;
+		$this->baseLang = new BaseLang(BaseLang::FALLBACK_LANGUAGE);
 		try{
 			if(!file_exists($dataPath . "worlds/")){
 				mkdir($dataPath . "worlds/", 0777);
