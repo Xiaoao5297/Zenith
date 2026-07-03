@@ -29,7 +29,7 @@ abstract class Creature extends Living{
 				$friction = 1 - $this->drag;
 
 				if($this->onGround and (abs($this->motionX) > 0.00001 or abs($this->motionZ) > 0.00001)){
-					$friction = $this->getLevel()->getBlock($this->temporalVector->setComponents((int) floor($this->x), (int) floor($this->y - 1), (int) floor($this->z) - 1))->getFrictionFactor() * $friction;
+					$friction = $this->getLevel()->getBlock($this->temporalVector->setComponents((int) floor($this->x), (int) floor($this->y - 1), (int) floor($this->z)))->getFrictionFactor() * $friction;
 				}
 
 				$this->motionX *= $friction;

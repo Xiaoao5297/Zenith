@@ -16,7 +16,7 @@ class Zombie extends Monster implements Ageable{
 
 	public $width = 0.6;
 	public $length = 0.6;
-	public $height = 0;
+	public $height = 1.8;
 	
 	public $dropExp = [5, 5];
 	
