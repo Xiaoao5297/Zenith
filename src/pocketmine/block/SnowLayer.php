@@ -24,6 +24,7 @@ namespace pocketmine\block;
 use pocketmine\item\Item;
 use pocketmine\item\Tool;
 use pocketmine\level\Level;
+use pocketmine\math\AxisAlignedBB;
 use pocketmine\Player;
 
 class SnowLayer extends Flowable{
@@ -72,6 +73,24 @@ class SnowLayer extends Flowable{
 		}
 
 		return false;
+	}
+
+	public function hasEntityCollision(){
+		return true;
+	}
+
+	public function getBoundingBox(){
+		if($this->boundingBox === null){
+			$this->boundingBox = new AxisAlignedBB(
+				$this->x,
+				$this->y,
+				$this->z,
+				$this->x + 1,
+				$this->y + ($this->meta + 1) / 8,
+				$this->z + 1
+			);
+		}
+		return $this->boundingBox;
 	}
 
 	public function getDrops(Item $item) : array {
