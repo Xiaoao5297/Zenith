@@ -13,7 +13,7 @@ class Wolf extends Animal{
 
 	public $width = 0.3;
 	public $length = 0.9;
-	//public $height = 0.8;
+	public $height = 0.85;
 
 	public $dropExp = [1, 3];
 
