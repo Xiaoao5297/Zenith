@@ -119,7 +119,7 @@ class PathNavigate{
 			$this->stuckTicks++;
 		}else{
 			$this->stuckTicks = 0;
-			$this->lastStuckPos = $pos->asVector3();
+			$this->lastStuckPos = new Vector3($pos->x, $pos->y, $pos->z);
 		}
 
 		if($this->stuckTicks >= 5){
@@ -148,17 +148,43 @@ class PathNavigate{
 	}
 
 	private function updateFallback(): void{
-		$blocked = !$this->entity->moveForward($this->speed * 0.7 * 0.4, true);
+		if($this->target === null){
+			$this->clearPath();
+			return;
+		}
 
-		if($blocked){
+		$pos = $this->entity->getPosition();
+		$dx = $this->target->x - $pos->x;
+		$dz = $this->target->z - $pos->z;
+		$len = sqrt($dx * $dx + $dz * $dz);
+
+		if($len < 0.5){
+			$this->clearPath();
+			return;
+		}
+
+		$dx /= $len;
+		$dz /= $len;
+
+		$this->entity->yaw = -atan2($dx, $dz) * (180 / M_PI);
+
+		$speedFactor = $this->speed * 0.7 * ($this->entity->isInsideOfWater() ? 0.3 : 0.4);
+		$coord = $pos->add($dx * $speedFactor * 2, 0, $dz * $speedFactor * 2);
+
+		$level = $this->entity->getLevel();
+		$block = $level->getBlock($coord);
+		$blockUp = $level->getBlock($coord->add(0, 1, 0));
+
+		if($block->isSolid() or ($this->entity->height >= 1 and $blockUp->isSolid())){
 			$this->stuckTicks++;
 			if($this->stuckTicks >= 8){
-				// 撞墙够久了，回到 IDLE 等下一轮 moveTo
 				$this->clearPath();
 			}
-		}else{
-			$this->stuckTicks = 0;
+			return;
 		}
+
+		$this->stuckTicks = 0;
+		$this->entity->setMotion(new Vector3($dx * $speedFactor, 0, $dz * $speedFactor));
 	}
 
 	/**
