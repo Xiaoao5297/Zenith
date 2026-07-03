@@ -184,7 +184,8 @@ class PathNavigate{
 		}
 
 		$this->stuckTicks = 0;
-		$this->entity->setMotion(new Vector3($dx * $speedFactor, 0, $dz * $speedFactor));
+		$this->entity->motionX = $dx * $speedFactor;
+		$this->entity->motionZ = $dz * $speedFactor;
 	}
 
 	/**
@@ -204,14 +205,16 @@ class PathNavigate{
 		$direction->y = 0;
 
 		$speedFactor = $this->speed * 0.7 * ($this->entity->isInsideOfWater() ? 0.3 : 0.4);
-		$motion = $direction->multiply($speedFactor);
+		$direction->multiply($speedFactor);
 
-		// 需要向上跳
+		// 只设置水平运动，不干预垂直（保留重力/跳跃）
+		$this->entity->motionX = $direction->x;
+		$this->entity->motionZ = $direction->z;
+
+		// 需要向上跳时，在水平 motion 设置之后单独设
 		if($dy > 0.3 and $this->entity->onGround){
 			$this->entity->motionY = 0.42;
 		}
-
-		$this->entity->setMotion($motion);
 	}
 
 	/**
