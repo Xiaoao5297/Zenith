@@ -670,7 +670,6 @@ class AIHolder {
 						case 63:
 						case 66:
 						case 68:
-						case 78:
 						case 111:
 						case 141:
 						case 142:
@@ -690,6 +689,22 @@ class AIHolder {
 						case 11:
 							//岩浆
 			return "lava";
+			break;
+			case 78:
+			case 80:
+				//雪片、雪块
+				$block = $level->getBlock($v3);
+				if($block instanceof SnowLayer){
+					if(($block->getDamage() + 1) / 8 >= 0.75){
+						//厚雪层视为可行走块
+						return "block";
+					}else{
+						//薄雪层，若下方无方块则不视为地面
+						$down = $level->getBlock($v3->add(0, -1, 0));
+						return $down->isSolid() ? "block" : "air";
+					}
+				}
+				return "block";
 			break;
 			case 44:
 						case 158:

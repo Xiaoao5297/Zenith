@@ -21,3 +21,12 @@ Incore bugs:
 - 根因：同 #002，height=0 导致 bounding box 无效，
   move() 中的碰撞检测不生效，击退 motion 直接穿过方块
 - 修复：同上，height 改为正常值后 bounding box 恢复碰撞
+
+2026/7/3 #002 bugs:
+!001 【已修复】
+- 根因：SnowLayer(雪片) 继承 Flowable，getBoundingBox() 返回 null，
+  生物无碰撞箱可站立，直接穿透雪层落到下方地面
+- 修复：SnowLayer::getBoundingBox() 返回基于层数的碰撞箱 height=(meta+1)/8
+  hasEntityCollision() → true
+- 附加：AIHolder::whatBlock 雪分类从 "air" 改为 "block",
+  刷怪系统正确识别雪地为可生成地面
