@@ -1,0 +1,23 @@
+Incore bugs:
+这里是开发者bug合集，你需要修复这些bug
+需要表明某一个bug时，用#bug组@bug来表示。比如，第24个bug组的第2个bug用#024@002表示
+如果这个bug被修复，则这个不过用!替代@，比如被修复的第2个bug用!002表示
+如果你修复成功了一个bug,在这里把对应的bug标记成!。
+
+2026/7/3 #001 bugs:
+!001 【已修复】
+- 根因：Creature::onUpdate 摩擦公式中 (int)floor(z)-1 比正确坐标偏了一格，
+  导致站在半砖/雪等非整格方块上时读到错误的方块摩擦系数
+- 修复：floor(z)-1 → floor(z)
+- 附加：击退 base 0.4→0.6 也增强了低方块上的击退距离
+
+!002 【已修复】
+- 根因：Zombie::$height = 0，导致 bounding box 高度为 0，
+  碰撞检测 getCollisionCubes() 完全不检查上半身方块，直接穿墙
+- 修复：Zombie::$height = 0 → 1.8
+- 连带修复：Cow(0→1.3)、Chicken(0→0.7)、Wolf(注释掉→0.8) 相同问题
+
+!003 【已修复】
+- 根因：同 #002，height=0 导致 bounding box 无效，
+  move() 中的碰撞检测不生效，击退 motion 直接穿过方块
+- 修复：同上，height 改为正常值后 bounding box 恢复碰撞
