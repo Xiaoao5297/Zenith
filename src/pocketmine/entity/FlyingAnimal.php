@@ -44,12 +44,16 @@ abstract class FlyingAnimal extends Mob{
                 if(!$inAir){
                     $this->flyDirection = null;
                 }
-                if($this->flyDirection instanceof Vector3){
-                    $this->setMotion($this->flyDirection->multiply($this->flySpeed));
-                }else{
-                    $this->flyDirection = $this->generateRandomDirection();
-                    $this->flySpeed = mt_rand(50, 100) / 500;
-                    $this->setMotion($this->flyDirection);
+
+                // 当有活跃 Behavior 时，由 Behavior 控制 motion
+                if($this->getCurrentBehavior() === null){
+                    if($this->flyDirection instanceof Vector3){
+                        $this->setMotion($this->flyDirection->multiply($this->flySpeed));
+                    }else{
+                        $this->flyDirection = $this->generateRandomDirection();
+                        $this->flySpeed = mt_rand(50, 100) / 500;
+                        $this->setMotion($this->flyDirection);
+                    }
                 }
 
                 // 移动和更新由 parent::onUpdate (Mob → Creature) 处理
@@ -60,9 +64,11 @@ abstract class FlyingAnimal extends Mob{
         $hasUpdate = parent::onUpdate($currentTick);
         $this->timings->stopTiming();
 
-        // 撞地反弹 (移动后 onGround 已更新)
-        if($this->onGround and $this->flyDirection instanceof Vector3){
-            $this->flyDirection->y *= -1;
+        // 撞地反弹 (移动后 onGround 已更新) - 仅在无活跃 Behavior 时处理
+        if($this->getCurrentBehavior() === null){
+            if($this->onGround and $this->flyDirection instanceof Vector3){
+                $this->flyDirection->y *= -1;
+            }
         }
 
         // 根据 motion 计算朝向
