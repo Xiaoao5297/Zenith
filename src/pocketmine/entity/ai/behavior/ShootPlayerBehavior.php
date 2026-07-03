@@ -74,61 +74,31 @@ class ShootPlayerBehavior extends Behavior{
 
     public function onTick(){
 		$distance = $this->entity->distance($this->player);
-		$this->AimPlayer($this->player, $this->entity);
+		$this->lookAt($this->player);
 		$entity = $this->entity;
 		if($this->timeLeft >= 5){
-			$speedFactor = (float) ($this->speed*$this->speedMultiplier*0.7*($this->entity->isInsideOfWater() ? 0.3 : 0.4)); // 0.7 is a general mob base factor
-			$level = $this->entity->getLevel();
-			$coordinates = $this->entity->getPosition();
-			$direction = $this->entity->getDirectionVector();
-			$direction->y = 0;
-
-			$blockDown = $level->getBlock($coordinates->add(0,-1,0));
-			if ($entity->getMotion()->y < 0 and $blockDown instanceof Air)
-			{
-				return;
-			}
-			if($distance < 0.5){
-				return;
-			}
-
-			$coord = ($coordinates->add($direction->multiply($speedFactor))->add($direction->multiply(0.5)));
-
-			$players = $entity->getViewers();
-
-			$block = $level->getBlock($coord);
-			$blockUp = $level->getBlock($coord->add(0,1,0));
-			$blockUpUp = $level->getBlock($coord->add(0,2,0));
-
-			$colliding = $block->isSolid() or ($entity->height >= 1 and $blockUp->isSolid());
-			if (!$colliding){
-				$motion = $direction->multiply($speedFactor);
-				$pm = $entity->getMotion();
-				$pm->y = 0;
-				if($distance < 4){
-					$pm->x = -$pm->x;
-					$pm->z = -$pm->z;
-					
-					$motion->x = -$motion->x;
-					$motion->z = -$motion->z;
+			if($distance < 4){
+				// 近距离后退：手动控制 motion
+				$direction = $this->entity->getDirectionVector();
+				$direction->y = 0;
+				$level = $this->entity->getLevel();
+				$coordinates = $this->entity->getPosition();
+				$retreatSpeed = -(float)($this->speed * $this->speedMultiplier * 0.7 * ($this->entity->isInsideOfWater() ? 0.3 : 0.4));
+				$coord = $coordinates->add($direction->multiply($retreatSpeed))->add($direction->multiply(0.5));
+				$block = $level->getBlock($coord);
+				$blockUp = $level->getBlock($coord->add(0, 1, 0));
+				if(!$block->isSolid() and !($entity->height >= 1 and $blockUp->isSolid())){
+					$entity->setMotion($direction->multiply($retreatSpeed));
 				}
-				if ($pm->length() < $motion->length()){
-					$entity->setMotion($pm->add($motion->x - $pm->x, 0, $motion->z - $pm->z));
-				}else{
-					$entity->setMotion($motion);
-				}
-			}
-			else
-			{
-				if (!$blockUp->isSolid() and !($entity->height > 1 and $blockUpUp->isSolid())){
-					$entity->motionY = 0.42;
-				}
+			}else{
+				$speed = $this->speed * $this->speedMultiplier;
+				$this->entity->getNavigator()->moveTo($this->player, $speed);
 			}
 			if($this->timeLeft > 0){
 				--$this->timeLeft;
 			}
 		}elseif($distance <= 10){
-			$this->bowAimPitch($this->player, $this->entity);
+			$this->bowAimPitch($this->player, 0.04);
 			$this->entity->level->addEntityMovement($this->entity->chunk->getX(), $this->entity->chunk->getZ(), $this->entity->getID(), $this->entity->x, $this->entity->y + $this->entity->getEyeHeight(), $this->entity->z, $this->entity->yaw, $this->entity->pitch, $this->entity->yaw);
 			if($this->timeLeft <= 0){
 				if($this->NetworkID == 86){ //药水Potion
@@ -141,11 +111,9 @@ class ShootPlayerBehavior extends Behavior{
 					}else{
 						$Damage = 23; //瞬间伤害
 					}
-					
-					//$pitch = $this->getmypitch(($this->player->getY() - $entity->getY()),  $entity->distance($pos)); //弓箭瞄准算法(?)
-					//$entity->pitch = $pitch;
+
 					$pitch = $entity->pitch;
-					
+
 					$nbt = new CompoundTag("", [
 						"Pos" => new ListTag("Pos", [
 							new DoubleTag("", $entity->x),
@@ -170,7 +138,7 @@ class ShootPlayerBehavior extends Behavior{
 					$thrownPotion->spawnToAll();
 					$this->timeLeft = 40; //每种药水以2秒的间隔投掷。
 				}elseif($this->NetworkID == 80){ //Arrow
-					$pitch = $this->bowAimPitch($this->player, $this->entity, 0.04);
+					$pitch = $this->bowAimPitch($this->player, 0.04);
 					$nbt = new CompoundTag("", [
 						"Pos" => new ListTag("Pos", [
 							new DoubleTag("", $entity->x),
@@ -194,7 +162,7 @@ class ShootPlayerBehavior extends Behavior{
 					$Arrow->setMotion($Arrow->getMotion()->multiply($f));
 					$Arrow->spawnToAll();
 					$this->timeLeft = 40; //在简单和普通难度中每2秒发射一次，在困难难度中每1秒发射一次。
-					
+
 					//骷髅会主动逃离狼；狼会主动尝试攻击骷髅。
 				}else{
 					$this->timeLeft = 40;
@@ -205,49 +173,10 @@ class ShootPlayerBehavior extends Behavior{
 		}
 		$this->swimming();
     }
-	
-	public function AimPlayer($palyer, $entity){
-		$x = $palyer->x - $entity->x;
-		$y = $palyer->y - $entity->y;
-		$z = $palyer->z - $entity->z;
-		
-		$a = $palyer->x + 0.5;
-		$b = $palyer->y;
-		$c = $palyer->z + 0.5;
-		$len = sqrt($x * $x + $y * $y + $z * $z);
-		$y = $y / $len;
-		$pitch = asin($y);
-		$pitch = $pitch * 180 / M_PI;
-		$pitch = -$pitch;
-		$yaw = -atan2($a - ($entity->x + 0.5), $c - ($entity->z + 0.5)) * (180 / M_PI);
-		$entity->pitch = $pitch;
-		$entity->yaw = $yaw;
-		
-	}
 
     public function onEnd(){
+        $this->entity->getNavigator()->clearPath();
         $this->entity->setMotion(new Vector3(0,0,0));
     }
-	
-	public function bowAimPitch($palyer, $entity, $distance = 0.07){
-		
-		$_0x2bf6x17f = 1;
-		
-		$x = $palyer->x - $entity->x;
-		$y = $palyer->y - $entity->y;
-		$z = $palyer->z - $entity->z;
-		
-		$_0x2bf6x183 = sqrt($x * $x + $z * $z);
-		$_0x2bf6x184 = $distance;
-		$_0x2bf6x185 = ($_0x2bf6x17f * $_0x2bf6x17f * $_0x2bf6x17f * $_0x2bf6x17f - $_0x2bf6x184 * ($_0x2bf6x184 * ($_0x2bf6x183 * $_0x2bf6x183) + 2 * $y * ($_0x2bf6x17f * $_0x2bf6x17f)));
-		$pitch = -(180 / M_PI) * (atan(($_0x2bf6x17f * $_0x2bf6x17f - sqrt($_0x2bf6x185)) / ($_0x2bf6x184 * $_0x2bf6x183)));
-		if(is_nan($pitch)){
-			$pitch = 0;
-		}
-		$entity->pitch = $pitch;
-		
-		return $pitch;
-	}
-	
-	
+
 }

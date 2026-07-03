@@ -54,51 +54,13 @@ class StrollBehavior extends Behavior{
     }
 
     public function onTick(){
-        $speedFactor = (float) ($this->speed*$this->speedMultiplier*0.7*($this->entity->isInsideOfWater() ? 0.3 : 0.4)); // 0.7 is a general mob base factor
-		$level = $this->entity->getLevel();
-		$coordinates = $this->entity->getPosition();
-		$direction = $this->entity->getDirectionVector();
-		$direction->y = 0;
-		$entity = $this->entity;
-
-		$blockDown = $level->getBlock($coordinates->add(0,-1,0));
-		if ($entity->getMotion()->y < 0 and $blockDown instanceof Air)
-		{
-			//$this->timeLeft = 0;
-			return;
-		}
-
-	    $coord = ($coordinates->add($direction->multiply($speedFactor))->add($direction->multiply(0.5)));
-
-		$players = $entity->getViewers();
-
-		$block = $level->getBlock($coord);
-		$blockUp = $level->getBlock($coord->add(0,1,0));
-		$blockUpUp = $level->getBlock($coord->add(0,2,0));
-
-		$colliding = $block->isSolid() or $blockUp->isSolid();
-		if (!$colliding){
-			$motion = $direction->multiply($speedFactor);
-			$pm = $entity->getMotion();
-			//$pm->y = 0;
-			if ($pm->length() < $motion->length()){
-				$entity->setMotion($pm->add($motion->x - $pm->x, 0, $motion->z - $pm->z));
-			}else{
-				$entity->setMotion($motion);
-			}
-		}
-		else
-		{
-			if (!$blockUp->isSolid() and !($entity->height > 1 and $blockUpUp->isSolid()) and rand(0,5) != 0){
-				$entity->motionY = 0.42; //实体跳跃
-			}else{
-				$entity->yaw += mt_rand(-90, 90); //避免撞墙后直接180度转弯
-			}
-		}
+        $randomTarget = $this->entity->add(mt_rand(-10, 10), 0, mt_rand(-10, 10));
+        $this->entity->getNavigator()->moveTo($randomTarget, $this->speed);
 		$this->swimming();
 	}
 
     public function onEnd(){
+        $this->entity->getNavigator()->clearPath();
         $this->timeLeft = $this->duration;
         $this->entity->setMotion(new Vector3(0,0,0));
     }
