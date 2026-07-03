@@ -37,11 +37,7 @@ abstract class Creature extends Living{
 				$this->motionZ *= $friction;
 
 				if($this->onGround){
-					if(abs($this->motionY) < 0.01){
-						$this->motionY = 0;
-					}else{
-						$this->motionY *= -0.5;
-					}
+					$this->motionY = 0;
 				}
 
 				$this->updateMovement();
