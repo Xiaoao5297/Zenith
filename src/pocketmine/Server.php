@@ -1671,6 +1671,10 @@ class Server{
 			"pigzombie" => $this->getAdvancedProperty("ai.pigzombie", true),
 			"creeperexplode" => $this->getAdvancedProperty("ai.creeper-explode-destroy-block", false),
 			"mobgenerate" => $this->getAdvancedProperty("ai.mobgenerate", false),
+			"pathfinding-range" => $this->getAdvancedProperty("ai.pathfinding-range", 32),
+			"pathfinding-vertical-range" => $this->getAdvancedProperty("ai.pathfinding-vertical-range", 8),
+			"pathfinding-max-iterations" => $this->getAdvancedProperty("ai.pathfinding-max-iterations", 800),
+			"pathfinding-water-cost" => $this->getAdvancedProperty("ai.pathfinding-water-cost", 2.0),
 		];
 		$this->inventoryNum = min(91, $this->getAdvancedProperty("player.inventory-num", 36));
 		$this->hungerTimer = $this->getAdvancedProperty("player.hunger-timer", 80);

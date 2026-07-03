@@ -3,6 +3,7 @@
 namespace pocketmine\entity;
 
 use pocketmine\entity\ai\behavior\Behavior;
+use pocketmine\entity\ai\navigation\PathNavigate;
 use pocketmine\utils\Random;
 use pocketmine\math\Vector3;
 
@@ -16,11 +17,21 @@ abstract class Mob extends Creature{
     public $random;
     protected $behaviorsEnabled = false;
 
+    /** @var PathNavigate|null */
+    private $navigator = null;
+
     public function initEntity(){
         parent::initEntity();
 
         $this->random = new Random();
         $this->behaviorsEnabled = $this->level->getServer()->aiEnabled;
+    }
+
+    public function getNavigator(): PathNavigate{
+        if($this->navigator === null){
+            $this->navigator = new PathNavigate($this);
+        }
+        return $this->navigator;
     }
 
     public function getHorizDir(){
@@ -38,14 +49,18 @@ abstract class Mob extends Creature{
     public function onUpdate($tick){
 		$hasUpdate = parent::onUpdate($tick);
         if($this->closed or !$this->isAlive()) return false;
-        
+
         if($this->behaviorsEnabled) {
             $this->currentBehavior = $this->checkBehavior();
 
             if ($this->currentBehavior != null) {
-				//echo($this->currentBehavior->getName()." \n");
                 $this->currentBehavior->onTick();
             }
+        }
+
+        // 寻路导航器更新（在 Behavior 之后、物理移动之前）
+        if($this->navigator !== null){
+            $this->navigator->update();
         }
 
         return $hasUpdate;
