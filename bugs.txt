@@ -30,3 +30,11 @@ Incore bugs:
   hasEntityCollision() → true
 - 附加：AIHolder::whatBlock 雪分类从 "air" 改为 "block",
   刷怪系统正确识别雪地为可生成地面
+
+2026/7/3 #003 bugs:
+!001 【已修复】
+- 根因：修复 height 后 onGround 正常触发，但 Creature::onUpdate 中
+  motionY *= -0.5 反弹逻辑将着陆后残留 motionY（~ -0.01）弹为正数，
+  下一 tick 重力再拉负，形成反复上下震荡，生物无法正常移动
+- 修复：onGround 时若 |motionY| < 0.01 则 motionY = 0 直接归零，
+  不触发反弹，仅在大幅坠落时（motionY 显著为负）才执行 * -0.5 减震
