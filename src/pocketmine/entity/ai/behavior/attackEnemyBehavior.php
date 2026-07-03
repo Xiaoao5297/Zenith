@@ -106,7 +106,7 @@ class attackEnemyBehavior extends Behavior{
 			$blockUp = $level->getBlock($coord->add(0,1,0));
 			$blockUpUp = $level->getBlock($coord->add(0,2,0));
 
-			$colliding = $block->isSolid() or ($entity->height >= 1 and $blockUp->isSolid());
+			$colliding = $block->isSolid() or $blockUp->isSolid();
 			if (!$colliding){
 				$motion = $direction->multiply($speedFactor);
 				$pm = $entity->getMotion();

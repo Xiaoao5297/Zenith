@@ -137,6 +137,19 @@ abstract class Living extends Entity implements Damageable{
 			$motion->y = $base;
 		}
 
+		// 击退方向有方块阻挡时减少水平击退，防止穿墙(#003)
+		if(($motion->x != 0 or $motion->z != 0) and $this->level !== null){
+			$pos = new Vector3(
+				$this->x + $motion->x * 2,
+				$this->y + 1.8,
+				$this->z + $motion->z * 2
+			);
+			if($this->level->getBlock($pos)->isSolid()){
+				$motion->x *= 0.2;
+				$motion->z *= 0.2;
+			}
+		}
+
 		$this->setMotion($motion);
 	}
 
