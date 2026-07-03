@@ -64,40 +64,11 @@ class CreeperBehavior extends Behavior{
 
     public function onTick(){
         $distance = $this->entity->distance($this->enemy);
-        $this->AimPlayer($this->enemy);
+        $this->lookAt($this->enemy, false);
 
         if($distance >= 1.5){
-            $speedFactor = (float) ($this->speed * $this->speedMultiplier * 0.7 * ($this->entity->isInsideOfWater() ? 0.3 : 0.4));
-            $level = $this->entity->getLevel();
-            $coordinates = $this->entity->getPosition();
-            $direction = $this->entity->getDirectionVector();
-            $direction->y = 0;
-
-            $blockDown = $level->getBlock($coordinates->add(0, -1, 0));
-            if($this->entity->getMotion()->y < 0 and $blockDown instanceof Air){
-                return;
-            }
-
-            $coord = $coordinates->add($direction->multiply($speedFactor))->add($direction->multiply(0.5));
-            $block = $level->getBlock($coord);
-            $blockUp = $level->getBlock($coord->add(0, 1, 0));
-            $blockUpUp = $level->getBlock($coord->add(0, 2, 0));
-
-            $colliding = $block->isSolid() or ($this->entity->height >= 1 and $blockUp->isSolid());
-            if(!$colliding){
-                $motion = $direction->multiply($speedFactor);
-                $pm = $this->entity->getMotion();
-                $pm->y = 0;
-                if($pm->length() < $motion->length()){
-                    $this->entity->setMotion($pm->add($motion->x - $pm->x, 0, $motion->z - $pm->z));
-                }else{
-                    $this->entity->setMotion($motion);
-                }
-            }else{
-                if(!$blockUp->isSolid() and !($this->entity->height > 1 and $blockUpUp->isSolid())){
-                    $this->entity->motionY = 0.42;
-                }
-            }
+            $speed = $this->speed * $this->speedMultiplier;
+            $this->entity->getNavigator()->moveTo($this->enemy, $speed);
         }
 
         if($distance <= $this->explodeRadius){
@@ -107,17 +78,8 @@ class CreeperBehavior extends Behavior{
         $this->swimming();
     }
 
-    public function AimPlayer($player){
-        $x = $player->x - $this->entity->x;
-        $z = $player->z - $this->entity->z;
-
-        $a = $player->x + 0.5;
-        $c = $player->z + 0.5;
-        $yaw = -atan2($a - ($this->entity->x + 0.5), $c - ($this->entity->z + 0.5)) * (180 / M_PI);
-        $this->entity->yaw = $yaw;
-    }
-
     public function onEnd(){
+        $this->entity->getNavigator()->clearPath();
         $this->enemy = null;
         $this->entity->setSwelled(false);
         $this->entity->setMotion(new Vector3(0, 0, 0));

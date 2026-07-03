@@ -58,71 +58,19 @@ class findFoodBehavior extends Behavior{
     }
 
     public function onTick(){
-		$this->AimPlayer($this->player, $this->entity);
-        $speedFactor = (float) ($this->speed*$this->speedMultiplier*0.7*($this->entity->isInsideOfWater() ? 0.3 : 0.4)); // 0.7 is a general mob base factor
-		$level = $this->entity->getLevel();
-		$coordinates = $this->entity->getPosition();
-		$direction = $this->entity->getDirectionVector();
-		$direction->y = 0;
-		$entity = $this->entity;
+		$this->lookAt($this->player);
 
-		$blockDown = $level->getBlock($coordinates->add(0,-1,0));
-		if ($entity->getMotion()->y < 0 and $blockDown instanceof Air)
-		{
-			return;
-		}
 		if($this->entity->distance($this->player) < 0.5){
 			return;
 		}
 
-	    $coord = ($coordinates->add($direction->multiply($speedFactor))->add($direction->multiply(0.5)));
-
-		$players = $entity->getViewers();
-
-		$block = $level->getBlock($coord);
-		$blockUp = $level->getBlock($coord->add(0,1,0));
-		$blockUpUp = $level->getBlock($coord->add(0,2,0));
-
-		$colliding = $block->isSolid() or ($entity->height >= 1 and $blockUp->isSolid());
-		if (!$colliding){
-			$motion = $direction->multiply($speedFactor);
-			$pm = $entity->getMotion();
-			$pm->y = 0;
-			if ($pm->length() < $motion->length()){
-				$entity->setMotion($pm->add($motion->x - $pm->x, 0, $motion->z - $pm->z));
-			}else{
-				$entity->setMotion($motion);
-			}
-		}
-		else
-		{
-			if (!$blockUp->isSolid() and !($entity->height > 1 and $blockUpUp->isSolid())){
-				$entity->motionY = 0.42;
-			}
-		}
+		$speed = $this->speed * $this->speedMultiplier;
+		$this->entity->getNavigator()->moveTo($this->player, $speed);
 		$this->swimming();
     }
-	
-	public function AimPlayer($palyer, $entity){
-		$x = $palyer->x - $entity->x;
-		$y = $palyer->y - $entity->y;
-		$z = $palyer->z - $entity->z;
-		
-		$a = $palyer->x + 0.5;
-		$b = $palyer->y;
-		$c = $palyer->z + 0.5;
-		$len = sqrt($x * $x + $y * $y + $z * $z);
-		$y = $y / $len;
-		$pitch = asin($y);
-		$pitch = $pitch * 180 / M_PI;
-		$pitch = -$pitch;
-		$yaw = -atan2($a - ($entity->x + 0.5), $c - ($entity->z + 0.5)) * (180 / M_PI);
-		$entity->pitch = $pitch;
-		$entity->yaw = $yaw;
-		
-	}
 
     public function onEnd(){
+        $this->entity->getNavigator()->clearPath();
         $this->entity->setMotion(new Vector3(0,0,0));
     }
 }
