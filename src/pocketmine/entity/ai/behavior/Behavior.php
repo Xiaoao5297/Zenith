@@ -4,8 +4,8 @@ namespace pocketmine\entity\ai\behavior;
 
 use pocketmine\entity\Mob;
 use pocketmine\entity\Entity;
+use pocketmine\level\Level;
 use pocketmine\math\Vector3;
-use pocketmine\block\Air;
 
 abstract class Behavior{
 
@@ -80,54 +80,93 @@ abstract class Behavior{
 	}
 
 	/**
-	 * 按当前朝向移动，处理碰撞检测和自动跳跃
-	 * @param float $speedFactor 基础速度（0.1~1.0），方法内部会乘以 mob 通用缩放因子
+	 * 按当前朝向移动，处理碰撞检测、自动跳跃和地形适应
+	 * @param float $speedFactor 基础速度，内部乘以 mob 通用缩放因子
+	 * @param bool  $alwaysJump  遇障碍是否自动跳跃
 	 * @return bool true=移动成功, false=被阻挡
 	 */
 	protected function moveForward(float $speedFactor, bool $alwaysJump = true): bool{
 		$level = $this->entity->getLevel();
-		$coordinates = $this->entity->getPosition();
-		$direction = $this->entity->getDirectionVector();
-		$direction->y = 0;
 		$entity = $this->entity;
-
-		$blockDown = $level->getBlock($coordinates->add(0, -1, 0));
-		if($entity->getMotion()->y < 0 and $blockDown instanceof Air){
-			return false;
-		}
+		$direction = $entity->getDirectionVector();
+		$direction->y = 0;
 
 		$mult = 0.7 * ($entity->isInsideOfWater() ? 0.3 : 0.4);
 		$step = $speedFactor * $mult;
 
-		$coord = $coordinates->add($direction->multiply($step))->add($direction->multiply(0.5));
-		$block = $level->getBlock($coord);
-		$blockUp = $level->getBlock($coord->add(0, 1, 0));
-		$blockUpUp = $level->getBlock($coord->add(0, 2, 0));
+		// 目标脚部整数坐标（前方 step+0.5 处）
+		$tx = (int) floor($entity->x + $direction->x * ($step + 0.5));
+		$ty = (int) floor($entity->y);
+		$tz = (int) floor($entity->z + $direction->z * ($step + 0.5));
 
-		$colliding = $block->isSolid() or $blockUp->isSolid();
-		if(!$colliding){
-			$motion = $direction->multiply($step);
-			$pm = $entity->getMotion();
-			$pm->y = 0;
-			if($pm->length() < $motion->length()){
-				$entity->setMotion($pm->add($motion->x - $pm->x, 0, $motion->z - $pm->z));
-			}else{
-				$entity->setMotion($motion);
-			}
-			return true;
-		}else{
-			if(!$blockUpUp->isSolid()){
-				if($alwaysJump or mt_rand(0, 5) != 0){
-					$entity->motionY = 0.42;
-				}
-			}
+		// 水中先处理浮力
+		if($entity->isInsideOfWater()){
+			$entity->motionY = 0.8;
+		}
+
+		$targetY = $this->pickGroundY($level, $tx, $ty, $tz);
+		if($targetY === null){
 			return false;
 		}
+
+		// 检查身体和头部空间
+		$headRoom = $entity->height >= 1.0 ? !$level->getBlock(new Vector3($tx, $targetY + 1, $tz))->isSolid() : true;
+		if(!$headRoom){
+			return false;
+		}
+
+		// 水面检测：如果目标位置的脚下方块是水，陆生生物不应进入
+		$blockBelow = $level->getBlock(new Vector3($tx, $targetY - 1, $tz));
+		$id = $blockBelow->getId();
+		if($id === 8 or $id === 9){
+			return false;
+		}
+
+		// 应用水平运动
+		$entity->motionX = $direction->x * $step;
+		$entity->motionZ = $direction->z * $step;
+
+		// 地形高度差补偿
+		$diff = $targetY - $ty;
+		if($diff > 0){
+			$entity->motionY = 0.42;
+		}elseif($diff < 0){
+			$entity->motionY = -0.2;
+		}
+
+		return true;
+	}
+
+	/**
+	 * 找目标位置的地面 Y：返回实体应站立的 Y（整数层），不可行走返回 null
+	 */
+	private function pickGroundY(Level $level, int $tx, int $ty, int $tz): ?int{
+		$footBlock = $level->getBlock(new Vector3($tx, $ty, $tz));
+
+		// 前方是固体 → 尝试向上跳 1 格
+		if($footBlock->isSolid()){
+			$above = $level->getBlock(new Vector3($tx, $ty + 1, $tz));
+			$above2 = $level->getBlock(new Vector3($tx, $ty + 2, $tz));
+			if(!$above->isSolid() and !$above2->isSolid()){
+				return $ty + 1;
+			}
+			return null;
+		}
+
+		// 前方是空气/透明 → 找下方地面
+		for($dy = 0; $dy >= -2; $dy--){
+			$block = $level->getBlock(new Vector3($tx, $ty + $dy - 1, $tz));
+			if($block->isSolid()){
+				return $ty + $dy;
+			}
+		}
+		// 下面 3 格都没有地面（悬崖）
+		return null;
 	}
 
 	public function swimming(){
-		if($this->entity->isInsideOfWater()){ //实体游泳
-			$airTicks = $this->entity->getDataProperty(1); //DATA_AIR
+		if($this->entity->isInsideOfWater()){
+			$airTicks = $this->entity->getDataProperty(Entity::DATA_AIR);
 			if($this->swimmingTick <= 0){
 				if($airTicks <= 175){
 					$this->entity->motionY = 0.3;
