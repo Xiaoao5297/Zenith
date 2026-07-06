@@ -7,7 +7,7 @@ use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\Player;
 use pocketmine\network\protocol\MobEquipmentPacket;
 use pocketmine\item\Item as ItemItem;
-use pocketmine\entity\ai\behavior\{StrollBehavior, ShootPlayerBehavior, RandomLookaroundBehavior};
+use pocketmine\entity\ai\behavior\{StrollBehavior, ShootPlayerBehavior, RandomLookAroundBehavior};
 
 class Skeleton extends Monster implements ProjectileSource{
 	const NETWORK_ID = 34;
@@ -27,7 +27,7 @@ class Skeleton extends Monster implements ProjectileSource{
 		
 		$this->addBehavior(new ShootPlayerBehavior($this, 80));
 		$this->addBehavior(new StrollBehavior($this));
-		$this->addBehavior(new RandomLookaroundBehavior($this));
+		$this->addBehavior(new RandomLookAroundBehavior($this));
 		
 		parent::initEntity();
 	}

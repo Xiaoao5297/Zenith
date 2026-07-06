@@ -6,7 +6,7 @@ use pocketmine\level\format\FullChunk;
 use pocketmine\nbt\tag\CompoundTag;
 use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\Player;
-use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookaroundBehavior, LookAtPlayerBehavior, PanicBehavior, inLoveBehavior, attackEnemyBehavior};
+use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, LookAtPlayerBehavior, PanicBehavior, InLoveBehavior, AttackEnemyBehavior};
 
 class Wolf extends Animal{
 	const NETWORK_ID = 14;
@@ -24,12 +24,11 @@ class Wolf extends Animal{
 	public function initEntity(){
 		$this->setMaxHealth(8);
 
-		$this->addBehavior(new attackEnemyBehavior($this, [13], false));
-		$this->addBehavior(new inLoveBehavior($this));
-		$this->addBehavior(new PanicBehavior($this, 0.25, 2.0));
+$this->addBehavior(new AttackEnemyBehavior($this, [13], false));
+		$this->addBehavior(new InLoveBehavior($this));
 		$this->addBehavior(new StrollBehavior($this));
 		$this->addBehavior(new LookAtPlayerBehavior($this));
-		$this->addBehavior(new RandomLookaroundBehavior($this));
+		$this->addBehavior(new RandomLookAroundBehavior($this));
 
 		parent::initEntity();
 	}

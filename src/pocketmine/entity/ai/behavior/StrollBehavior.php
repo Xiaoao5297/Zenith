@@ -1,67 +1,77 @@
 <?php
 
-/*
- *
- *    _______                    _
- *   |__   __|                  (_)
- *      | |_   _ _ __ __ _ _ __  _  ___
- *      | | | | | '__/ _` | '_ \| |/ __|
- *      | | |_| | | | (_| | | | | | (__
- *      |_|\__,_|_|  \__,_|_| |_|_|\___|
- *
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * @author TuranicTeam
- * @link https://github.com/TuranicTeam/Turanic
-*/
-
 namespace pocketmine\entity\ai\behavior;
 
 use pocketmine\entity\Mob;
 use pocketmine\math\Vector3;
-use pocketmine\block\Air;
 
 class StrollBehavior extends Behavior{
 
-    public $duration;
-    public $timeLeft;
     public $speed;
-    public $speedMultiplier;
+    public $timeout;
+    public $timeLeft;
 
-    public function __construct(Mob $entity, int $duration = 80, float $speed = 0.35, float $speedMultiplier = 1.30){
+    /** @var Vector3|null */
+    public $target = null;
+
+    public function __construct(Mob $entity, float $speed = 0.7, int $timeout = 120){
         parent::__construct($entity);
-
-        $this->duration = $duration;
         $this->speed = $speed;
-        $this->speedMultiplier = $speedMultiplier;
-        $this->timeLeft = $duration;
+        $this->timeout = $timeout;
+        $this->timeLeft = $timeout;
+    }
+
+    public function getPriority(): int{
+        return 7;
     }
 
     public function getName() : string{
-        return "行走";
+        return "Stroll";
     }
 
     public function shouldStart() : bool{
-        return mt_rand(0,10) == 0;
+        return mt_rand(0, 10) == 0;
     }
 
     public function canContinue() : bool{
-        return $this->timeLeft-- > 0;
+        if($this->timeLeft-- <= 0){
+            return false;
+        }
+        if($this->target !== null and $this->entity->distance($this->target) < 1.0){
+            return false;
+        }
+        return true;
+    }
+
+    public function onStart(): void{
+        $x = $this->entity->x + mt_rand(-1000, 1000) / 100;
+        $z = $this->entity->z + mt_rand(-1000, 1000) / 100;
+        $this->target = new Vector3($x, $this->entity->y, $z);
+        $this->timeLeft = $this->timeout;
     }
 
     public function onTick(){
-        $randomTarget = $this->entity->add(mt_rand(-10, 10), 0, mt_rand(-10, 10));
-        $this->entity->getNavigator()->moveTo($randomTarget, $this->speed);
-		$this->swimming();
-	}
+        if($this->target === null){
+            return;
+        }
+
+        $dx = $this->target->x - $this->entity->x;
+        $dz = $this->target->z - $this->entity->z;
+        $dist = sqrt($dx * $dx + $dz * $dz);
+
+        if($dist < 0.5){
+            return;
+        }
+
+        $this->entity->yaw = -atan2($dx, $dz) * (180 / M_PI);
+
+        $this->moveForward($this->speed);
+        $this->swimming();
+    }
 
     public function onEnd(){
-        $this->entity->getNavigator()->clearPath();
-        $this->timeLeft = $this->duration;
-        $this->entity->setMotion(new Vector3(0,0,0));
+        $this->target = null;
+        $this->timeLeft = $this->timeout;
+        $this->entity->setMotion(new Vector3(0, 0, 0));
     }
 }

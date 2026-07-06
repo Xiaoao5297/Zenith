@@ -9,8 +9,12 @@ class LookAtPlayerBehavior extends Behavior{
     public $player;
     public $lookDistance = 0;
 
+    public function getPriority(): int{
+        return 6;
+    }
+
     public function getName() : string{
-        return "看玩家";
+        return "LookAtPlayer";
     }
 
     public function __construct(Mob $entity, float $lookDistance = 6.0){

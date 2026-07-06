@@ -7,26 +7,26 @@ use pocketmine\math\Vector3;
 use pocketmine\block\Air;
 use pocketmine\Player;
 
-class findFoodBehavior extends Behavior{
+class FindFoodBehavior extends Behavior{
 
     public $speed;
-    public $speedMultiplier;
 	
 	public $lookDistance = 6.0;
 	public $foodID;
 	public $player = null;
-	public $timeLeft;
 
-    public function __construct(Mob $entity, int $foodID, float $speed = 0.25, float $speedMultiplier = 0.75){
+    public function __construct(Mob $entity, int $foodID, float $speed = 0.5){
         parent::__construct($entity);
-
         $this->speed = $speed;
-        $this->speedMultiplier = $speedMultiplier;
 		$this->foodID = $foodID;
     }
 
+    public function getPriority(): int{
+        return 5;
+    }
+
     public function getName() : string{
-        return "觅食";
+        return "FindFood";
     }
 
     public function shouldStart() : bool{
@@ -64,13 +64,11 @@ class findFoodBehavior extends Behavior{
 			return;
 		}
 
-		$speed = $this->speed * $this->speedMultiplier;
-		$this->entity->getNavigator()->moveTo($this->player, $speed);
+		$this->moveForward($this->speed);
 		$this->swimming();
     }
 
     public function onEnd(){
-        $this->entity->getNavigator()->clearPath();
         $this->entity->setMotion(new Vector3(0,0,0));
     }
 }

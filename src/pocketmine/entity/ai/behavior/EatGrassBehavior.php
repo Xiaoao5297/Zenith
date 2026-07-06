@@ -8,15 +8,19 @@ use pocketmine\block\Grass;
 use pocketmine\Player;
 use pocketmine\network\protocol\EntityEventPacket;
 
-class eatGrassBehavior extends Behavior{
+class EatGrassBehavior extends Behavior{
 	
 	public $lookDistance = 6.0;
 	public $foodID;
 	public $player = null;
 	public $timeLeft;
 
+    public function getPriority(): int{
+        return 4;
+    }
+
     public function getName() : string{
-        return "吃草";
+        return "EatGrass";
     }
 
     public function shouldStart() : bool{

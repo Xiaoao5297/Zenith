@@ -7,7 +7,7 @@ use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\nbt\tag\ShortTag;
 use pocketmine\Player;
 use pocketmine\item\Item as ItemItem;
-use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookaroundBehavior, LookAtPlayerBehavior, PanicBehavior};
+use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, LookAtPlayerBehavior, PanicBehavior};
 
 class Enderman extends Monster{
 	const NETWORK_ID = 38;
@@ -26,7 +26,7 @@ class Enderman extends Monster{
 		$this->addBehavior(new PanicBehavior($this, 0.25, 2.0));
 		$this->addBehavior(new StrollBehavior($this));
 		$this->addBehavior(new LookAtPlayerBehavior($this));
-		$this->addBehavior(new RandomLookaroundBehavior($this));
+		$this->addBehavior(new RandomLookAroundBehavior($this));
 		parent::initEntity();
 	}
 	

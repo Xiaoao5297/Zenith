@@ -22,14 +22,18 @@
 
 namespace pocketmine\entity\ai\behavior;
 
-class RandomLookaroundBehavior extends Behavior{
+class RandomLookAroundBehavior extends Behavior{
 
     public $entity;
     public $duration = 0;
     public $rotation = 0;
 
+    public function getPriority(): int{
+        return 8;
+    }
+
     public function getName() : string{
-        return "随机看";
+        return "RandomLookAround";
     }
 
     public function shouldStart() : bool{

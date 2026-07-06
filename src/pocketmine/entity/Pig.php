@@ -6,7 +6,7 @@ namespace pocketmine\entity;
 use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\Player;
 use pocketmine\item\Item as ItemItem;
-use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookaroundBehavior, LookAtPlayerBehavior, PanicBehavior, findFoodBehavior, inLoveBehavior};
+use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, LookAtPlayerBehavior, PanicBehavior, FindFoodBehavior, InLoveBehavior};
 
 use pocketmine\nbt\tag\ByteTag;
 use pocketmine\nbt\tag\CompoundTag;
@@ -31,12 +31,12 @@ class Pig extends Animal{
 	
 	public function initEntity(){
 		
-		$this->addBehavior(new inLoveBehavior($this));
+		$this->addBehavior(new InLoveBehavior($this));
 		$this->addBehavior(new PanicBehavior($this, 0.25, 2.0));
-		$this->addBehavior(new findFoodBehavior($this, 391)); //CARROT
+		$this->addBehavior(new FindFoodBehavior($this, 391));
 		$this->addBehavior(new StrollBehavior($this));
 		$this->addBehavior(new LookAtPlayerBehavior($this));
-		$this->addBehavior(new RandomLookaroundBehavior($this));
+		$this->addBehavior(new RandomLookAroundBehavior($this));
 		
 		$this->setMaxHealth(10);
 		parent::initEntity();
