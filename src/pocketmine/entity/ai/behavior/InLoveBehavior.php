@@ -30,24 +30,25 @@ use pocketmine\nbt\tag\DoubleTag;
 use pocketmine\nbt\tag\ListTag;
 use pocketmine\nbt\tag\FloatTag;
 
-class inLoveBehavior extends Behavior{
+class InLoveBehavior extends Behavior{
 
     public $speed;
-    public $speedMultiplier;
 	public $timeLeft;
 	
 	public $inLoveEntity = null;
 	public $inLovetime = 0;
 
-    public function __construct(Mob $entity, float $speed = 0.25, float $speedMultiplier = 0.75){
+    public function __construct(Mob $entity, float $speed = 0.5){
         parent::__construct($entity);
-
         $this->speed = $speed;
-        $this->speedMultiplier = $speedMultiplier;
+    }
+
+    public function getPriority(): int{
+        return 3;
     }
 
     public function getName() : string{
-        return "繁殖";
+        return "InLove";
     }
 
     public function shouldStart() : bool{
@@ -108,13 +109,11 @@ class inLoveBehavior extends Behavior{
 			return;
 		}
 
-		$speed = $this->speed * $this->speedMultiplier;
-		$this->entity->getNavigator()->moveTo($this->inLoveEntity, $speed);
+		$this->moveForward($this->speed);
 		$this->swimming();
     }
 
     public function onEnd(){
-        $this->entity->getNavigator()->clearPath();
         $this->entity->setMotion(new Vector3(0,0,0));
     }
 }

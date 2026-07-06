@@ -5,7 +5,7 @@ namespace pocketmine\entity;
 
 use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\Player;
-use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookaroundBehavior, attackEnemyBehavior};
+use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, AttackEnemyBehavior};
 
 class Silverfish extends Monster{
 	const NETWORK_ID = 39;
@@ -21,9 +21,9 @@ class Silverfish extends Monster{
 	public function initEntity(){
 		$this->setMaxHealth(8);
 
-		$this->addBehavior(new attackEnemyBehavior($this, [20], true));
+		$this->addBehavior(new AttackEnemyBehavior($this, [20], true));
 		$this->addBehavior(new StrollBehavior($this));
-		$this->addBehavior(new RandomLookaroundBehavior($this));
+		$this->addBehavior(new RandomLookAroundBehavior($this));
 
 		parent::initEntity();
 	}

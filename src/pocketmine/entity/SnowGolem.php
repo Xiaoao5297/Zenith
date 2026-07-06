@@ -5,7 +5,7 @@ namespace pocketmine\entity;
 
 use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\Player;
-use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookaroundBehavior, attackEnemyBehavior};
+use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, AttackEnemyBehavior};
 
 class SnowGolem extends Animal{
 	const NETWORK_ID = 21;
@@ -17,9 +17,9 @@ class SnowGolem extends Animal{
 	public function initEntity(){
 		$this->setMaxHealth(100);
 		
-		$this->addBehavior(new attackEnemyBehavior($this, [32, 33, 34, 35, 36, 40, 44], false));
+		$this->addBehavior(new AttackEnemyBehavior($this, [32, 33, 34, 35, 36, 40, 44], false));
 		$this->addBehavior(new StrollBehavior($this));
-		$this->addBehavior(new RandomLookaroundBehavior($this));
+		$this->addBehavior(new RandomLookAroundBehavior($this));
 		
 		parent::initEntity();
 	}

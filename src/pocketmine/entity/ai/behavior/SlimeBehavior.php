@@ -22,8 +22,12 @@ class SlimeBehavior extends Behavior{
         $this->timeLeft = $duration;
     }
 
+    public function getPriority(): int{
+        return 7;
+    }
+
     public function getName() : string{
-        return "史莱姆行走";
+        return "SlimeMove";
     }
 
     public function shouldStart() : bool{

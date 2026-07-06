@@ -148,7 +148,6 @@ use pocketmine\entity\IronGolem;
 use pocketmine\entity\SnowGolem;
 use pocketmine\entity\Lightning;
 use pocketmine\entity\XPOrb;
-use pocketmine\entity\ai\AIHolder;
 use pocketmine\entity\ThrownExpBottle;
 use pocketmine\entity\Boat;
 use pocketmine\entity\Minecart;
@@ -353,7 +352,6 @@ class Server{
 	public $expWriteAhead = 200;
 	public $aiConfig = [];
 	public $aiEnabled = false;
-	public $aiHolder = null;
 	public $inventoryNum = 36;
 	public $hungerTimer = 80;
 	public $maxEntitiesPerChunk = 64;
@@ -761,10 +759,6 @@ class Server{
 	 */
 	public function getTick(){
 		return $this->tickCounter;
-	}
-
-	public function getAIHolder(){
-		return $this->aiHolder;
 	}
 
 	/**
@@ -2138,7 +2132,6 @@ class Server{
 
 			$this->enablePlugins(PluginLoadOrder::POSTWORLD);
 
-			if($this->aiEnabled) $this->aiHolder = new AIHolder($this);
 			if($this->dserverConfig["enable"] and ($this->getAdvancedProperty("dserver.server-list", "") != "")) $this->scheduler->scheduleRepeatingTask(new CallbackTask([
 				$this,
 				"updateDServerInfo"

@@ -8,7 +8,7 @@ use pocketmine\level\format\FullChunk;
 use pocketmine\nbt\tag\CompoundTag;
 use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\Player;
-use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookaroundBehavior, LookAtPlayerBehavior, PanicBehavior};
+use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, LookAtPlayerBehavior, PanicBehavior};
 use pocketmine\item\Item as ItemItem;
 
 class Villager extends Mob implements NPC, Ageable{
@@ -35,7 +35,7 @@ class Villager extends Mob implements NPC, Ageable{
 		$this->addBehavior(new PanicBehavior($this, 0.25, 2.0));
 		$this->addBehavior(new StrollBehavior($this));
 		$this->addBehavior(new LookAtPlayerBehavior($this));
-		$this->addBehavior(new RandomLookaroundBehavior($this));
+		$this->addBehavior(new RandomLookAroundBehavior($this));
 
 		$this->setDataProperty(self::DATA_PROFESSION_ID, self::DATA_TYPE_BYTE, $this->getProfession());
 	}

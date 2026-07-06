@@ -21,11 +21,21 @@ abstract class Behavior{
 
     public abstract function shouldStart() : bool;
 
-    public abstract function onTick();
+    public abstract function canContinue() : bool;
 
+    /** 行为优先级（越小越优先），由子类覆盖定义 */
+    public function getPriority(): int{
+        return 10;
+    }
+
+    /** 行为被选中时调用 */
+    public function onStart(): void{
+    }
+
+    /** 行为结束后调用 */
     public abstract function onEnd();
 
-    public abstract function canContinue() : bool;
+    public abstract function onTick();
 
 	/**
 	 * 让实体看向目标实体
@@ -71,6 +81,7 @@ abstract class Behavior{
 
 	/**
 	 * 按当前朝向移动，处理碰撞检测和自动跳跃
+	 * @param float $speedFactor 基础速度（0.1~1.0），方法内部会乘以 mob 通用缩放因子
 	 * @return bool true=移动成功, false=被阻挡
 	 */
 	protected function moveForward(float $speedFactor, bool $alwaysJump = true): bool{
@@ -85,14 +96,17 @@ abstract class Behavior{
 			return false;
 		}
 
-		$coord = $coordinates->add($direction->multiply($speedFactor))->add($direction->multiply(0.5));
+		$mult = 0.7 * ($entity->isInsideOfWater() ? 0.3 : 0.4);
+		$step = $speedFactor * $mult;
+
+		$coord = $coordinates->add($direction->multiply($step))->add($direction->multiply(0.5));
 		$block = $level->getBlock($coord);
 		$blockUp = $level->getBlock($coord->add(0, 1, 0));
 		$blockUpUp = $level->getBlock($coord->add(0, 2, 0));
 
-		$colliding = $block->isSolid() or ($entity->height >= 1 and $blockUp->isSolid());
+		$colliding = $block->isSolid() or $blockUp->isSolid();
 		if(!$colliding){
-			$motion = $direction->multiply($speedFactor);
+			$motion = $direction->multiply($step);
 			$pm = $entity->getMotion();
 			$pm->y = 0;
 			if($pm->length() < $motion->length()){
@@ -102,7 +116,7 @@ abstract class Behavior{
 			}
 			return true;
 		}else{
-			if(!$blockUp->isSolid() and !($entity->height > 1 and $blockUpUp->isSolid())){
+			if(!$blockUpUp->isSolid()){
 				if($alwaysJump or mt_rand(0, 5) != 0){
 					$entity->motionY = 0.42;
 				}

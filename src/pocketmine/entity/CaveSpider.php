@@ -9,7 +9,7 @@ use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\Player;
 use pocketmine\event\entity\EntityDamageByEntityEvent;
 use pocketmine\item\Item as ItemItem;
-use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookaroundBehavior, attackEnemyBehavior};
+use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, AttackEnemyBehavior};
 
 class CaveSpider extends Monster{
 	const NETWORK_ID = 40;
@@ -28,9 +28,9 @@ class CaveSpider extends Monster{
 	public function initEntity(){
 		$this->setMaxHealth(12);
 		
-		$this->addBehavior(new attackEnemyBehavior($this, [20], true));
+		$this->addBehavior(new AttackEnemyBehavior($this, [20], true));
 		$this->addBehavior(new StrollBehavior($this));
-		$this->addBehavior(new RandomLookaroundBehavior($this));
+		$this->addBehavior(new RandomLookAroundBehavior($this));
 		
 		parent::initEntity();
 	}

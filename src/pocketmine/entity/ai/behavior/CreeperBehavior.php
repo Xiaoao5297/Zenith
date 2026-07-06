@@ -30,12 +30,15 @@ class CreeperBehavior extends Behavior{
 
     public $lookDistance = 5.0;
     public $explodeRadius = 2.0;
-    public $speed = 0.25;
-    public $speedMultiplier = 0.75;
+    public $speed = 0.19;
     public $enemy = null;
 
+    public function getPriority(): int{
+        return 1;
+    }
+
     public function getName() : string{
-        return "苦力怕爆炸行为";
+        return "CreeperExplode";
     }
 
     public function shouldStart() : bool{
@@ -67,8 +70,7 @@ class CreeperBehavior extends Behavior{
         $this->lookAt($this->enemy, false);
 
         if($distance >= 1.5){
-            $speed = $this->speed * $this->speedMultiplier;
-            $this->entity->getNavigator()->moveTo($this->enemy, $speed);
+            $this->moveForward($this->speed);
         }
 
         if($distance <= $this->explodeRadius){
@@ -79,7 +81,6 @@ class CreeperBehavior extends Behavior{
     }
 
     public function onEnd(){
-        $this->entity->getNavigator()->clearPath();
         $this->enemy = null;
         $this->entity->setSwelled(false);
         $this->entity->setMotion(new Vector3(0, 0, 0));

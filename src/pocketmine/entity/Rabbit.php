@@ -10,7 +10,7 @@ use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\level\format\FullChunk;
 use pocketmine\nbt\tag\CompoundTag;
 use pocketmine\Player;
-use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookaroundBehavior, LookAtPlayerBehavior, PanicBehavior, findFoodBehavior, inLoveBehavior};
+use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, LookAtPlayerBehavior, PanicBehavior, FindFoodBehavior, InLoveBehavior};
 
 class Rabbit extends Animal{
 	const NETWORK_ID = 18;
@@ -32,12 +32,12 @@ class Rabbit extends Animal{
 	public function initEntity(){
 		$this->setMaxHealth(3);
 
-		$this->addBehavior(new inLoveBehavior($this));
+		$this->addBehavior(new InLoveBehavior($this));
 		$this->addBehavior(new PanicBehavior($this, 0.25, 2.0));
-		$this->addBehavior(new findFoodBehavior($this, 391));
+		$this->addBehavior(new FindFoodBehavior($this, 391));
 		$this->addBehavior(new StrollBehavior($this));
 		$this->addBehavior(new LookAtPlayerBehavior($this));
-		$this->addBehavior(new RandomLookaroundBehavior($this));
+		$this->addBehavior(new RandomLookAroundBehavior($this));
 
 		parent::initEntity();
 	}

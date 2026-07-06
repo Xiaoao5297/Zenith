@@ -6,7 +6,7 @@ namespace pocketmine\entity;
 
 use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\Player;
-use pocketmine\entity\ai\behavior\{StrollBehavior, ShootPlayerBehavior, RandomLookaroundBehavior};
+use pocketmine\entity\ai\behavior\{StrollBehavior, ShootPlayerBehavior, RandomLookAroundBehavior};
 
 class Witch extends Monster {
 	const NETWORK_ID = 45;
@@ -23,7 +23,7 @@ class Witch extends Monster {
 		
 		$this->addBehavior(new ShootPlayerBehavior($this, 86));//扔药水
 		$this->addBehavior(new StrollBehavior($this));
-		$this->addBehavior(new RandomLookaroundBehavior($this));
+		$this->addBehavior(new RandomLookAroundBehavior($this));
 		
 		parent::initEntity();
 	}

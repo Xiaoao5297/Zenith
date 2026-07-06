@@ -8,21 +8,25 @@ use pocketmine\event\entity\EntityDamageByEntityEvent;
 
 class PanicBehavior extends StrollBehavior{
 
-    public function __construct(Mob $entity, $speed = 1.2, $speedMultiplier = 0.75){
-        parent::__construct($entity, 60, $speed, $speedMultiplier);
+    public function __construct(Mob $entity, float $speed = 1.0, int $timeout = 60){
+        parent::__construct($entity, $speed, $timeout);
+    }
+
+    public function getPriority(): int{
+        return 1;
     }
 
     public function getName() : string{
-        return "受伤之后行走";
+        return "Panic";
     }
 
     public function shouldStart() : bool{
-        return $this->entity->getLastDamageCause() != null;
+        return $this->entity->getLastDamageCause() !== null;
     }
 
-    public function onTick(){
+    public function onStart(): void{
         $cause = $this->entity->getLastDamageCause();
-        if($cause instanceof EntityDamageByEntityEvent){
+        if($cause instanceof EntityDamageByEntityEvent and $cause->getDamager() !== null){
             $attacker = $cause->getDamager();
             $dx = $this->entity->x - $attacker->x;
             $dz = $this->entity->z - $attacker->z;
@@ -31,18 +35,16 @@ class PanicBehavior extends StrollBehavior{
                 $dx = ($dx / $len) * 10;
                 $dz = ($dz / $len) * 10;
             }
-            $fleeTarget = $this->entity->add($dx, 0, $dz);
-            $this->entity->getNavigator()->moveTo($fleeTarget, $this->speed);
+            $this->target = $this->entity->add($dx, 0, $dz);
         }else{
-            parent::onTick();
+            parent::onStart();
         }
-		$this->swimming();
+        $this->timeLeft = $this->timeout;
     }
 
     public function onEnd(){
-        $this->entity->getNavigator()->clearPath();
-    	parent::onEnd();
-    	$this->entity->resetLastDamageCause();
+        parent::onEnd();
+        $this->entity->resetLastDamageCause();
     }
 
 }

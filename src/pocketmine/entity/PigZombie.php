@@ -6,7 +6,7 @@ use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\network\protocol\MobEquipmentPacket;
 use pocketmine\Player;
 use pocketmine\item\Item as ItemItem;
-use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookaroundBehavior, attackEnemyBehavior};
+use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, AttackEnemyBehavior};
 
 class PigZombie extends Monster{
 	const NETWORK_ID = 36;
@@ -29,9 +29,9 @@ class PigZombie extends Monster{
 	public function initEntity(){
 		$this->setMaxHealth(20);
 
-		$this->addBehavior(new attackEnemyBehavior($this, [20], true));
+		$this->addBehavior(new AttackEnemyBehavior($this, [20], true));
 		$this->addBehavior(new StrollBehavior($this));
-		$this->addBehavior(new RandomLookaroundBehavior($this));
+		$this->addBehavior(new RandomLookAroundBehavior($this));
 
 		parent::initEntity();
 	}
