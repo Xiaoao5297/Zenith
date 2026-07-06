@@ -33,17 +33,8 @@ class StrollBehavior extends Behavior{
         return mt_rand(0, 10) == 0;
     }
 
-    public function canContinue() : bool{
-        if($this->timeLeft-- <= 0){
-            return false;
-        }
-        if($this->target !== null and $this->entity->distance($this->target) < 1.0){
-            return false;
-        }
-        return true;
-    }
-
     public function onStart(): void{
+        $this->stuckTicks = 0;
         $x = $this->entity->x + mt_rand(-1000, 1000) / 100;
         $z = $this->entity->z + mt_rand(-1000, 1000) / 100;
         $this->target = new Vector3($x, $this->entity->y, $z);
@@ -65,8 +56,29 @@ class StrollBehavior extends Behavior{
 
         $this->entity->yaw = -atan2($dx, $dz) * (180 / M_PI);
 
-        $this->moveForward($this->speed);
+        $moved = $this->moveForward($this->speed);
+        if(!$moved){
+            $this->stuckTicks++;
+            if($this->stuckTicks >= 20){
+                return;
+            }
+        }else{
+            $this->stuckTicks = 0;
+        }
         $this->swimming();
+    }
+
+    public function canContinue() : bool{
+        if($this->stuckTicks >= 20){
+            return false;
+        }
+        if($this->timeLeft-- <= 0){
+            return false;
+        }
+        if($this->target !== null and $this->entity->distance($this->target) < 1.0){
+            return false;
+        }
+        return true;
     }
 
     public function onEnd(){

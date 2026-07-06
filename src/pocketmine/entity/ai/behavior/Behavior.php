@@ -82,7 +82,7 @@ abstract class Behavior{
 	/**
 	 * 按当前朝向移动，处理碰撞检测、自动跳跃和地形适应
 	 * @param float $speedFactor 基础速度，内部乘以 mob 通用缩放因子
-	 * @param bool  $alwaysJump  遇障碍是否自动跳跃
+	 * @param bool  $alwaysJump  遇障碍是否自动跳跃（未使用，保留兼容）
 	 * @return bool true=移动成功, false=被阻挡
 	 */
 	protected function moveForward(float $speedFactor, bool $alwaysJump = true): bool{
@@ -91,6 +91,11 @@ abstract class Behavior{
 		$direction = $entity->getDirectionVector();
 		$direction->y = 0;
 
+		// 浮力：水中提供上浮 motion，同时允许水平移动
+		if($entity->isInsideOfWater()){
+			$entity->motionY = 0.8;
+		}
+
 		$mult = 0.7 * ($entity->isInsideOfWater() ? 0.3 : 0.4);
 		$step = $speedFactor * $mult;
 
@@ -98,11 +103,6 @@ abstract class Behavior{
 		$tx = (int) floor($entity->x + $direction->x * ($step + 0.5));
 		$ty = (int) floor($entity->y);
 		$tz = (int) floor($entity->z + $direction->z * ($step + 0.5));
-
-		// 水中先处理浮力
-		if($entity->isInsideOfWater()){
-			$entity->motionY = 0.8;
-		}
 
 		$targetY = $this->pickGroundY($level, $tx, $ty, $tz);
 		if($targetY === null){
@@ -115,14 +115,7 @@ abstract class Behavior{
 			return false;
 		}
 
-		// 水面检测：如果目标位置的脚下方块是水，陆生生物不应进入
-		$blockBelow = $level->getBlock(new Vector3($tx, $targetY - 1, $tz));
-		$id = $blockBelow->getId();
-		if($id === 8 or $id === 9){
-			return false;
-		}
-
-		// 应用水平运动
+		// 应用水平运动（浮力已单独处理，不覆盖 motionY）
 		$entity->motionX = $direction->x * $step;
 		$entity->motionZ = $direction->z * $step;
 
@@ -139,12 +132,21 @@ abstract class Behavior{
 
 	/**
 	 * 找目标位置的地面 Y：返回实体应站立的 Y（整数层），不可行走返回 null
+	 *
+	 * 规则：
+	 * 1. 脚部是固体 → 检查能否踏上去（必须有真实地面，即脚下方块下方也是固体）
+	 * 2. 脚部是空气 → 向下找地面（最多 2 格落差）
 	 */
 	private function pickGroundY(Level $level, int $tx, int $ty, int $tz): ?int{
 		$footBlock = $level->getBlock(new Vector3($tx, $ty, $tz));
 
-		// 前方是固体 → 尝试向上跳 1 格
 		if($footBlock->isSolid()){
+			// 脚部有方块：检查是否是真实地面（下方也是固体）
+			// 如果是，说明这是一格高的台阶，可以走上去
+			$belowSolid = $level->getBlock(new Vector3($tx, $ty - 1, $tz))->isSolid();
+			if(!$belowSolid){
+				return null;
+			}
 			$above = $level->getBlock(new Vector3($tx, $ty + 1, $tz));
 			$above2 = $level->getBlock(new Vector3($tx, $ty + 2, $tz));
 			if(!$above->isSolid() and !$above2->isSolid()){
@@ -160,9 +162,10 @@ abstract class Behavior{
 				return $ty + $dy;
 			}
 		}
-		// 下面 3 格都没有地面（悬崖）
 		return null;
 	}
+
+	public $stuckTicks = 0;
 
 	public function swimming(){
 		if($this->entity->isInsideOfWater()){
