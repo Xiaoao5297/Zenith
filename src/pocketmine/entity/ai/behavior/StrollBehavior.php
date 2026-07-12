@@ -42,48 +42,23 @@ class StrollBehavior extends Behavior{
     }
 
     public function onTick(){
-        if($this->target === null){
-            return;
-        }
-
-        $dx = $this->target->x - $this->entity->x;
-        $dz = $this->target->z - $this->entity->z;
-        $dist = sqrt($dx * $dx + $dz * $dz);
-
-        if($dist < 0.5){
-            return;
-        }
-
-        $this->entity->yaw = -atan2($dx, $dz) * (180 / M_PI);
-
-        $moved = $this->moveForward($this->speed);
-        if(!$moved){
-            $this->stuckTicks++;
-            if($this->stuckTicks >= 20){
-                return;
-            }
-        }else{
-            $this->stuckTicks = 0;
+        if($this->target !== null){
+            $this->entity->getNavigator()->moveTo($this->target, $this->speed);
         }
         $this->swimming();
     }
 
     public function canContinue() : bool{
-        if($this->stuckTicks >= 20){
-            return false;
-        }
-        if($this->timeLeft-- <= 0){
-            return false;
-        }
-        if($this->target !== null and $this->entity->distance($this->target) < 1.0){
-            return false;
-        }
+        if($this->target === null) return false;
+        if($this->timeLeft-- <= 0) return false;
+        if($this->entity->distance($this->target) < 1.0) return false;
+        if($this->entity->getNavigator()->isDone()) return false;
         return true;
     }
 
     public function onEnd(){
         $this->target = null;
         $this->timeLeft = $this->timeout;
-        $this->entity->setMotion(new Vector3(0, 0, 0));
+        $this->entity->getNavigator()->clearPath();
     }
 }

@@ -168,52 +168,41 @@ class PathNavigate{
 
 		$this->entity->yaw = -atan2($dx, $dz) * (180 / M_PI);
 
-		$speedFactor = $this->speed * 0.7 * ($this->entity->isInsideOfWater() ? 0.3 : 0.4);
-		$coord = $pos->add($dx * $speedFactor * 2, 0, $dz * $speedFactor * 2);
+		$dir = new Vector3($dx, 0, $dz);
+		$step = $this->speed * 0.7 * ($this->entity->isInsideOfWater() ? 0.3 : 0.4);
 
-		$level = $this->entity->getLevel();
-		$block = $level->getBlock($coord);
-		$blockUp = $level->getBlock($coord->add(0, 1, 0));
-
-		if($block->isSolid() or ($this->entity->height >= 1 and $blockUp->isSolid())){
+		if(!$this->entity->moveInDirection($dir, $step)){
 			$this->stuckTicks++;
 			if($this->stuckTicks >= 8){
 				$this->clearPath();
 			}
-			return;
+		}else{
+			$this->stuckTicks = 0;
 		}
-
-		$this->stuckTicks = 0;
-		$this->entity->motionX = $dx * $speedFactor;
-		$this->entity->motionZ = $dz * $speedFactor;
 	}
 
-	/**
-	 * 计算朝向 waypoint 的 motion
-	 */
 	private function moveToward(Vector3 $waypoint): void{
 		$pos = $this->entity->getPosition();
 		$dx = $waypoint->x - $pos->x;
 		$dy = $waypoint->y - $pos->y;
 		$dz = $waypoint->z - $pos->z;
 
-		// 水平朝向
 		$yaw = -atan2($dx, $dz) * (180 / M_PI);
 		$this->entity->yaw = $yaw;
 
-		$direction = $this->entity->getDirectionVector();
-		$direction->y = 0;
+		$dir = $this->entity->getDirectionVector();
+		$dir->y = 0;
 
-		$speedFactor = $this->speed * 0.7 * ($this->entity->isInsideOfWater() ? 0.3 : 0.4);
-		$direction->multiply($speedFactor);
+		$step = $this->speed * 0.7 * ($this->entity->isInsideOfWater() ? 0.3 : 0.4);
 
-		// 只设置水平运动，不干预垂直（保留重力/跳跃）
-		$this->entity->motionX = $direction->x;
-		$this->entity->motionZ = $direction->z;
-
-		// 需要向上跳时，在水平 motion 设置之后单独设
-		if($dy > 0.3 and $this->entity->onGround){
-			$this->entity->motionY = 0.42;
+		if(!$this->entity->moveInDirection($dir, $step)){
+			$this->stuckTicks++;
+			if($this->stuckTicks >= 5){
+				$this->stuckTicks = 0;
+				$this->recalculatePath();
+			}
+		}else{
+			$this->stuckTicks = 0;
 		}
 	}
 

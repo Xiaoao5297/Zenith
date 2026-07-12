@@ -71,9 +71,14 @@ class ShootPlayerBehavior extends Behavior{
 		}
 
 		if($distance < 4 and $distance >= 1.5){
-			$this->moveForward(-$this->speed * 0.5);
+			$retreat = $this->entity->add(
+				($this->entity->x - $this->player->x) * 2,
+				0,
+				($this->entity->z - $this->player->z) * 2
+			);
+			$this->entity->getNavigator()->moveTo($retreat, $this->speed * 0.7);
 		}elseif($distance >= 4){
-			$this->moveForward($this->speed);
+			$this->entity->getNavigator()->moveTo($this->player, $this->speed);
 		}
 
 		if($distance <= 10 and $this->shootCooldown <= 0){

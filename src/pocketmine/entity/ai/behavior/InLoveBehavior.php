@@ -78,23 +78,22 @@ class InLoveBehavior extends Behavior{
 		if($this->entity->distance($this->inLoveEntity) < 0.5){
 			$this->inLovetime++;
 			if($this->inLovetime >= 10){
-				// ... 繁殖逻辑不变 ...
 				$nbt = new CompoundTag("", [
-							"Pos" => new ListTag("Pos", [
-								new DoubleTag("", 0),
-								new DoubleTag("", 0),
-								new DoubleTag("", 0)
-							]),
-							"Motion" => new ListTag("Motion", [
-								new DoubleTag("", 0),
-								new DoubleTag("", 0),
-								new DoubleTag("", 0)
-							]),
-							"Rotation" => new ListTag("Rotation", [
-								new FloatTag("", 0),
-								new FloatTag("", 0)
-							]),
-						]);
+					"Pos" => new ListTag("Pos", [
+						new DoubleTag("", 0),
+						new DoubleTag("", 0),
+						new DoubleTag("", 0)
+					]),
+					"Motion" => new ListTag("Motion", [
+						new DoubleTag("", 0),
+						new DoubleTag("", 0),
+						new DoubleTag("", 0)
+					]),
+					"Rotation" => new ListTag("Rotation", [
+						new FloatTag("", 0),
+						new FloatTag("", 0)
+					]),
+				]);
 				$class = get_class($this->entity);
 				$entity = new $class($this->entity->chunk, $nbt);
 				$entity->setBaby(true);
@@ -109,11 +108,11 @@ class InLoveBehavior extends Behavior{
 			return;
 		}
 
-		$this->moveForward($this->speed);
+		$this->entity->getNavigator()->moveTo($this->inLoveEntity, $this->speed);
 		$this->swimming();
     }
 
     public function onEnd(){
-        $this->entity->setMotion(new Vector3(0,0,0));
+        $this->entity->getNavigator()->clearPath();
     }
 }

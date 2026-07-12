@@ -64,11 +64,11 @@ class FindFoodBehavior extends Behavior{
 			return;
 		}
 
-		$this->moveForward($this->speed);
+		$this->entity->getNavigator()->moveTo($this->player, $this->speed);
 		$this->swimming();
     }
 
     public function onEnd(){
-        $this->entity->setMotion(new Vector3(0,0,0));
+        $this->entity->getNavigator()->clearPath();
     }
 }
