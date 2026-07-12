@@ -76,7 +76,7 @@ class AttackEnemyBehavior extends Behavior{
         $this->lookAt($this->enemy);
 
         if($distance >= 1.5){
-            $this->moveForward($this->speed);
+            $this->entity->getNavigator()->moveTo($this->enemy, $this->speed);
         }elseif($this->attackCooldown <= 0){
             $damage = method_exists($this->entity, 'getHurt') ? $this->entity->getHurt() : 3;
             $this->enemy->attack($damage, new EntityDamageByEntityEvent($this->entity, $this->enemy, EntityDamageEvent::CAUSE_ENTITY_ATTACK, $damage));
@@ -92,6 +92,6 @@ class AttackEnemyBehavior extends Behavior{
     public function onEnd(){
         $this->enemy = null;
         $this->attackCooldown = 0;
-        $this->entity->setMotion(new Vector3(0, 0, 0));
+        $this->entity->getNavigator()->clearPath();
     }
 }

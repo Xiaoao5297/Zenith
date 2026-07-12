@@ -70,7 +70,7 @@ class CreeperBehavior extends Behavior{
         $this->lookAt($this->enemy, false);
 
         if($distance >= 1.5){
-            $this->moveForward($this->speed);
+            $this->entity->getNavigator()->moveTo($this->enemy, $this->speed);
         }
 
         if($distance <= $this->explodeRadius){
