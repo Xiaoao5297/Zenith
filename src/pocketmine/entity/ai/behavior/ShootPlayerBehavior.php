@@ -142,7 +142,7 @@ $this->shootCooldown = 40;
     }
 
     public function onEnd(){
-        $this->entity->setMotion(new Vector3(0,0,0));
+        $this->entity->getNavigator()->clearPath();
     }
 
 }

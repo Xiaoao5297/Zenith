@@ -83,6 +83,6 @@ class CreeperBehavior extends Behavior{
     public function onEnd(){
         $this->enemy = null;
         $this->entity->setSwelled(false);
-        $this->entity->setMotion(new Vector3(0, 0, 0));
+        $this->entity->getNavigator()->clearPath();
     }
 }
