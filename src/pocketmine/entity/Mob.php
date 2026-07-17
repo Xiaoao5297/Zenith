@@ -129,9 +129,9 @@ abstract class Mob extends Creature{
         $this->motionZ = $direction->z * $step;
 
         $diff = $targetY - $ty;
-        if($diff > 0){
+        if($diff > 0 and $this->onGround){
             $this->motionY = 0.42;
-        }elseif($diff < 0){
+        }elseif($diff < 0 and $this->onGround){
             $this->motionY = -0.2;
         }
 
