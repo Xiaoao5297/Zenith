@@ -4,7 +4,6 @@ namespace pocketmine\entity;
 
 use pocketmine\entity\ai\behavior\Behavior;
 use pocketmine\entity\ai\navigation\PathNavigate;
-use pocketmine\level\Level;
 use pocketmine\utils\Random;
 use pocketmine\math\Vector3;
 
@@ -101,68 +100,16 @@ abstract class Mob extends Creature{
     // ===== 地形感知移动（供 Behavior 和 PathNavigate 共用） =====
 
     /**
-     * 沿给定方向移动，自动适应地形（坡、台阶、悬崖检测）。
-     * @param Vector3 $direction 水平方向向量（单位向量）
-     * @param float   $step      移动步长（motion 大小）
-     * @return bool true=移动成功, false=被阻挡
+     * 沿给定方向水平移动。
+     * Entity::move() 会自动处理碰撞、踏步（stepHeight）、地面检测。
+     * Behavior 层不再重复做 Y 轴地形预判，避免双重踏步导致弹跳。
      */
     public function moveInDirection(Vector3 $direction, float $step): bool{
-        $level = $this->getLevel();
         if($this->isInsideOfWater()){
             $this->motionY = 0.8;
         }
-
-        $tx = (int) floor($this->x + $direction->x * ($step + 0.5));
-        $ty = (int) floor($this->y);
-        $tz = (int) floor($this->z + $direction->z * ($step + 0.5));
-
-        $targetY = self::pickGroundY($level, $tx, $ty, $tz);
-        if($targetY === null){
-            return false;
-        }
-
-        if($this->height >= 1.0 and $level->getBlock(new Vector3($tx, $targetY + 1, $tz))->isSolid()){
-            return false;
-        }
-
         $this->motionX = $direction->x * $step;
         $this->motionZ = $direction->z * $step;
-
-        $diff = $targetY - $ty;
-        if($diff > 0 and $this->onGround){
-            $this->motionY = 0.42;
-        }elseif($diff < 0 and $this->onGround){
-            $this->motionY = -0.2;
-        }
-
         return true;
-    }
-
-    /**
-     * 静态地形检测：找目标位置的地面 Y
-     * @return int|null 可行走的 Y 层，null=不可通行
-     */
-    public static function pickGroundY(Level $level, int $tx, int $ty, int $tz): ?int{
-        $footBlock = $level->getBlock(new Vector3($tx, $ty, $tz));
-
-        if($footBlock->isSolid()){
-            $belowSolid = $level->getBlock(new Vector3($tx, $ty - 1, $tz))->isSolid();
-            if(!$belowSolid){
-                return null;
-            }
-            $above  = $level->getBlock(new Vector3($tx, $ty + 1, $tz));
-            $above2 = $level->getBlock(new Vector3($tx, $ty + 2, $tz));
-            if(!$above->isSolid() and !$above2->isSolid()){
-                return $ty + 1;
-            }
-            return null;
-        }
-
-        for($dy = 0; $dy >= -2; $dy--){
-            if($level->getBlock(new Vector3($tx, $ty + $dy - 1, $tz))->isSolid()){
-                return $ty + $dy;
-            }
-        }
-        return null;
     }
 }
