@@ -101,23 +101,34 @@ abstract class Mob extends Creature{
 
     /**
      * 沿给定方向水平移动。
-     * 先设 motion（让 Entity::move() 能处理碰撞+踏步），再返回碰撞状态。
-     * 头部高度检测避免把地面当障碍。
+     * 先设 motion → move() 处理碰撞；头部高度检测区分地面vs障碍物。
+     * 1 格高台阶自动跳跃（PM 1.5 stepHeight=0 需要 Behavior 补跳）。
      */
     public function moveInDirection(Vector3 $direction, float $step): bool{
-        $level = $this->getLevel();
         if($this->isInsideOfWater()){
             $this->motionY = 0.8;
         }
 
-        $this->motionX = $direction->x * $step;
-        $this->motionZ = $direction->z * $step;
-
-        // 头部高度碰撞预检（给 Behavior/Navigator 提供卡住信号）
         $tx = (int) floor($this->x + $direction->x * ($step + 0.5));
         $tz = (int) floor($this->z + $direction->z * ($step + 0.5));
         $headY = (int) floor($this->y + $this->height - 0.01);
+        $level = $this->getLevel();
 
-        return !$level->getBlock(new Vector3($tx, $headY, $tz))->isSolid();
+        $headBlock = $level->getBlock(new Vector3($tx, $headY, $tz));
+        if($headBlock->isSolid()){
+            // 1 格台阶（head+1 是空气）→ 跳跃
+            if(!$level->getBlock(new Vector3($tx, $headY + 1, $tz))->isSolid() and $this->onGround){
+                $this->motionY = 0.42;
+                $this->motionX = $direction->x * $step;
+                $this->motionZ = $direction->z * $step;
+                return true;
+            }
+            // 超过 1 格的墙 → 不动
+            return false;
+        }
+
+        $this->motionX = $direction->x * $step;
+        $this->motionZ = $direction->z * $step;
+        return true;
     }
 }
