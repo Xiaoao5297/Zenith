@@ -335,7 +335,8 @@ class Server{
 	public $netherLevel = null;
 	public $enderEnabled = false;
 	public $enderName = "ender";
-	public $enderLevel = null;
+    public $enderLevel = null;
+    /* Sky World Config */
 	public $skyworldEnabled = false;
 	public $skyworldName = "skyworld";
 	public $skyworldLevel = null;

@@ -65,7 +65,7 @@ player:
 
 nether:
  #选择是否允许下界，下界维度会自动生成
- allow-nether: true
+ allow-nether:false 
  #下界维度的名称
  level-name: "nether"
  
