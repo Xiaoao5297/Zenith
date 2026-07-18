@@ -101,23 +101,15 @@ abstract class Mob extends Creature{
 
     /**
      * 沿给定方向水平移动。
-     * 先设 motion（让 Entity::move() 能处理碰撞+踏步），再返回碰撞状态。
-     * 头部高度检测避免把地面当障碍。
+     * Entity::move() 会自动处理碰撞、踏步（stepHeight）、地面检测。
+     * Behavior 层不再重复做 Y 轴地形预判，避免双重踏步导致弹跳。
      */
     public function moveInDirection(Vector3 $direction, float $step): bool{
-        $level = $this->getLevel();
         if($this->isInsideOfWater()){
             $this->motionY = 0.8;
         }
-
         $this->motionX = $direction->x * $step;
         $this->motionZ = $direction->z * $step;
-
-        // 头部高度碰撞预检（给 Behavior/Navigator 提供卡住信号）
-        $tx = (int) floor($this->x + $direction->x * ($step + 0.5));
-        $tz = (int) floor($this->z + $direction->z * ($step + 0.5));
-        $headY = (int) floor($this->y + $this->height - 0.01);
-
-        return !$level->getBlock(new Vector3($tx, $headY, $tz))->isSolid();
+        return true;
     }
 }
