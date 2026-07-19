@@ -8,7 +8,7 @@ use pocketmine\event\entity\EntityDamageByEntityEvent;
 
 class PanicBehavior extends StrollBehavior{
 
-    public function __construct(Mob $entity, float $speed = 1.0, int $timeout = 60){
+    public function __construct(Mob $entity, float $speed = 0.55, int $timeout = 60){
         parent::__construct($entity, $speed, $timeout);
     }
 

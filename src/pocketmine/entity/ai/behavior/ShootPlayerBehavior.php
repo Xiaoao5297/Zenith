@@ -24,7 +24,7 @@ class ShootPlayerBehavior extends Behavior{
 	public $player = null;
 	public $shootCooldown = 0;
 
-    public function __construct(Mob $entity, int $NetWorkID, float $speed = 0.5){
+    public function __construct(Mob $entity, int $NetWorkID, float $speed = 0.35){
         parent::__construct($entity);
         $this->speed = $speed;
 		$this->NetworkID = $NetWorkID;
@@ -146,3 +146,4 @@ $this->shootCooldown = 40;
     }
 
 }
+

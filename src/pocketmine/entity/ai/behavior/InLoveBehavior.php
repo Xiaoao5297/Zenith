@@ -38,7 +38,7 @@ class InLoveBehavior extends Behavior{
 	public $inLoveEntity = null;
 	public $inLovetime = 0;
 
-    public function __construct(Mob $entity, float $speed = 0.5){
+    public function __construct(Mob $entity, float $speed = 0.35){
         parent::__construct($entity);
         $this->speed = $speed;
     }

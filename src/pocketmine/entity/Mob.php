@@ -11,156 +11,159 @@ use pocketmine\math\Vector3;
 abstract class Mob extends Creature{
 
     /** @var Behavior[] */
-    protected $behaviors = [];
+    protected \ = [];
     /** @var Behavior|null */
-    protected $currentBehavior = null;
-    public $random;
-    protected $behaviorsEnabled = false;
+    protected \ = null;
+    public \;
+    protected \ = false;
 
     /** @var PathNavigate|null */
-    private $navigator = null;
+    private \ = null;
 
     public function getNavigator(): PathNavigate{
-        if($this->navigator === null){
-            $this->navigator = new PathNavigate($this);
+        if(\->navigator === null){
+            \->navigator = new PathNavigate(\);
         }
-        return $this->navigator;
+        return \->navigator;
     }
 
     public function initEntity(){
         parent::initEntity();
-        $this->random = new Random();
-        $this->behaviorsEnabled = $this->level->getServer()->aiEnabled;
+        \->random = new Random();
+        \->behaviorsEnabled = \->level->getServer()->aiEnabled;
     }
 
-    public function onUpdate($tick){
-        $hasUpdate = parent::onUpdate($tick);
-        if($this->closed or !$this->isAlive()) return false;
+    public function onUpdate(\){
+        if(\->closed or !\->isAlive()) return false;
 
-        if($this->behaviorsEnabled){
-            $prev = $this->currentBehavior;
-            $this->currentBehavior = $this->checkBehavior();
+        // ÏÈÔËÐÐÐÐÎª + µ¼º½Æ÷£¬ÉèÖÃ motion£¬ÔÙÈÃÎïÀí´¦Àí
+        if(\->behaviorsEnabled){
+            \ = \->currentBehavior;
+            \->currentBehavior = \->checkBehavior();
 
-            if($this->currentBehavior !== null and $this->currentBehavior !== $prev){
-                $this->currentBehavior->onStart();
+            if(\->currentBehavior !== null and \->currentBehavior !== \){
+                \->currentBehavior->onStart();
             }
-            if($this->currentBehavior !== null){
-                $this->currentBehavior->onTick();
+            if(\->currentBehavior !== null){
+                \->currentBehavior->onTick();
             }
         }
 
-        // å¯¼èˆªå™¨æ›´æ–°ï¼ˆåœ¨ Behavior å†³ç­–ä¹‹åŽã€ä¸‹ä¸€ä¸ª tick ç‰©ç†ä¹‹å‰åº”ç”¨ motionï¼‰
-        if($this->navigator !== null){
-            $this->navigator->update();
+        // µ¼º½Æ÷¸üÐÂ£¨ÔÚ Behavior ¾ö²ßÖ®ºó¡¢ÎïÀíÖ®Ç°Ó¦ÓÃ motion£©
+        if(\->navigator !== null){
+            \->navigator->update();
         }
 
-        return $hasUpdate;
+        // ÔÙÔËÐÐÎïÀí£¨Creature::onUpdate -> move()£©
+        return parent::onUpdate(\);
     }
 
     private function checkBehavior(){
-        if($this->currentBehavior !== null){
-            if($this->currentBehavior->canContinue()){
-                return $this->currentBehavior;
+        if(\->currentBehavior !== null){
+            if(\->currentBehavior->canContinue()){
+                return \->currentBehavior;
             }
-            $this->currentBehavior->onEnd();
-            $this->currentBehavior = null;
+            \->currentBehavior->onEnd();
+            \->currentBehavior = null;
         }
 
-        foreach($this->behaviors as $behavior){
-            if($behavior->shouldStart()){
-                return $behavior;
+        foreach(\->behaviors as \){
+            if(\->shouldStart()){
+                return \;
             }
         }
         return null;
     }
 
     public function getCurrentBehavior(){
-        return $this->currentBehavior;
+        return \->currentBehavior;
     }
 
-    public function addBehavior(Behavior $behavior){
-        $this->behaviors[] = $behavior;
+    public function addBehavior(Behavior \){
+        \->behaviors[] = \;
     }
 
-    public function setBehavior(int $index, Behavior $b){
-        $this->behaviors[$index] = $b;
+    public function setBehavior(int \, Behavior \){
+        \->behaviors[\] = \;
     }
 
-    public function removeBehavior(int $key){
-        unset($this->behaviors[$key]);
+    public function removeBehavior(int \){
+        unset(\->behaviors[\]);
     }
 
     public function isBehaviorsEnabled() : bool{
-        return $this->behaviorsEnabled;
+        return \->behaviorsEnabled;
     }
 
-    public function setBehaviorsEnabled(bool $value = true){
-        $this->behaviorsEnabled = $value;
+    public function setBehaviorsEnabled(bool \ = true){
+        \->behaviorsEnabled = \;
     }
 
-    // ===== åœ°å½¢æ„ŸçŸ¥ç§»åŠ¨ï¼ˆä¾› Behavior å’Œ PathNavigate å…±ç”¨ï¼‰ =====
+    // ===== µØÐÎ¸ÐÖªÒÆ¶¯£¨¹© Behavior ºÍ PathNavigate ¹²ÓÃ£©=====
 
     /**
-     * æ²¿ç»™å®šæ–¹å‘ç§»åŠ¨ï¼Œè‡ªåŠ¨é€‚åº”åœ°å½¢ï¼ˆå¡ã€å°é˜¶ã€æ‚¬å´–æ£€æµ‹ï¼‰ã€‚
-     * @param Vector3 $direction æ°´å¹³æ–¹å‘å‘é‡ï¼ˆå•ä½å‘é‡ï¼‰
-     * @param float   $step      ç§»åŠ¨æ­¥é•¿ï¼ˆmotion å¤§å°ï¼‰
-     * @return bool true=ç§»åŠ¨æˆåŠŸ, false=è¢«é˜»æŒ¡
+     * ÑØ¸ø¶¨·½ÏòÒÆ¶¯£¬×Ô¶¯ÊÊÓ¦µØÐÎ£¨ÆÂ¡¢Ì¨½×¡¢ÐüÑÂ¼ì²â£©¡£
+     * @param Vector3 \ Ë®Æ½·½ÏòÏòÁ¿£¨µ¥Î»ÏòÁ¿£©
+     * @param float   \      ÒÆ¶¯²½³¤£¨motion ´óÐ¡£©
+     * @return bool true=ÒÆ¶¯³É¹¦, false=±»×èµ²
      */
-    public function moveInDirection(Vector3 $direction, float $step): bool{
-        $level = $this->getLevel();
-        if($this->isInsideOfWater()){
-            $this->motionY = 0.8;
+    public function moveInDirection(Vector3 \, float \): bool{
+        \ = \->getLevel();
+        if(\->isInsideOfWater()){
+            \->motionY = 0.8;
         }
 
-        $tx = (int) floor($this->x + $direction->x * ($step + 0.5));
-        $ty = (int) floor($this->y);
-        $tz = (int) floor($this->z + $direction->z * ($step + 0.5));
+        \ = (int) floor(\->x + \->x * (\ + 0.5));
+        \ = (int) floor(\->y);
+        \ = (int) floor(\->z + \->z * (\ + 0.5));
 
-        $targetY = self::pickGroundY($level, $tx, $ty, $tz);
-        if($targetY === null){
+        \ = self::pickGroundY(\, \, \, \);
+        if(\ === null){
             return false;
         }
 
-        if($this->height >= 1.0 and $level->getBlock(new Vector3($tx, $targetY + 1, $tz))->isSolid()){
+        if(\->height >= 1.0 and \->getBlock(new Vector3(\, \ + 1, \))->isSolid()){
             return false;
         }
 
-        $this->motionX = $direction->x * $step;
-        $this->motionZ = $direction->z * $step;
+        \->motionX = \->x * \;
+        \->motionZ = \->z * \;
 
-        $diff = $targetY - $ty;
-        if($diff > 0){
-            $this->motionY = 0.42;
-        }elseif($diff < 0){
-            $this->motionY = -0.2;
+        \ = \ - \;
+        // ½öÔÚ ground ÉÏÇÒ Y ²î×ã¹»´óÊ±¸¨ÖúÌøÔ¾/ÏÂÂä£¬±ÜÃâÕñµ´
+        if(\ > 0 and \->onGround){
+            \->motionY = 0.35;
+        }elseif(\ < -1 and \->onGround){
+            \->motionY = -0.15;
         }
+        // diff ÔÚ -1~0 Ê±ÈÃÖØÁ¦×ÔÈ»´¦Àí£¬±ÜÃâ²»Æ½µØÐÎµÄ Y Õñµ´
 
         return true;
     }
 
     /**
-     * é™æ€åœ°å½¢æ£€æµ‹ï¼šæ‰¾ç›®æ ‡ä½ç½®çš„åœ°é¢ Y
-     * @return int|null å¯è¡Œèµ°çš„ Y å±‚ï¼Œnull=ä¸å¯é€šè¡Œ
+     * ¾²Ì¬µØÐÎ¼ì²â£ºÕÒÄ¿±êÎ»ÖÃµÄµØÃæ Y
+     * @return int|null ¿ÉÐÐ×ßµÄ Y ²ã£¬null=²»¿ÉÍ¨ÐÐ
      */
-    public static function pickGroundY(Level $level, int $tx, int $ty, int $tz): ?int{
-        $footBlock = $level->getBlock(new Vector3($tx, $ty, $tz));
+    public static function pickGroundY(Level \, int \, int \, int \): ?int{
+        \ = \->getBlock(new Vector3(\, \, \));
 
-        if($footBlock->isSolid()){
-            $belowSolid = $level->getBlock(new Vector3($tx, $ty - 1, $tz))->isSolid();
-            if(!$belowSolid){
+        if(\->isSolid()){
+            \ = \->getBlock(new Vector3(\, \ - 1, \))->isSolid();
+            if(!\){
                 return null;
             }
-            $above  = $level->getBlock(new Vector3($tx, $ty + 1, $tz));
-            $above2 = $level->getBlock(new Vector3($tx, $ty + 2, $tz));
-            if(!$above->isSolid() and !$above2->isSolid()){
-                return $ty + 1;
+            \  = \->getBlock(new Vector3(\, \ + 1, \));
+            \ = \->getBlock(new Vector3(\, \ + 2, \));
+            if(!\->isSolid() and !\->isSolid()){
+                return \ + 1;
             }
             return null;
         }
 
-        for($dy = 0; $dy >= -2; $dy--){
-            if($level->getBlock(new Vector3($tx, $ty + $dy - 1, $tz))->isSolid()){
-                return $ty + $dy;
+        for(\ = 0; \ >= -2; \--){
+            if(\->getBlock(new Vector3(\, \ + \ - 1, \))->isSolid()){
+                return \ + \;
             }
         }
         return null;

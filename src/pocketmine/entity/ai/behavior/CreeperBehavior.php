@@ -30,7 +30,7 @@ class CreeperBehavior extends Behavior{
 
     public $lookDistance = 5.0;
     public $explodeRadius = 2.0;
-    public $speed = 0.19;
+    public $speed = 0.30;
     public $enemy = null;
 
     public function getPriority(): int{
@@ -86,3 +86,4 @@ class CreeperBehavior extends Behavior{
         $this->entity->getNavigator()->clearPath();
     }
 }
+

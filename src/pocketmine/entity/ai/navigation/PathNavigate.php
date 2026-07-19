@@ -87,7 +87,7 @@ class PathNavigate{
 	}
 
 	/**
-	 * 每 tick 由 Mob::onUpdate() 调用
+	 * �?tick �?Mob::onUpdate() 调用
 	 */
 	public function update(): void{
 		if($this->state === self::STATE_IDLE){
@@ -113,8 +113,7 @@ class PathNavigate{
 			return;
 		}
 
-		// 检查是否卡住
-		$pos = $this->entity->getPosition();
+		// 检查是否卡�?		$pos = $this->entity->getPosition();
 		if($this->lastStuckPos !== null and $pos->distance($this->lastStuckPos) < 0.1){
 			$this->stuckTicks++;
 		}else{
@@ -128,8 +127,7 @@ class PathNavigate{
 			return;
 		}
 
-		// 距离 waypoint 足够近，前进到下一个
-		$dist = $pos->distance($waypoint);
+		// 距离 waypoint 足够近，前进到下一�?		$dist = $pos->distance($waypoint);
 		if($dist < 0.8){
 			$this->path->advance();
 			if($this->path->isDone()){
@@ -169,7 +167,7 @@ class PathNavigate{
 		$this->entity->yaw = -atan2($dx, $dz) * (180 / M_PI);
 
 		$dir = new Vector3($dx, 0, $dz);
-		$step = $this->speed * 0.7 * ($this->entity->isInsideOfWater() ? 0.3 : 0.4);
+		$step = $this->speed * 0.55 * ($this->entity->isInsideOfWater() ? 0.04 : 0.06);
 
 		if(!$this->entity->moveInDirection($dir, $step)){
 			$this->stuckTicks++;
@@ -193,7 +191,7 @@ class PathNavigate{
 		$dir = $this->entity->getDirectionVector();
 		$dir->y = 0;
 
-		$step = $this->speed * 0.7 * ($this->entity->isInsideOfWater() ? 0.3 : 0.4);
+		$step = $this->speed * 0.55 * ($this->entity->isInsideOfWater() ? 0.04 : 0.06);
 
 		if(!$this->entity->moveInDirection($dir, $step)){
 			$this->stuckTicks++;
@@ -275,8 +273,7 @@ class PathNavigate{
 			return null;
 		}
 
-		// 目标不可达
-		if(!$this->evaluator->isWalkable((int)$to->x, (int)$to->y, (int)$to->z, $entityHeight)){
+		// 目标不可�?		if(!$this->evaluator->isWalkable((int)$to->x, (int)$to->y, (int)$to->z, $entityHeight)){
 			return null;
 		}
 
@@ -336,8 +333,7 @@ class PathNavigate{
 	}
 
 	/**
-	 * 获取邻居节点（12 方向）
-	 */
+	 * 获取邻居节点�?2 方向�?	 */
 	private function getNeighbors(int $x, int $y, int $z, float $entityHeight): array{
 		$neighbors = [];
 
@@ -353,13 +349,11 @@ class PathNavigate{
 				$neighbors[] = [$nx, $y, $nz];
 			}
 
-			// 上一格（跳跃）
-			if($this->evaluator->isWalkable($nx, $y + 1, $nz, $entityHeight)){
+			// 上一格（跳跃�?			if($this->evaluator->isWalkable($nx, $y + 1, $nz, $entityHeight)){
 				$neighbors[] = [$nx, $y + 1, $nz];
 			}
 
-			// 下一格（下落）
-			if($this->evaluator->isWalkable($nx, $y - 1, $nz, $entityHeight)){
+			// 下一格（下落�?			if($this->evaluator->isWalkable($nx, $y - 1, $nz, $entityHeight)){
 				$neighbors[] = [$nx, $y - 1, $nz];
 			}
 		}
@@ -368,8 +362,7 @@ class PathNavigate{
 	}
 
 	/**
-	 * 启发式距离（octile + 垂直）
-	 */
+	 * 启发式距离（octile + 垂直�?	 */
 	private function heuristic(Vector3 $a, Vector3 $b): float{
 		$dx = abs($a->x - $b->x);
 		$dz = abs($a->z - $b->z);
@@ -378,7 +371,7 @@ class PathNavigate{
 	}
 
 	/**
-	 * 从 cameFrom 重建路径
+	 * �?cameFrom 重建路径
 	 */
 	private function reconstructPath(array $cameFrom, string $currentKey): Path{
 		$points = [];
@@ -411,3 +404,4 @@ class PathNavigate{
 		return [(int)$parts[0], (int)$parts[1], (int)$parts[2]];
 	}
 }
+

@@ -14,7 +14,7 @@ class StrollBehavior extends Behavior{
     /** @var Vector3|null */
     public $target = null;
 
-    public function __construct(Mob $entity, float $speed = 0.7, int $timeout = 120){
+    public function __construct(Mob $entity, float $speed = 0.40, int $timeout = 120){
         parent::__construct($entity);
         $this->speed = $speed;
         $this->timeout = $timeout;
@@ -62,3 +62,4 @@ class StrollBehavior extends Behavior{
         $this->entity->getNavigator()->clearPath();
     }
 }
+

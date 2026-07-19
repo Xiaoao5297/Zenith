@@ -18,7 +18,7 @@ class AttackEnemyBehavior extends Behavior{
     public $attackCooldown = 0;
     public $attackPlayer = false;
 
-    public function __construct(Mob $entity, array $NetWorkID, bool $attackPlayer = false, float $speed = 0.7, float $speedMultiplier = 0.75){
+    public function __construct(Mob $entity, array $NetWorkID, bool $attackPlayer = false, float $speed = 0.65, float $speedMultiplier = 0.50){
         parent::__construct($entity);
         $this->speed = $speed * $speedMultiplier;
         $this->NetworkID = $NetWorkID;
@@ -95,3 +95,4 @@ class AttackEnemyBehavior extends Behavior{
         $this->entity->getNavigator()->clearPath();
     }
 }
+
