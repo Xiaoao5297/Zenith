@@ -15,7 +15,7 @@ class FindFoodBehavior extends Behavior{
 	public $foodID;
 	public $player = null;
 
-    public function __construct(Mob $entity, int $foodID, float $speed = 0.5){
+    public function __construct(Mob $entity, int $foodID, float $speed = 0.35){
         parent::__construct($entity);
         $this->speed = $speed;
 		$this->foodID = $foodID;
@@ -72,3 +72,4 @@ class FindFoodBehavior extends Behavior{
         $this->entity->getNavigator()->clearPath();
     }
 }
+

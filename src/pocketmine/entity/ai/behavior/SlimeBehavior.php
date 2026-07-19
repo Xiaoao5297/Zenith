@@ -13,7 +13,7 @@ class SlimeBehavior extends Behavior{
     public $speed;
     public $speedMultiplier;
 
-    public function __construct(Mob $entity, int $duration = 80, float $speed = 0.5, float $speedMultiplier = 0.75){
+    public function __construct(Mob $entity, int $duration = 80, float $speed = 0.30, float $speedMultiplier = 0.75){
         parent::__construct($entity);
 
         $this->duration = $duration;
@@ -39,7 +39,7 @@ class SlimeBehavior extends Behavior{
     }
 
     public function onTick(){
-        $speedFactor = (float) ($this->speed*$this->speedMultiplier*0.7*($this->entity->isInsideOfWater() ? 0.3 : 0.4)); // 0.7 is a general mob base factor
+        $speedFactor = (float) ($this->speed*$this->speedMultiplier*0.55*($this->entity->isInsideOfWater() ? 0.04 : 0.06)); // 0.7 is a general mob base factor
 		$level = $this->entity->getLevel();
 		$coordinates = $this->entity->getPosition();
 		$direction = $this->entity->getDirectionVector();

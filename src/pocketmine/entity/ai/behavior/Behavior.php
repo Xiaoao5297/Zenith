@@ -27,18 +27,17 @@ abstract class Behavior{
         return 10;
     }
 
-    /** 行为被选中时调用 */
+    /** 行为被选中时调�?*/
     public function onStart(): void{
     }
 
-    /** 行为结束后调用 */
+    /** 行为结束后调�?*/
     public abstract function onEnd();
 
     public abstract function onTick();
 
 	/**
-	 * 让实体看向目标实体
-	 */
+	 * 让实体看向目标实�?	 */
 	protected function lookAt(Entity $target, bool $includePitch = true): void{
 		$x = $target->x - $this->entity->x;
 		$y = $target->y - $this->entity->y;
@@ -58,8 +57,7 @@ abstract class Behavior{
 	}
 
 	/**
-	 * 抛物线瞄准 pitch（用于弓箭/药水投掷）
-	 * @return float 计算出的 pitch 角度
+	 * 抛物线瞄�?pitch（用于弓�?药水投掷�?	 * @return float 计算出的 pitch 角度
 	 */
 	protected function bowAimPitch(Entity $target, float $velocity = 0.04): float{
 		$g = 1;
@@ -81,16 +79,14 @@ abstract class Behavior{
 	public $stuckTicks = 0;
 
 	/**
-	 * 沿当前朝向移动（委托到 Mob::moveInDirection）
-	 * @param float $speedFactor 基础速度，内部乘以 mob 通用缩放因子
-	 * @return bool true=移动成功, false=被阻挡
-	 */
+	 * 沿当前朝向移动（委托�?Mob::moveInDirection�?	 * @param float $speedFactor 基础速度，内部乘�?mob 通用缩放因子
+	 * @return bool true=移动成功, false=被阻�?	 */
 	protected function moveForward(float $speedFactor): bool{
 		$entity = $this->entity;
 		$direction = $entity->getDirectionVector();
 		$direction->y = 0;
 
-		$mult = 0.7 * ($entity->isInsideOfWater() ? 0.3 : 0.4);
+		$mult = 0.55 * ($entity->isInsideOfWater() ? 0.04 : 0.06);
 		return $entity->moveInDirection($direction, $speedFactor * $mult);
 	}
 
