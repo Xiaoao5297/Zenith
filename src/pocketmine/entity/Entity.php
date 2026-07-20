@@ -70,11 +70,12 @@ abstract class Entity extends Location implements Metadatable{
 	const DATA_SILENT = 4; //byte
 	const DATA_POTION_COLOR = 7; //int
 	const DATA_POTION_AMBIENT = 8; //byte
-	/* 8-13 不知�?/
+	// 8-13 未知
 	const DATA_AGEABLE_FLAGS = 14; const DATA_IS_BABY = 14; //byte
 	const DATA_NO_AI = 15; //byte
 	
-	//杂乱(生物种类)什么数据类型都�?	const DATA_PROFESSION_ID = 16; 
+	// 杂乱（生物种类）什么数据类型都有
+	const DATA_PROFESSION_ID = 16; 
 	const DATA_POTION_ID = 16; 
 	const DATA_SLIME_SIZE = 16; 
 	const DATA_COLOR_INFO = 16; 
@@ -87,9 +88,9 @@ abstract class Entity extends Location implements Metadatable{
 	const DATA_JUMP_TYPE = 19; //unkonw
 	const DATA_BLOCK_INFO = 20; const DATA_WOOD_ID = 20; //重力方块，船的木头类�?int/byte
 	const DATA_IN_LOVE = 21;//发情 byte
-	/* 22-32 不知�?/
+	// 22-32 未知
 	const DATA_ONFIRE = 32;//byte | 和dataflag重复了，应该可以通用
-	/* 33-43 不知�?/
+	// 33-43 未知
 	const DATA_ZOMBIE_IS_BABY= 44;//byte | 起码不能用通用的小生物data
 	//46 ????
 	const DATA_VILLAGER_IS_BABY= 46; //byte | Mojang你脑子是不是不好�?村民可以用id14的data你非得再整一�?
