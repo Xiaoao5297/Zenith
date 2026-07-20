@@ -1,0 +1,31 @@
+name: PMPluginDemo
+version: 1.0.0
+api: 2.1.0
+main: Author\PMPluginDemo\Main
+description: API 2 起步示例插件（事件 + 命令 + 配置 + 定时任务）
+author: Author
+prefix: Demo
+load: POSTWORLD
+mcpe-protocol: [40, 41, 42]
+
+commands:
+  greet:
+    description: "向玩家问好"
+    usage: "/greet [名字]"
+    aliases:
+      - hi
+      - hello
+    permission: pmplugindemo.command.greet
+    permission-message: "你没有权限使用此命令"
+  demo:
+    description: "演示 onCommand 写法"
+    usage: "/demo"
+    permission: pmplugindemo.command.demo
+
+permissions:
+  pmplugindemo.command.greet:
+    description: "允许使用 /greet"
+    default: true
+  pmplugindemo.command.demo:
+    description: "允许使用 /demo"
+    default: op

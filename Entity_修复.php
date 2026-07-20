@@ -63,40 +63,40 @@ abstract class Entity extends Location implements Metadatable{
 	const DATA_TYPE_ROTATION = 7;
 	const DATA_TYPE_LONG = 8;
 
-	const DATA_FLAGS = 0; //存储DATA_FLAG
-	const DATA_AIR = 1; //空气�?游泳) short
+	const DATA_FLAGS = 0; //Ã¥Â­ÂÃ¥ÂÂ¨DATA_FLAG
+	const DATA_AIR = 1; //Ã§Â©ÂºÃ¦Â°ÂÃ¥Â?Ã¦Â¸Â¸Ã¦Â³Â³) short
 	const DATA_NAMETAG = 2; //string
 	const DATA_SHOW_NAMETAG = 3;  //byte
 	const DATA_SILENT = 4; //byte
 	const DATA_POTION_COLOR = 7; //int
 	const DATA_POTION_AMBIENT = 8; //byte
-	/* 8-13 不知�?/
+	/* 8-13 Ã¤Â¸ÂÃ§ÂÂ¥Ã©Â?/
 	const DATA_AGEABLE_FLAGS = 14; const DATA_IS_BABY = 14; //byte
 	const DATA_NO_AI = 15; //byte
 	
-	//杂乱(生物种类)什么数据类型都�?	const DATA_PROFESSION_ID = 16; 
+	//Ã¦ÂÂÃ¤Â¹Â±(Ã§ÂÂÃ§ÂÂ©Ã§Â§ÂÃ§Â±Â»)Ã¤Â»ÂÃ¤Â¹ÂÃ¦ÂÂ°Ã¦ÂÂ®Ã§Â±Â»Ã¥ÂÂÃ©ÂÂ½Ã¦Â?	const DATA_PROFESSION_ID = 16; 
 	const DATA_POTION_ID = 16; 
 	const DATA_SLIME_SIZE = 16; 
 	const DATA_COLOR_INFO = 16; 
-	const DATA_CREPPER_SWELL_DIRECTION = 16; //苦力怕爆炸开�?	
-	const DATA_SHOOTER_ID = 17; //投掷�?long
-	const DATA_CREPPER_SWELL = 17; //苦力怕爆炸动�?byte (似乎是控制闪光的)
-	const DATA_CREPPER_SWELL_2 = 18; //苦力怕爆炸动�?byte (似乎是控制大小的)
+	const DATA_CREPPER_SWELL_DIRECTION = 16; //Ã¨ÂÂ¦Ã¥ÂÂÃ¦ÂÂÃ§ÂÂÃ§ÂÂ¸Ã¥Â¼ÂÃ¥Â§?	
+	const DATA_SHOOTER_ID = 17; //Ã¦ÂÂÃ¦ÂÂ·Ã§Â?long
+	const DATA_CREPPER_SWELL = 17; //Ã¨ÂÂ¦Ã¥ÂÂÃ¦ÂÂÃ§ÂÂÃ§ÂÂ¸Ã¥ÂÂ¨Ã§Â?byte (Ã¤Â¼Â¼Ã¤Â¹ÂÃ¦ÂÂ¯Ã¦ÂÂ§Ã¥ÂÂ¶Ã©ÂÂªÃ¥ÂÂÃ§ÂÂ)
+	const DATA_CREPPER_SWELL_2 = 18; //Ã¨ÂÂ¦Ã¥ÂÂÃ¦ÂÂÃ§ÂÂÃ§ÂÂ¸Ã¥ÂÂ¨Ã§Â?byte (Ã¤Â¼Â¼Ã¤Â¹ÂÃ¦ÂÂ¯Ã¦ÂÂ§Ã¥ÂÂ¶Ã¥Â¤Â§Ã¥Â°ÂÃ§ÂÂ)
 	
-	const DATA_RABBIT_TYPE = 18; const DATA_CAT_TYPE = 18; //生物种类 byte
+	const DATA_RABBIT_TYPE = 18; const DATA_CAT_TYPE = 18; //Ã§ÂÂÃ§ÂÂ©Ã§Â§ÂÃ§Â±Â» byte
 	const DATA_JUMP_TYPE = 19; //unkonw
-	const DATA_BLOCK_INFO = 20; const DATA_WOOD_ID = 20; //重力方块，船的木头类�?int/byte
-	const DATA_IN_LOVE = 21;//发情 byte
-	/* 22-32 不知�?/
-	const DATA_ONFIRE = 32;//byte | 和dataflag重复了，应该可以通用
-	/* 33-43 不知�?/
-	const DATA_ZOMBIE_IS_BABY= 44;//byte | 起码不能用通用的小生物data
+	const DATA_BLOCK_INFO = 20; const DATA_WOOD_ID = 20; //Ã©ÂÂÃ¥ÂÂÃ¦ÂÂ¹Ã¥ÂÂÃ¯Â¼ÂÃ¨ÂÂ¹Ã§ÂÂÃ¦ÂÂ¨Ã¥Â¤Â´Ã§Â±Â»Ã¥Â?int/byte
+	const DATA_IN_LOVE = 21;//Ã¥ÂÂÃ¦ÂÂ byte
+	/* 22-32 Ã¤Â¸ÂÃ§ÂÂ¥Ã©Â?/
+	const DATA_ONFIRE = 32;//byte | Ã¥ÂÂdataflagÃ©ÂÂÃ¥Â¤ÂÃ¤ÂºÂÃ¯Â¼ÂÃ¥ÂºÂÃ¨Â¯Â¥Ã¥ÂÂ¯Ã¤Â»Â¥Ã©ÂÂÃ§ÂÂ¨
+	/* 33-43 Ã¤Â¸ÂÃ§ÂÂ¥Ã©Â?/
+	const DATA_ZOMBIE_IS_BABY= 44;//byte | Ã¨ÂµÂ·Ã§Â ÂÃ¤Â¸ÂÃ¨ÂÂ½Ã§ÂÂ¨Ã©ÂÂÃ§ÂÂ¨Ã§ÂÂÃ¥Â°ÂÃ§ÂÂÃ§ÂÂ©data
 	//46 ????
-	const DATA_VILLAGER_IS_BABY= 46; //byte | Mojang你脑子是不是不好�?村民可以用id14的data你非得再整一�?
+	const DATA_VILLAGER_IS_BABY= 46; //byte | MojangÃ¤Â½Â Ã¨ÂÂÃ¥Â­ÂÃ¦ÂÂ¯Ã¤Â¸ÂÃ¦ÂÂ¯Ã¤Â¸ÂÃ¥Â¥Â½Ã¤Â½?Ã¦ÂÂÃ¦Â°ÂÃ¥ÂÂ¯Ã¤Â»Â¥Ã§ÂÂ¨id14Ã§ÂÂdataÃ¤Â½Â Ã©ÂÂÃ¥Â¾ÂÃ¥ÂÂÃ¦ÂÂ´Ã¤Â¸ÂÃ¤Â¸?
 	//47 ????
 	const DATA_ENDERMAN_HELD_ITEM_ID = 48; //short 
 	const DATA_ENDERMAN_HELD_ITEM_DAMAGE = 49; //short
-	const DATA_ENDERMAN_TREMBLE = 50; //byte 末影人被激怒以后的颤抖
+	const DATA_ENDERMAN_TREMBLE = 50; //byte Ã¦ÂÂ«Ã¥Â½Â±Ã¤ÂºÂºÃ¨Â¢Â«Ã¦Â¿ÂÃ¦ÂÂÃ¤Â»Â¥Ã¥ÂÂÃ§ÂÂÃ©Â¢Â¤Ã¦ÂÂ
 
 	const DATA_FLAG_ONFIRE = 0;
 	const DATA_FLAG_SNEAKING = 1;
@@ -125,13 +125,11 @@ abstract class Entity extends Location implements Metadatable{
 	private static $knownEntities = [];
 	private static $shortNames = [];
 
-	/** @var bool[] 缓存有实体碰撞的方块 ID（避免创�?Block 对象�?*/
+	/** @var bool[] Ã§Â¼ÂÃ¥Â­ÂÃ¦ÂÂÃ¥Â®ÂÃ¤Â½ÂÃ§Â¢Â°Ã¦ÂÂÃ§ÂÂÃ¦ÂÂ¹Ã¥ÂÂ IDÃ¯Â¼ÂÃ©ÂÂ¿Ã¥ÂÂÃ¥ÂÂÃ¥Â»?Block Ã¥Â¯Â¹Ã¨Â±Â¡Ã¯Â¼?*/
 	private static $collisionBlockIds = null;
 
 	/**
-	 * 初始化碰撞方块 ID 表
-	 * 与 block/HasEntityCollision 接口保持同步
-	 */
+	 * Ã¥ÂÂÃ¥Â§ÂÃ¥ÂÂÃ§Â¢Â°Ã¦ÂÂÃ¦ÂÂ¹Ã¥Â?ID Ã¨Â¡Â¨Ã£Â?	 * Ã¤Â¸?block/HasEntityCollision Ã¦ÂÂ¥Ã¥ÂÂ£Ã¤Â¿ÂÃ¦ÂÂÃ¥ÂÂÃ¦Â­Â¥Ã£Â?	 */
 	private static function initCollisionBlockIds(){
 		if(self::$collisionBlockIds === null){
 			self::$collisionBlockIds = [
@@ -704,8 +702,7 @@ abstract class Entity extends Location implements Metadatable{
 		}
 		$this->setLastDamageCause($source);
 
-		// 反作弊：受击追踪（击退检测等）
-		if($this instanceof \pocketmine\Player and \pocketmine\anticheat\AntiCheat::getInstance() !== null){
+		// Ã¥ÂÂÃ¤Â½ÂÃ¥Â¼ÂÃ¯Â¼ÂÃ¥ÂÂÃ¥ÂÂ»Ã¨Â¿Â½Ã¨Â¸ÂªÃ¯Â¼ÂÃ¥ÂÂ»Ã©ÂÂÃ¦Â£ÂÃ¦ÂµÂÃ§Â­ÂÃ¯Â¼?		if($this instanceof \pocketmine\Player and \pocketmine\anticheat\AntiCheat::getInstance() !== null){
 			\pocketmine\anticheat\AntiCheat::getInstance()->onEntityDamage($this, $source);
 		}
 
@@ -1217,7 +1214,7 @@ abstract class Entity extends Location implements Metadatable{
 
 		$id = $this->level->getBlockIdAt($x, $eyeY, $z);
 
-		// 快速路径：非实心方块直接返回，避免创建 Block 对象
+		// Ã¥Â¿Â«Ã©ÂÂÃ¨Â·Â¯Ã¥Â¾ÂÃ¯Â¼ÂÃ©ÂÂÃ¥Â®ÂÃ¥Â¿ÂÃ¦ÂÂ¹Ã¥ÂÂÃ§ÂÂ´Ã¦ÂÂ¥Ã¨Â¿ÂÃ¥ÂÂÃ¯Â¼ÂÃ©ÂÂ¿Ã¥ÂÂÃ¥ÂÂÃ¥Â»Âº Block Ã¥Â¯Â¹Ã¨Â±Â¡
 		if($id === 0 or !Block::$solid[$id]){
 			return false;
 		}
@@ -1464,7 +1461,7 @@ abstract class Entity extends Location implements Metadatable{
 				for($x = $minX; $x <= $maxX; ++$x){
 					for($y = $minY; $y <= $maxY; ++$y){
 						$id = $this->level->getBlockIdAt($x, $y, $z);
-						// 快速路径：只有已知有实体碰撞的方块才创�?Block 对象
+						// Ã¥Â¿Â«Ã©ÂÂÃ¨Â·Â¯Ã¥Â¾ÂÃ¯Â¼ÂÃ¥ÂÂªÃ¦ÂÂÃ¥Â·Â²Ã§ÂÂ¥Ã¦ÂÂÃ¥Â®ÂÃ¤Â½ÂÃ§Â¢Â°Ã¦ÂÂÃ§ÂÂÃ¦ÂÂ¹Ã¥ÂÂÃ¦ÂÂÃ¥ÂÂÃ¥Â»?Block Ã¥Â¯Â¹Ã¨Â±Â¡
 						if(isset(self::$collisionBlockIds[$id])){
 							$block = $this->level->getBlock($this->temporalVector->setComponents($x, $y, $z));
 							$this->blocksAround[Level::blockHash($block->x, $block->y, $block->z)] = $block;
@@ -1650,7 +1647,7 @@ abstract class Entity extends Location implements Metadatable{
 		}
 		$from = Position::fromObject($this, $this->level);
 		$to = Position::fromObject($pos, $pos instanceof Position ? $pos->getLevel() : $this->level);
-		// 限制传送坐标在世界范围�?		if($to->y < 0 or $to->y >= 128 or $to->x > 30000000 or $to->x < -30000000 or $to->z > 30000000 or $to->z < -30000000){
+		// Ã©ÂÂÃ¥ÂÂ¶Ã¤Â¼Â Ã©ÂÂÃ¥ÂÂÃ¦Â ÂÃ¥ÂÂ¨Ã¤Â¸ÂÃ§ÂÂÃ¨ÂÂÃ¥ÂÂ´Ã¥Â?		if($to->y < 0 or $to->y >= 128 or $to->x > 30000000 or $to->x < -30000000 or $to->z > 30000000 or $to->z < -30000000){
 			return false;
 		}
 		$this->server->getPluginManager()->callEvent($ev = new EntityTeleportEvent($this, $from, $to));
