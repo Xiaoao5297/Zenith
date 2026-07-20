@@ -1650,7 +1650,8 @@ abstract class Entity extends Location implements Metadatable{
 		}
 		$from = Position::fromObject($this, $this->level);
 		$to = Position::fromObject($pos, $pos instanceof Position ? $pos->getLevel() : $this->level);
-		// 限制传送坐标在世界范围�?		if($to->y < 0 or $to->y >= 128 or $to->x > 30000000 or $to->x < -30000000 or $to->z > 30000000 or $to->z < -30000000){
+		// 限制传送坐标在世界范围
+		if($to->y < 0 or $to->y >= 128 or $to->x > 30000000 or $to->x < -30000000 or $to->z > 30000000 or $to->z < -30000000){
 			return false;
 		}
 		$this->server->getPluginManager()->callEvent($ev = new EntityTeleportEvent($this, $from, $to));
