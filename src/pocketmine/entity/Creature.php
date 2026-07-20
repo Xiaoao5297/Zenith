@@ -4,55 +4,55 @@ namespace pocketmine\entity;
 use pocketmine\event\entity\EntityDamageEvent;
 
 abstract class Creature extends Living{
-	public \ = 0;
+    public $attackingTick = 0;
 
-	public function onUpdate(\){
-		if(!\ instanceof Human){
-			if(\->attackingTick > 0){
-				\->attackingTick--;
-			}
-			if(!\->isAlive() and \->hasSpawned){
-				++\->deadTicks;
-				if(\->deadTicks >= 20){
-					\->despawnFromAll();
-				}
-				return true;
-			}
-			if(\->isAlive()){
+    public function onUpdate($currentTick){
+        if(!$this instanceof Human){
+            if($this->attackingTick > 0){
+                $this->attackingTick--;
+            }
+            if(!$this->isAlive() and $this->hasSpawned){
+                ++$this->deadTicks;
+                if($this->deadTicks >= 20){
+                    $this->despawnFromAll();
+                }
+                return true;
+            }
+            if($this->isAlive()){
 
-				\->motionY -= \->gravity;
+                $this->motionY -= $this->gravity;
 
-				\->move(\->motionX, \->motionY, \->motionZ);
+                $this->move($this->motionX, $this->motionY, $this->motionZ);
 
-				\ = 1 - \->drag;
+                $friction = 1 - $this->drag;
 
-				if(\->onGround and (abs(\->motionX) > 0.00001 or abs(\->motionZ) > 0.00001)){
-					\ = \->getLevel()->getBlock(\->temporalVector->setComponents((int) floor(\->x), (int) floor(\->y - 1), (int) floor(\->z)))->getFrictionFactor() * \;
-				}
+                if($this->onGround and (abs($this->motionX) > 0.00001 or abs($this->motionZ) > 0.00001)){
+                    $friction = $this->getLevel()->getBlock($this->temporalVector->setComponents((int) floor($this->x), (int) floor($this->y - 1), (int) floor($this->z)))->getFrictionFactor() * $friction;
+                }
 
-				\->motionX *= \;
-				\->motionY *= 1 - \->drag;
-				\->motionZ *= \;
-				// ÒÆ³ý motionY = 0 Ç¿ÖÆ¹éÁã£¬ÈÃÖØÁ¦Óëµ¼º½Æ÷×ÔÈ»Ð­µ÷
-				// updateMovement() ÓÉ Entity::onUpdate Í³Ò»µ÷ÓÃ
-			}
-		}
-		parent::entityBaseTick();
-		return parent::onUpdate(\);
-	}
+                $this->motionX *= $friction;
+                $this->motionY *= 1 - $this->drag;
+                $this->motionZ *= $friction;
+                // ç§»é™¤ motionY = 0 å¼ºåˆ¶å½’é›¶ï¼Œè®©é‡åŠ›ä¸Žå¯¼èˆªå™¨è‡ªç„¶åè°ƒ
+                // updateMovement() ç”± Entity::onUpdate ç»Ÿä¸€è°ƒç”¨
+            }
+        }
+        parent::entityBaseTick();
+        return parent::onUpdate($currentTick);
+    }
 
-	public function willMove(\ = 36){
-		foreach(\->getViewers() as \){
-			if(\->distance(\->getLocation()) <= \) return true;
-		}
-		return false;
-	}
+    public function willMove($distance = 36){
+        foreach($this->getViewers() as $player){
+            if($player->distance($this->getLocation()) <= $distance) return true;
+        }
+        return false;
+    }
 
-	public function attack(\, EntityDamageEvent \){
-		parent::attack(\, \);
-		if(!\->isCancelled() and \->getCause() == EntityDamageEvent::CAUSE_ENTITY_ATTACK){
-			\->attackingTick = 20;
-		}
-	}
+    public function attack($damage, EntityDamageEvent $source){
+        parent::attack($damage, $source);
+        if(!$source->isCancelled() and $source->getCause() == EntityDamageEvent::CAUSE_ENTITY_ATTACK){
+            $this->attackingTick = 20;
+        }
+    }
 
 }
