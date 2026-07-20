@@ -64,7 +64,7 @@ abstract class Entity extends Location implements Metadatable{
 	const DATA_TYPE_LONG = 8;
 
 	const DATA_FLAGS = 0; //存储DATA_FLAG
-	const DATA_AIR = 1; //空气�?游泳) short
+	const DATA_AIR = 1; //空气值（游泳） short
 	const DATA_NAMETAG = 2; //string
 	const DATA_SHOW_NAMETAG = 3;  //byte
 	const DATA_SILENT = 4; //byte
@@ -79,21 +79,21 @@ abstract class Entity extends Location implements Metadatable{
 	const DATA_POTION_ID = 16; 
 	const DATA_SLIME_SIZE = 16; 
 	const DATA_COLOR_INFO = 16; 
-	const DATA_CREPPER_SWELL_DIRECTION = 16; //苦力怕爆炸开�?	
-	const DATA_SHOOTER_ID = 17; //投掷�?long
-	const DATA_CREPPER_SWELL = 17; //苦力怕爆炸动�?byte (似乎是控制闪光的)
-	const DATA_CREPPER_SWELL_2 = 18; //苦力怕爆炸动�?byte (似乎是控制大小的)
+	const DATA_CREPPER_SWELL_DIRECTION = 16; //苦力怕爆炸开关
+	const DATA_SHOOTER_ID = 17; //投掷者 long
+	const DATA_CREPPER_SWELL = 17; //苦力怕爆炸动画 byte (控制闪光)
+	const DATA_CREPPER_SWELL_2 = 18; //苦力怕爆炸动画 byte (控制大小)
 	
 	const DATA_RABBIT_TYPE = 18; const DATA_CAT_TYPE = 18; //生物种类 byte
 	const DATA_JUMP_TYPE = 19; //unkonw
-	const DATA_BLOCK_INFO = 20; const DATA_WOOD_ID = 20; //重力方块，船的木头类�?int/byte
+	const DATA_BLOCK_INFO = 20; const DATA_WOOD_ID = 20; //重力方块，船的木头类型 int/byte
 	const DATA_IN_LOVE = 21;//发情 byte
 	// 22-32 未知
 	const DATA_ONFIRE = 32;//byte | 和dataflag重复了，应该可以通用
 	// 33-43 未知
 	const DATA_ZOMBIE_IS_BABY= 44;//byte | 起码不能用通用的小生物data
 	//46 ????
-	const DATA_VILLAGER_IS_BABY= 46; //byte | Mojang你脑子是不是不好�?村民可以用id14的data你非得再整一�?
+	const DATA_VILLAGER_IS_BABY= 46; //byte
 	//47 ????
 	const DATA_ENDERMAN_HELD_ITEM_ID = 48; //short 
 	const DATA_ENDERMAN_HELD_ITEM_DAMAGE = 49; //short
@@ -126,7 +126,7 @@ abstract class Entity extends Location implements Metadatable{
 	private static $knownEntities = [];
 	private static $shortNames = [];
 
-	/** @var bool[] 缓存有实体碰撞的方块 ID（避免创�?Block 对象�?*/
+	/** @var bool[] 缓存有实体碰撞的方块 ID（避免创建 Block 对象）*/
 	private static $collisionBlockIds = null;
 
 	/**
@@ -1465,7 +1465,7 @@ abstract class Entity extends Location implements Metadatable{
 				for($x = $minX; $x <= $maxX; ++$x){
 					for($y = $minY; $y <= $maxY; ++$y){
 						$id = $this->level->getBlockIdAt($x, $y, $z);
-						// 快速路径：只有已知有实体碰撞的方块才创�?Block 对象
+						// 快速路径：只有已知有实体碰撞的方块才创建 Block 对象
 						if(isset(self::$collisionBlockIds[$id])){
 							$block = $this->level->getBlock($this->temporalVector->setComponents($x, $y, $z));
 							$this->blocksAround[Level::blockHash($block->x, $block->y, $block->z)] = $block;
