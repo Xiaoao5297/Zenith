@@ -1,0 +1,4 @@
+# 默认配置（会被复制到插件数据目录，可被服主修改）
+join-message: "欢迎来到服务器！"
+broadcast-message: "服务器每 30 秒向你问好"
+broadcast-interval-seconds: 30
