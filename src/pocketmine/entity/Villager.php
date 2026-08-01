@@ -32,7 +32,7 @@ class Villager extends Mob implements NPC, Ageable{
 	public function __construct(FullChunk $chunk, CompoundTag $nbt){
 		parent::__construct($chunk, $nbt);
 		
-		$this->addBehavior(new PanicBehavior($this, 0.25, 2.0));
+		$this->addBehavior(new PanicBehavior($this, 0.25, 40));
 		$this->addBehavior(new StrollBehavior($this));
 		$this->addBehavior(new LookAtPlayerBehavior($this));
 		$this->addBehavior(new RandomLookAroundBehavior($this));

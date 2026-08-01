@@ -1652,7 +1652,7 @@ class Server{
 		$this->regenerationFoodThreshold = (int) $this->getAdvancedProperty("player.regeneration-food-threshold", 18);
 		$this->interactDistance = (int) $this->getAdvancedProperty("player.interact-distance", 13);
 		$this->spawnProtectionRadius = (int) $this->getAdvancedProperty("player.spawn-protection-radius", 16);
-		$this->aiEnabled = $this->getAdvancedProperty("ai.enable", false);
+		$this->aiEnabled = $this->getAdvancedProperty("ai.enable", true);
 		$this->aiConfig = [
 			"cow" => $this->getAdvancedProperty("ai.cow", true),
 			"chicken" => $this->getAdvancedProperty("ai.chicken", true),

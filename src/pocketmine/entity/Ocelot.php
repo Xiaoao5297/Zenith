@@ -34,7 +34,7 @@ class Ocelot extends Animal{
 		}
 		parent::__construct($chunk, $nbt);
 		
-		$this->addBehavior(new PanicBehavior($this, 0.25, 2.0));
+		$this->addBehavior(new PanicBehavior($this, 0.25, 40));
 		$this->addBehavior(new StrollBehavior($this));
 		$this->addBehavior(new LookAtPlayerBehavior($this));
 		$this->addBehavior(new RandomLookAroundBehavior($this));
