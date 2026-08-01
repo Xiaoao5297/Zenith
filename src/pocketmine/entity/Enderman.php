@@ -23,7 +23,7 @@ class Enderman extends Monster{
 			$this->namedtag->carriedData = new ShortTag("carriedData", 0);
 			$this->namedtag->carried = new ShortTag("carried", 0);
 		}
-		$this->addBehavior(new PanicBehavior($this, 0.25, 2.0));
+		$this->addBehavior(new PanicBehavior($this, 0.25, 40));
 		$this->addBehavior(new StrollBehavior($this));
 		$this->addBehavior(new LookAtPlayerBehavior($this));
 		$this->addBehavior(new RandomLookAroundBehavior($this));

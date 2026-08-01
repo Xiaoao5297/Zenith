@@ -32,7 +32,7 @@ class Pig extends Animal{
 	public function initEntity(){
 		
 		$this->addBehavior(new InLoveBehavior($this));
-		$this->addBehavior(new PanicBehavior($this, 0.25, 2.0));
+		$this->addBehavior(new PanicBehavior($this, 0.25, 40));
 		$this->addBehavior(new FindFoodBehavior($this, 391));
 		$this->addBehavior(new StrollBehavior($this));
 		$this->addBehavior(new LookAtPlayerBehavior($this));

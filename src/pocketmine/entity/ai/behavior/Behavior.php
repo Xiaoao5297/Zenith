@@ -10,7 +10,7 @@ abstract class Behavior{
 
     /** @var Mob */
     public $entity;
-    public $swimmingTick;
+	public $swimmingTick;
 
     public function __construct(Mob $entity){
         $this->entity = $entity;
@@ -36,78 +36,78 @@ abstract class Behavior{
 
     public abstract function onTick();
 
-    /**
-     * 让实体看向目标实体
-     */
-    protected function lookAt(Entity $target, bool $includePitch = true): void{
-        $x = $target->x - $this->entity->x;
-        $y = $target->y - $this->entity->y;
-        $z = $target->z - $this->entity->z;
+	/**
+	 * 让实体看向目标实�?	 */
+	protected function lookAt(Entity $target, bool $includePitch = true): void{
+		$x = $target->x - $this->entity->x;
+		$y = $target->y - $this->entity->y;
+		$z = $target->z - $this->entity->z;
 
-        $a = $target->x + 0.5;
-        $c = $target->z + 0.5;
+		$a = $target->x + 0.5;
+		$c = $target->z + 0.5;
 
-        if($includePitch){
-            $len = sqrt($x * $x + $y * $y + $z * $z);
-            $y = $y / $len;
-            $pitch = asin($y);
-            $this->entity->pitch = -($pitch * 180 / M_PI);
-        }
+		if($includePitch){
+			$len = sqrt($x * $x + $y * $y + $z * $z);
+			$y = $y / $len;
+			$pitch = asin($y);
+			$this->entity->pitch = -($pitch * 180 / M_PI);
+		}
 
-        $this->entity->yaw = -atan2($a - ($this->entity->x + 0.5), $c - ($this->entity->z + 0.5)) * (180 / M_PI);
-    }
+		$this->entity->yaw = -atan2($a - ($this->entity->x + 0.5), $c - ($this->entity->z + 0.5)) * (180 / M_PI);
+	}
 
-    /**
-     * 抛物线瞄准 pitch（用于弓/药水投掷）
-     * @return float 计算出的 pitch 角度
-     */
-    protected function bowAimPitch(Entity $target, float $velocity = 0.04): float{
-        $g = 1;
+	/**
+	 * 抛物线瞄�?pitch（用于弓�?药水投掷�?	 * @return float 计算出的 pitch 角度
+	 */
+	protected function bowAimPitch(Entity $target, float $velocity = 0.04): float{
+		$g = 1;
 
-        $x = $target->x - $this->entity->x;
-        $y = $target->y - $this->entity->y;
-        $z = $target->z - $this->entity->z;
+		$x = $target->x - $this->entity->x;
+		$y = $target->y - $this->entity->y;
+		$z = $target->z - $this->entity->z;
 
-        $horizontalDist = sqrt($x * $x + $z * $z);
-        $discriminant = ($g * $g * $g * $g - $velocity * ($velocity * ($horizontalDist * $horizontalDist) + 2 * $y * ($g * $g)));
-        $pitch = -(180 / M_PI) * (atan(($g * $g - sqrt($discriminant)) / ($velocity * $horizontalDist)));
-        if(is_nan($pitch)){
-            $pitch = 0;
-        }
-        $this->entity->pitch = $pitch;
-        return $pitch;
-    }
+		$horizontalDist = sqrt($x * $x + $z * $z);
+		$discriminant = ($g * $g * $g * $g - $velocity * ($velocity * ($horizontalDist * $horizontalDist) + 2 * $y * ($g * $g)));
+		$pitch = -(180 / M_PI) * (atan(($g * $g - sqrt($discriminant)) / ($velocity * $horizontalDist)));
+		if(is_nan($pitch)){
+			$pitch = 0;
+		}
+		$this->entity->pitch = $pitch;
+		return $pitch;
+	}
 
-    public $stuckTicks = 0;
+	public $stuckTicks = 0;
 
-    /**
-     * 沿当前朝向移动（委托给 Mob::moveInDirection）
-     * @param float $speedFactor 基础速度，内部乘以 mob 通用缩放因子
-     * @return bool true=移动成功, false=被阻挡
-     */
-    protected function moveForward(float $speedFactor): bool{
-        $entity = $this->entity;
-        $direction = $entity->getDirectionVector();
-        $direction->y = 0;
+	/**
+	 * 沿当前朝向移动（委托�?Mob::moveInDirection�?	 * @param float $speedFactor 基础速度，内部乘�?mob 通用缩放因子
+	 * @return bool true=移动成功, false=被阻�?	 */
+	protected function moveForward(float $speedFactor): bool{
+		$entity = $this->entity;
+		$dir = $entity->getDirectionVector();
+		// getDirectionVector() 返回共享的 temporalVector，需拷贝避免污染
+		$dir = new Vector3($dir->x, 0, $dir->z);
+		if($dir->length() > 0.001){
+			$dir = $dir->normalize();
+		}
 
-        $mult = 0.55 * ($entity->isInsideOfWater() ? 0.04 : 0.06);
-        return $entity->moveInDirection($direction, $speedFactor * $mult);
-    }
+		$mult = 0.55 * ($entity->isInsideOfWater() ? 0.04 : 0.06);
+		return $entity->moveInDirection($dir, $speedFactor * $mult);
+	}
 
-    public function swimming(){
-        if($this->entity->isInsideOfWater()){
-            $airTicks = $this->entity->getDataProperty(Entity::DATA_AIR);
-            if($this->swimmingTick <= 0){
-                if($airTicks <= 175){
-                    $this->entity->motionY = 0.3;
-                    $this->swimmingTick = 0;
-                }else{
-                    $this->entity->motionY = 0.8;
-                    $this->swimmingTick = 10;
-                }
-            }else{
-                --$this->swimmingTick;
-            }
-        }
-    }
+	public function swimming(){
+		if($this->entity->isInsideOfWater()){
+			$airTicks = $this->entity->getDataProperty(Entity::DATA_AIR);
+			if($this->swimmingTick <= 0){
+				if($airTicks <= 175){
+					$this->entity->motionY = 0.3;
+					$this->swimmingTick = 0;
+				}else{
+					$this->entity->motionY = 0.8;
+					$this->swimmingTick = 10;
+				}
+			}else{
+				--$this->swimmingTick;
+			}
+		}
+	}
 }
