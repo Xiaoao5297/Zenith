@@ -109,6 +109,12 @@ class SimpleTransactionGroup implements TransactionGroup{
 	}
 
 	public function canExecute(){
+		foreach($this->transactions as $transaction){
+			$item = $transaction->getTargetItem();
+			if($item->getCount() > $item->getMaxStackSize()){
+				return false;
+			}
+		}
 		$haveItems = [];
 		$needItems = [];
 
