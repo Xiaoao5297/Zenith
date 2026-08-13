@@ -97,7 +97,11 @@ class InLoveBehavior extends Behavior{
 				$class = get_class($this->entity);
 				$entity = new $class($this->entity->chunk, $nbt);
 				$entity->setBaby(true);
-				$entity->setPosition($this->entity->getPosition());
+				// 在父体周围随机偏移，避免与父体重叠卡入方块
+				$offsetX = (mt_rand(-800, 800) / 1000);
+				$offsetZ = (mt_rand(-800, 800) / 1000);
+				$spawnPos = $this->entity->add($offsetX, 0, $offsetZ);
+				$entity->setPosition($spawnPos);
 				$entity->setHealth($this->entity->getMaxHealth());
 				$entity->spawnToAll();
 				$this->entity->setInLove(false);

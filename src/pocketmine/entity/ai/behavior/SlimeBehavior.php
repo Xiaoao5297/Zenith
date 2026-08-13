@@ -59,10 +59,16 @@ class SlimeBehavior extends Behavior{
 		$players = $entity->getViewers();
 
 		$block = $level->getBlock($coord);
-		$blockUp = $level->getBlock($coord->add(0,1,0));
-		$blockUpUp = $level->getBlock($coord->add(0,2,0));
 
-		$colliding = ($blockUpUp->isSolid() and $blockUp->isSolid());
+		// 需检查的头顶层数按史莱姆大小动态计算（大小 1 需 1 层，越大越多）
+		$headLayers = max(1, $entity->getSize());
+		$colliding = false;
+		for($i = 1; $i <= $headLayers; $i++){
+			if($level->getBlock($coord->add(0, $i, 0))->isSolid()){
+				$colliding = true;
+				break;
+			}
+		}
 		if (!$colliding){
 			$motion = $direction->multiply($speedFactor);
 			$pm = $entity->getMotion();

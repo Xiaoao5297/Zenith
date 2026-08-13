@@ -24,9 +24,10 @@ namespace pocketmine\entity\ai\behavior;
 
 class RandomLookAroundBehavior extends Behavior{
 
-    public $entity;
     public $duration = 0;
-    public $rotation = 0;
+    public $startYaw = 0;
+    public $targetYaw = 0;
+    public $turnsLeft = 0;
 
     public function getPriority(): int{
         return 8;
@@ -40,28 +41,32 @@ class RandomLookAroundBehavior extends Behavior{
         if(rand(0,2) != 0) return false;
 
         $this->duration = 20 + rand(0,20);
-        $this->rotation = rand(-180,180);
+        $this->startYaw = $this->entity->yaw;
+        $this->targetYaw = $this->startYaw + rand(-180, 180);
+        // 目标角度限制在 [-180, 180]，避免跨 0 抖动
+        while($this->targetYaw > 180) $this->targetYaw -= 360;
+        while($this->targetYaw < -180) $this->targetYaw += 360;
+        $this->turnsLeft = rand(5, 10);
 
         return true;
     }
 
     public function canContinue() : bool{
-        return $this->duration-- > 0 and abs($this->rotation) > 0;
+        return $this->duration-- > 0 and $this->turnsLeft > 0;
     }
 
     public function onTick(){
-		$this->swimming();
-        $this->entity->yaw += $this->signRot($this->rotation) * 10;
-        $this->rotation -= 10;
-		$this->entity->level->addEntityMovement($this->entity->chunk->getX(), $this->entity->chunk->getZ(), $this->entity->getID(), $this->entity->x, $this->entity->y + $this->entity->getEyeHeight(), $this->entity->z, $this->entity->yaw, $this->entity->pitch, $this->entity->yaw);
-    }
-
-    public function signRot(int $val){
-        if($val > 0) return 1;
-
-        if($val < 0) return -1;
-
-        return 0;
+        $this->swimming();
+        // 按剩余转向次数线性逼近目标角度，不会跨 0 反向
+        if($this->turnsLeft > 0){
+            $diff = $this->targetYaw - $this->entity->yaw;
+            while($diff > 180) $diff -= 360;
+            while($diff < -180) $diff += 360;
+            $step = $diff / $this->turnsLeft;
+            $this->entity->yaw += $step;
+            $this->turnsLeft--;
+        }
+        $this->entity->level->addEntityMovement($this->entity->chunk->getX(), $this->entity->chunk->getZ(), $this->entity->getID(), $this->entity->x, $this->entity->y + $this->entity->getEyeHeight(), $this->entity->z, $this->entity->yaw, $this->entity->pitch, $this->entity->yaw);
     }
 
     public function onEnd(){
