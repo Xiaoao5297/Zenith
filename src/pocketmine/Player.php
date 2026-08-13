@@ -3664,7 +3664,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					$this->inventory->sendContents($this);
 					break;
 				}elseif($recipe === null){
-					$this->server->getLogger()->debug("Null (unknown) crafting recipe received from ".$this->getName()." for ".$packet->output[0]);
+					$this->server->getLogger()->debug("Null (unknown) crafting recipe received from ".$this->getName()." for ".($packet->output[0] ?? "unknown"));
 					$this->inventory->sendContents($this);
 					break;
 				}
@@ -3687,11 +3687,12 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 				$canCraft = true;
 
+				$gridInput = $packet->input;
 
 				if($recipe instanceof ShapedRecipe){
 					for($x = 0; $x < 3 and $canCraft; ++$x){
 						for($y = 0; $y < 3; ++$y){
-							$item = $packet->input[$y * 3 + $x];
+							$item = $gridInput[$y * 3 + $x] ?? Item::get(Item::AIR);
 							$ingredient = $recipe->getIngredient($x, $y);
 							if($item->getCount() > 0 and $item->getId() > 0){
 								if($ingredient == null){
@@ -3712,39 +3713,65 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}elseif($recipe instanceof ShapelessRecipe){
 					$needed = $recipe->getIngredientList();
 
-					for($x = 0; $x < 3 and $canCraft; ++$x){
-						for($y = 0; $y < 3; ++$y){
-							$item = clone $packet->input[$y * 3 + $x];
+					if(count($gridInput) > 0){
+						for($x = 0; $x < 3 and $canCraft; ++$x){
+							for($y = 0; $y < 3; ++$y){
+								$item = clone ($gridInput[$y * 3 + $x] ?? Item::get(Item::AIR));
 
-							foreach($needed as $k => $n){
-								if($n->deepEquals($item, $n->getDamage() !== null, $n->getCompoundTag() !== null)){
-									$remove = min($n->getCount(), $item->getCount());
-									$n->setCount($n->getCount() - $remove);
-									$item->setCount($item->getCount() - $remove);
+								foreach($needed as $k => $n){
+									if($n->deepEquals($item, $n->getDamage() !== null, $n->getCompoundTag() !== null)){
+										$remove = min($n->getCount(), $item->getCount());
+										$n->setCount($n->getCount() - $remove);
+										$item->setCount($item->getCount() - $remove);
 
-									if($n->getCount() === 0){
-										unset($needed[$k]);
+										if($n->getCount() === 0){
+											unset($needed[$k]);
+										}
 									}
 								}
-							}
 
-							if($item->getCount() > 0){
-								$canCraft = false;
-								break;
+								if($item->getCount() > 0){
+									$canCraft = false;
+									break;
+								}
 							}
 						}
-					}
 
-					if(count($needed) > 0){
-						$canCraft = false;
+						if(count($needed) > 0){
+							$canCraft = false;
+						}
 					}
 				}else{
 					$canCraft = false;
 				}
 
 				/** @var Item[] $ingredients */
-				$ingredients = $packet->input;
-				$result = $packet->output[0];
+				$ingredients = $gridInput;
+				if(count($ingredients) === 0){
+					//Win10/PC 客户端不在合成事件里携带合成格物品, 用配方定义兜底
+					$ingredients = [];
+					if($recipe instanceof ShapedRecipe){
+						foreach($recipe->getIngredientMap() as $row){
+							foreach($row as $ingredient){
+								if($ingredient->getId() !== Item::AIR){
+									$ingredients[] = $ingredient;
+								}
+							}
+						}
+					}elseif($recipe instanceof ShapelessRecipe){
+						foreach($recipe->getIngredientList() as $ingredient){
+							for($c = 0; $c < $ingredient->getCount(); ++$c){
+								$copy = clone $ingredient;
+								$copy->setCount(1);
+								$ingredients[] = $copy;
+							}
+						}
+					}
+				}
+				$result = $packet->output[0] ?? null;
+				if($result === null){
+					$result = $recipe->getResult();
+				}
 
 				if(!$canCraft or !$recipe->getResult()->deepEquals($result)){
 					$this->server->getLogger()->debug("Unmatched recipe " . $recipe->getId() . " from player " . $this->getName() . ": expected " . $recipe->getResult() . ", got " . $result . ", using: " . implode(", ", $ingredients));
