@@ -2,6 +2,7 @@
 
 namespace pocketmine\inventory;
 
+use pocketmine\item\Item;
 use pocketmine\level\Position;
 use pocketmine\Player;
 
@@ -61,17 +62,32 @@ class AnvilInventory extends ContainerInventory{
 	}
 	
 	public function onRename(Player $player, $slot, $sourceItem, $resultItem){
-		if(!isset($resultItem)){
+		if(!$resultItem instanceof Item){
 			return;
 		}
-		if(!$resultItem->deepEquals($this->getItem(self::TARGET), true, false, true)){
+		$target = $this->getItem(self::TARGET);
+		if(!$resultItem->equals($target, true, false, true)){
 			//Item does not match target item. Everything must match except the tags.
 			return false;
 		}
+		//Server-side construction: never trust NBT submitted by the client.
+		//Only the rename (display.Name) is applied on top of the target item;
+		//any other client NBT (ench, AttributeModifiers, Lore, RepairCost, ...) is discarded.
+		$result = Item::get($target->getId(), $target->getDamage(), $target->getCount());
+		if($target->hasCompoundTag()){
+			$result->setCompoundTag($target->getCompoundTag());
+		}
+		if($resultItem->hasCustomName()){
+			$result->setCustomName($resultItem->getCustomName());
+			$tag = $result->getNamedTag();
+			if($tag !== null){
+				$result->setNamedTag($tag);
+			}
+		}
 		//$this->clearAll();
-		$this->Customitem = $resultItem;
+		$this->Customitem = $result;
 		return true;
-		
+
 	}
 	
 	public function processSlotChange(Transaction $transaction): bool{
