@@ -123,6 +123,8 @@ abstract class BaseInventory implements Inventory{
 			return false;
 		}elseif($item->getId() === 0 or $item->getCount() <= 0){
 			return $this->clear($index);
+		}elseif($item->getCount() > $item->getMaxStackSize()){
+			return false;
 		}
 
 		$holder = $this->getHolder();
