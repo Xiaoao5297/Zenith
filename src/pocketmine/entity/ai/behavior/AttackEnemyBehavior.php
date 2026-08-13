@@ -39,7 +39,7 @@ class AttackEnemyBehavior extends Behavior{
         $minDist = $this->lookDistance;
 
         foreach($entities as $entity){
-            if(!$entity->isAlive()) continue;
+            if($entity === $this->entity or !$entity->isAlive()) continue;
             $dist = $this->entity->distance($entity);
             if($dist < $minDist and in_array($entity::NETWORK_ID, $this->NetworkID, true)){
                 $this->enemy = $entity;

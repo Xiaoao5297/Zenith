@@ -29,7 +29,7 @@ class PigZombie extends Monster{
 	public function initEntity(){
 		$this->setMaxHealth(20);
 
-		$this->addBehavior(new AttackEnemyBehavior($this, [20], true));
+		$this->addBehavior(new AttackEnemyBehavior($this, [], true));
 		$this->addBehavior(new StrollBehavior($this));
 		$this->addBehavior(new RandomLookAroundBehavior($this));
 
