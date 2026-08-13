@@ -3790,6 +3790,22 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					$result = $recipe->getResult();
 				}
 
+				if(\pocketmine\DEBUG > 0){
+					$dbg = "[craft-debug] ".$this->getName()." canCraft=".($canCraft?"1":"0")." ingredients=[";
+					foreach($ingredients as $ig){
+						$dbg .= ($ig instanceof Item ? ($ig->getId().":".($ig->getDamage() === null ? "-1" : $ig->getDamage())."x".$ig->getCount()) : "null").",";
+					}
+					$dbg .= "] result=".($result instanceof Item ? ($result->getId().":".$result->getDamage()."x".$result->getCount()) : "null");
+					$dbg .= " | inventory=";
+					$first = true;
+					foreach($this->inventory->getContents() as $idx => $iv){
+						if($iv->getId() === 0){ continue; }
+						$dbg .= ($first ? "" : ";").$idx."=".$iv->getId().":".($iv->getDamage() === null ? "-1" : $iv->getDamage())."x".$iv->getCount();
+						$first = false;
+					}
+					$this->server->getLogger()->info($dbg);
+				}
+
 				if(!$canCraft or !$recipe->getResult()->deepEquals($result)){
 					$this->server->getLogger()->debug("Unmatched recipe " . $recipe->getId() . " from player " . $this->getName() . ": expected " . $recipe->getResult() . ", got " . $result . ", using: " . implode(", ", $ingredients));
 					$this->inventory->sendContents($this);
@@ -3851,6 +3867,23 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					}
 				}
 
+				if(\pocketmine\DEBUG > 0){
+					$dbg = "[craft-debug] ".$this->getName()." CRAFT-OK used=[";
+					foreach($used as $slot => $count){
+						if($count > 0){
+							$dbg .= $slot.":".$count.",";
+						}
+					}
+					$dbg .= "] post-inventory=";
+					$first = true;
+					foreach($this->inventory->getContents() as $idx => $iv){
+						if($iv->getId() === 0){ continue; }
+						$dbg .= ($first ? "" : ";").$idx."=".$iv->getId().":".($iv->getDamage() === null ? "-1" : $iv->getDamage())."x".$iv->getCount();
+						$first = false;
+					}
+					$this->server->getLogger()->info($dbg);
+				}
+
 				switch($recipe->getResult()->getId()){
 					case Item::WORKBENCH:
 						$this->awardAchievement("buildWorkBench");
@@ -3892,7 +3925,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				if($this->spawned === false or $this->blocked === true or !$this->isAlive()){
 					break;
 				}
-				if(\pocketmine\DEBUG > 0 and $packet->windowid !== 0 and $packet->windowid !== ContainerSetContentPacket::SPECIAL_ARMOR){
+				if(\pocketmine\DEBUG > 0){
 					$it = $packet->item;
 					$this->server->getLogger()->info("[craft-debug] ".$this->getName()." SET_SLOT windowId=".$packet->windowid." slot=".$packet->slot." item="
 						.($it instanceof Item ? ($it->getId().":".($it->getDamage() === null ? "-1" : $it->getDamage())."x".$it->getCount()) : "null")
