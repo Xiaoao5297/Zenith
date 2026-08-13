@@ -1308,7 +1308,7 @@ class Item{
         // 修复行 - 添加严格的类型检查
         $this->meta = ($meta !== null && is_numeric($meta)) ? ((int)$meta) & 0xffff : null;
     
-        $this->count = $count;
+        $this->count = min(max(0, $count), $this->getMaxStackSize());
         $this->name = $name;
     
         if(!isset($this->block) && $this->id <= 0xff && isset(Block::$list[$this->id])){
@@ -1635,7 +1635,7 @@ class Item{
 	}
 
 	public function setCount(int $count){
-		$this->count = $count;
+		$this->count = min(max(0, $count), $this->getMaxStackSize());
 	}
 
 	final public function getName() : string{
