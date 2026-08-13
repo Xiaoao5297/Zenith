@@ -283,6 +283,11 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	
 	public $usingAnvil;
 
+	/** @var Item 最近一次合成结果, 用于拦截 Win10 客户端乐观合成的重复放置 */
+	public $lastCraftResult = null;
+	/** @var int */
+	public $lastCraftTime = 0;
+
 	private $batchedPackets = [];
 
 	/** @var PermissibleBase */
@@ -3867,6 +3872,12 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					}
 				}
 
+				//Win10 Java式客户端会本地乐观合成并在背包重复放置结果, 记录结果供
+				//CONTAINER_SET_SLOT 拦截, 并立即同步背包让客户端对齐服务端权威状态
+				$this->lastCraftResult = $recipe->getResult();
+				$this->lastCraftTime = microtime(true);
+				$this->inventory->sendContents($this);
+
 				if(\pocketmine\DEBUG > 0){
 					$dbg = "[craft-debug] ".$this->getName()." CRAFT-OK used=[";
 					foreach($used as $slot => $count){
@@ -3937,6 +3948,15 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 				if($packet->windowid === 0){ //Our inventory
 					if($packet->slot >= $this->inventory->getSize()){
+						break;
+					}
+					//Win10 Java式客户端在合成后会往空格里重复放置一次合成结果(乐观副本),
+					//服务端已通过 addItem 加入结果, 短窗口内拦截这种"往空格加结果"的包
+					if($this->lastCraftResult !== null and (microtime(true) - $this->lastCraftTime) < 2
+						and $packet->item->getId() > 0
+						and $packet->item->getCount() === $this->lastCraftResult->getCount()
+						and $packet->item->deepEquals($this->lastCraftResult)
+						and $this->inventory->getItem($packet->slot)->getId() === Item::AIR){
 						break;
 					}
 					/**/if($this->isCreative()){
