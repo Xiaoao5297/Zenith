@@ -3940,7 +3940,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					$it = $packet->item;
 					$this->server->getLogger()->info("[craft-debug] ".$this->getName()." SET_SLOT windowId=".$packet->windowid." slot=".$packet->slot." item="
 						.($it instanceof Item ? ($it->getId().":".($it->getDamage() === null ? "-1" : $it->getDamage())."x".$it->getCount()) : "null")
-						." craftingType=".$this->craftingType);
+						." craftingType=".$this->craftingType." gm=".$this->getGamemode());
 				}
 
 				if($packet->slot < 0){
@@ -3959,12 +3959,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 						and $this->inventory->getItem($packet->slot)->getId() === Item::AIR){
 						break;
 					}
-					/**/if($this->isCreative()){
-						if(Item::getCreativeItemIndex($packet->item) !== -1){
-							$this->inventory->setItem($packet->slot, $packet->item);
-							$this->inventory->setHotbarSlotIndex($packet->slot, $packet->slot); //links $hotbar[$packet->slot] to $slots[$packet->slot]
-						}
-					}/**/ //原注释
 					$transaction = new BaseTransaction($this->inventory, $packet->slot, $this->inventory->getItem($packet->slot), $packet->item);
 				}elseif($packet->windowid === ContainerSetContentPacket::SPECIAL_ARMOR){ //Our armor
 					if($packet->slot >= 4){
