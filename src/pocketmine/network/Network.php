@@ -231,6 +231,10 @@ class Network {
 				$pkLen = Binary::readInt(substr($str, $offset, 4));
 				$offset += 4;
 
+				if($pkLen <= 0 or $pkLen > ($len - $offset)){
+					break;
+				}
+
 				$buf = substr($str, $offset, $pkLen);
 
 				$offset += $pkLen;
