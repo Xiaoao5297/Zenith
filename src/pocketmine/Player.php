@@ -2530,6 +2530,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		//echo($packet::NETWORK_ID." 收包\n");
 		switch($packet::NETWORK_ID){
 			case ProtocolInfo::MAP_INFO_REQUEST_PACKET:
+				if($this->spawned === false or !is_numeric($packet->mapId)){
+					break;
+				}
 				if($this->server->MapData->haveMap($packet->mapId)){
 					$pk = new ClientboundMapItemDataPacket();
 					$pk->mapId = $packet->mapId;
