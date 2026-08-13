@@ -131,8 +131,9 @@ abstract class Mob extends Creature{
 
         $diff = $groundY - $dy;
         // 当 ground 高于 Y 足够时，触发跳跃/上升，避免卡住
+        // 0.42 为标准跳跃初速（可跳 1 格高）
         if($diff > 0 and $this->onGround){
-            $this->motionY = 0.35;
+            $this->motionY = 0.42;
         }elseif($diff < -1 and $this->onGround){
             $this->motionY = -0.15;
         }
