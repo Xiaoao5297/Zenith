@@ -498,6 +498,9 @@ namespace pocketmine {
 	$logger->shutdown();
 	$logger->join();
 
+	//pthreads: 进程退出前必须 join 所有线程, 否则段错误
+	$killer->quit();
+
 	echo "Server has stopped" . Terminal::$FORMAT_RESET . "\n";
 
 	exit(0);
