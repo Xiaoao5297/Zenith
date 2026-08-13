@@ -3630,6 +3630,19 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				if($this->spawned === false or !$this->isAlive()){
 					break;
 				}
+				if(\pocketmine\DEBUG > 0){
+					$dbg = "[craft-debug] ".$this->getName()." CRAFTING windowId=".$packet->windowId." type=".$packet->type." id=".$packet->id
+						." input(".(count($packet->input)).") [";
+					foreach($packet->input as $i => $item){
+						$dbg .= ($item instanceof Item ? ($item->getId().":".($item->getDamage() === null ? "-1" : $item->getDamage())."x".$item->getCount()) : "null").",";
+					}
+					$dbg .= "] output(".count($packet->output).") [";
+					foreach($packet->output as $i => $item){
+						$dbg .= ($item instanceof Item ? ($item->getId().":".($item->getDamage() === null ? "-1" : $item->getDamage())."x".$item->getCount()) : "null").",";
+					}
+					$dbg .= "]";
+					$this->server->getLogger()->info($dbg);
+				}
 				/*}elseif(!isset($this->windowIndex[$packet->windowId])){
 					$this->inventory->sendContents($this);
 					$pk = new ContainerClosePacket();
@@ -3638,6 +3651,10 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					break;
 				*/
 				$recipe = $this->server->getCraftingManager()->getRecipe($packet->id);
+				if(\pocketmine\DEBUG > 0){
+					$this->server->getLogger()->info("[craft-debug] ".$this->getName()." recipe=".($recipe === null ? "NULL" : get_class($recipe)." (".$recipe->getId().")")
+						." craftingType=".$this->craftingType);
+				}
 				if($this->usingAnvil == true){
 					$anvilInventory = $this->windowIndex[$packet->windowId] ?? null;
 					if($anvilInventory === null){
@@ -3874,6 +3891,12 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			case ProtocolInfo::CONTAINER_SET_SLOT_PACKET:
 				if($this->spawned === false or $this->blocked === true or !$this->isAlive()){
 					break;
+				}
+				if(\pocketmine\DEBUG > 0 and $packet->windowid !== 0 and $packet->windowid !== ContainerSetContentPacket::SPECIAL_ARMOR){
+					$it = $packet->item;
+					$this->server->getLogger()->info("[craft-debug] ".$this->getName()." SET_SLOT windowId=".$packet->windowid." slot=".$packet->slot." item="
+						.($it instanceof Item ? ($it->getId().":".($it->getDamage() === null ? "-1" : $it->getDamage())."x".$it->getCount()) : "null")
+						." craftingType=".$this->craftingType);
 				}
 
 				if($packet->slot < 0){
