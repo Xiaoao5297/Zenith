@@ -3642,19 +3642,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				if($this->spawned === false or !$this->isAlive()){
 					break;
 				}
-				if(\pocketmine\DEBUG > 0){
-					$dbg = "[craft-debug] ".$this->getName()." CRAFTING windowId=".$packet->windowId." type=".$packet->type." id=".$packet->id
-						." input(".(count($packet->input)).") [";
-					foreach($packet->input as $i => $item){
-						$dbg .= ($item instanceof Item ? ($item->getId().":".($item->getDamage() === null ? "-1" : $item->getDamage())."x".$item->getCount()) : "null").",";
-					}
-					$dbg .= "] output(".count($packet->output).") [";
-					foreach($packet->output as $i => $item){
-						$dbg .= ($item instanceof Item ? ($item->getId().":".($item->getDamage() === null ? "-1" : $item->getDamage())."x".$item->getCount()) : "null").",";
-					}
-					$dbg .= "]";
-					$this->server->getLogger()->info($dbg);
-				}
 				/*}elseif(!isset($this->windowIndex[$packet->windowId])){
 					$this->inventory->sendContents($this);
 					$pk = new ContainerClosePacket();
@@ -3663,10 +3650,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					break;
 				*/
 				$recipe = $this->server->getCraftingManager()->getRecipe($packet->id);
-				if(\pocketmine\DEBUG > 0){
-					$this->server->getLogger()->info("[craft-debug] ".$this->getName()." recipe=".($recipe === null ? "NULL" : get_class($recipe)." (".$recipe->getId().")")
-						." craftingType=".$this->craftingType);
-				}
 				if($this->usingAnvil == true){
 					$anvilInventory = $this->windowIndex[$packet->windowId] ?? null;
 					if($anvilInventory === null){
@@ -3802,22 +3785,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					$result = $recipe->getResult();
 				}
 
-				if(\pocketmine\DEBUG > 0){
-					$dbg = "[craft-debug] ".$this->getName()." canCraft=".($canCraft?"1":"0")." ingredients=[";
-					foreach($ingredients as $ig){
-						$dbg .= ($ig instanceof Item ? ($ig->getId().":".($ig->getDamage() === null ? "-1" : $ig->getDamage())."x".$ig->getCount()) : "null").",";
-					}
-					$dbg .= "] result=".($result instanceof Item ? ($result->getId().":".$result->getDamage()."x".$result->getCount()) : "null");
-					$dbg .= " | inventory=";
-					$first = true;
-					foreach($this->inventory->getContents() as $idx => $iv){
-						if($iv->getId() === 0){ continue; }
-						$dbg .= ($first ? "" : ";").$idx."=".$iv->getId().":".($iv->getDamage() === null ? "-1" : $iv->getDamage())."x".$iv->getCount();
-						$first = false;
-					}
-					$this->server->getLogger()->info($dbg);
-				}
-
 				if(!$canCraft or !$recipe->getResult()->deepEquals($result)){
 					$this->server->getLogger()->debug("Unmatched recipe " . $recipe->getId() . " from player " . $this->getName() . ": expected " . $recipe->getResult() . ", got " . $result . ", using: " . implode(", ", $ingredients));
 					$this->inventory->sendContents($this);
@@ -3887,23 +3854,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					}
 				}
 
-				if(\pocketmine\DEBUG > 0){
-					$dbg = "[craft-debug] ".$this->getName()." CRAFT-OK used=[";
-					foreach($used as $slot => $count){
-						if($count > 0){
-							$dbg .= $slot.":".$count.",";
-						}
-					}
-					$dbg .= "] post-inventory=";
-					$first = true;
-					foreach($this->inventory->getContents() as $idx => $iv){
-						if($iv->getId() === 0){ continue; }
-						$dbg .= ($first ? "" : ";").$idx."=".$iv->getId().":".($iv->getDamage() === null ? "-1" : $iv->getDamage())."x".$iv->getCount();
-						$first = false;
-					}
-					$this->server->getLogger()->info($dbg);
-				}
-
 				switch($recipe->getResult()->getId()){
 					case Item::WORKBENCH:
 						$this->awardAchievement("buildWorkBench");
@@ -3944,12 +3894,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			case ProtocolInfo::CONTAINER_SET_SLOT_PACKET:
 				if($this->spawned === false or $this->blocked === true or !$this->isAlive()){
 					break;
-				}
-				if(\pocketmine\DEBUG > 0){
-					$it = $packet->item;
-					$this->server->getLogger()->info("[craft-debug] ".$this->getName()." SET_SLOT windowId=".$packet->windowid." slot=".$packet->slot." item="
-						.($it instanceof Item ? ($it->getId().":".($it->getDamage() === null ? "-1" : $it->getDamage())."x".$it->getCount()) : "null")
-						." craftingType=".$this->craftingType." gm=".$this->getGamemode());
 				}
 
 				if($packet->slot < 0){
