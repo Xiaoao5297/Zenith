@@ -3868,12 +3868,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				//Win10 Java式客户端本地乐观合成: 结果已在鼠标上, 服务端若 addItem 会与
 				//客户端放置形成双份. 因此空 input 合成改为: 只扣原料, 记录结果, 放行客户端
 				//的"一次"结果放置(见 CONTAINER_SET_SLOT), 原料+结果数量守恒且不双份.
-				//合成后立即 sendContents 让客户端对齐服务端状态, 清掉 122 视图的幽灵残留
-				//(结果在鼠标上不随背包同步消失).
 				if(count($gridInput) === 0){
 					$this->lastCraftResult = $recipe->getResult();
 					$this->lastCraftTime = microtime(true);
-					$this->inventory->sendContents($this);
 				}else{
 					$extraItem = $this->inventory->addItem($recipe->getResult());
 					if(count($extraItem) > 0){
