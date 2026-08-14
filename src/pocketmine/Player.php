@@ -3872,11 +3872,11 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					}
 				}
 
-				//Win10 Java式客户端会本地乐观合成并在背包重复放置结果, 记录结果供
-				//CONTAINER_SET_SLOT 拦截, 并立即同步背包让客户端对齐服务端权威状态
+				//Win10 Java式客户端会本地乐观合成并在背包重复放置结果(乐观副本),
+				//记录结果供 CONTAINER_SET_SLOT 短窗口拦截, 避免服务端 addItem 之后
+				//客户端又把同一份结果塞进另一个空格造成双份.
 				$this->lastCraftResult = $recipe->getResult();
 				$this->lastCraftTime = microtime(true);
-				$this->inventory->sendContents($this);
 
 				if(\pocketmine\DEBUG > 0){
 					$dbg = "[craft-debug] ".$this->getName()." CRAFT-OK used=[";
