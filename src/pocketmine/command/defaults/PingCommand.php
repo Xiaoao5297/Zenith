@@ -11,12 +11,13 @@ use pocketmine\utils\TextFormat;
 
 class PingCommand extends VanillaCommand{
 
-    public function __construct($name){
+	public function __construct($name){
 		parent::__construct(
 			$name,
 			"PING玩家",
 			"/ping (player)"
 		);
+		$this->setPermission("pocketmine.command.ping");
 	}
 	
 	public function execute(CommandSender $sender, $commandLabel, array $args)
