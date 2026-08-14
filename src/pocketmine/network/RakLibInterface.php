@@ -188,8 +188,11 @@ class RakLibInterface implements ServerInstance, AdvancedSourceInterface{
 
 	public function handleOption($name, $value){
 		if($name === "bandwidth"){
-			$v = unserialize($value);
-			$this->network->addStatistics($v["up"], $v["down"], isset($v["cleaned"]) ? $v["cleaned"] : 0);
+			$v = @unserialize($value);
+			if(!is_array($v)){
+				return;
+			}
+			$this->network->addStatistics(isset($v["up"]) ? (int) $v["up"] : 0, isset($v["down"]) ? (int) $v["down"] : 0, isset($v["cleaned"]) ? (int) $v["cleaned"] : 0);
 		}
 	}
 
