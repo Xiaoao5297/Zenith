@@ -230,7 +230,11 @@ class SimpleCommandMap implements CommandMap{
 		return true;
 	}
 
-	private function dispatchAdvanced(CommandSender $sender, Command $command, $label, array $args, $offset = 0){
+	private function dispatchAdvanced(CommandSender $sender, Command $command, $label, array $args, $offset = 0, &$counter = 0){
+		//防止 /tp @a @a 之类的选择器组合产生 O(n²) 命令爆炸
+		if(++$counter > 1000){
+			return;
+		}
 		if(isset($args[$offset])){
 			$argsTemp = $args;
 			switch($args[$offset]){
