@@ -2951,20 +2951,29 @@ class Level implements ChunkManager, Metadatable{
 				}
 				$x = $wx & 0x0f;
 				$z = $wz & 0x0f;
-				$y = (int) min(126, $v->y);
-				$wasAir = ($chunk->getBlockId($x, $y - 1, $z) === 0);
-				for(; $y > 0; --$y){
-					$b = $chunk->getFullBlock($x, $y, $z);
+				//从世界顶部向下扫描寻找地表, 而不是从 spawn Y 开始: 当出生点位于
+				//地下洞穴/矿洞范围内时, 从 spawn Y 向下会扫到洞穴地板, 导致玩家
+				//生成到矿洞里而不是地表上. 同时跳过树叶/树干(避免生成到树顶).
+				$bestY = -1;
+				$wasAir = true;
+				for($yy = 126; $yy > 0; --$yy){
+					$b = $chunk->getFullBlock($x, $yy, $z);
 					$block = Block::get($b >> 4, $b & 0x0f);
 					if($this->isFullBlock($block)){
-						if($wasAir){
-							$y++;
+						if($wasAir and $block->getId() !== Block::LOG and $block->getId() !== Block::LEAVES){
+							$bestY = $yy;
 							break;
 						}
+						//树叶/树干等树木部分不视为地表, 继续向下
 					}else{
 						$wasAir = true;
 					}
 				}
+				//地表过深(明显低于出生海拔, 是洞穴/峡谷底)则跳过该偏移
+				if($bestY <= 0 or $bestY < $v->y - 24){
+					continue;
+				}
+				$y = $bestY + 1;
 
 				for(; $y >= 0 and $y < 128; ++$y){
 					$b = $chunk->getFullBlock($x, $y + 1, $z);
