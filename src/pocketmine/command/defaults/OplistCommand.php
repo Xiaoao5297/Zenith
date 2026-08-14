@@ -15,7 +15,7 @@ class OplistCommand extends VanillaCommand{
 			"列出管理员列表",
 			"/oplist"
 		);
-		$this->setPermission("");
+		$this->setPermission("pocketmine.command.oplist");
 	}
 	public function execute(CommandSender $sender, $currentAlias, array $args){
 	$arr = $sender->getServer()->OPlist();
