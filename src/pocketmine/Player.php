@@ -2546,8 +2546,15 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 				break;
 			case ProtocolInfo::ITEM_FRAME_DROP_ITEM_PACKET:
+				if($this->spawned === false or $this->blocked === true or !$this->isAlive()){
+					break;
+				}
 				$tile = $this->level->getTile($this->temporalVector->setComponents($packet->x, $packet->y, $packet->z));
 				if($tile instanceof ItemFrame){
+					if($this->distanceSquared($tile->add(0.5, 0.5, 0.5)) > ($this->server->interactDistance ** 2)){
+						$tile->spawnTo($this);
+						break;
+					}
 					$block = $this->level->getBlock($tile);
 					$this->server->getPluginManager()->callEvent($ev = new BlockBreakEvent($this, $block, $this->getInventory()->getItemInHand(), true));
 					if(!$ev->isCancelled()){
