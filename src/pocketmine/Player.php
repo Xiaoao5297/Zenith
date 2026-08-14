@@ -3865,18 +3865,20 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					$this->inventory->setItem($slot, $newItem);
 				}
 
-				$extraItem = $this->inventory->addItem($recipe->getResult());
-				if(count($extraItem) > 0){
-					foreach($extraItem as $item){
-						$this->level->dropItem($this, $item);
+				//Win10 Java式客户端本地乐观合成: 结果已在鼠标上, 服务端若 addItem 会与
+				//客户端放置形成双份. 因此空 input 合成改为: 只扣原料, 记录结果, 放行客户端
+				//的"一次"结果放置(见 CONTAINER_SET_SLOT), 原料+结果数量守恒且不双份.
+				if(count($gridInput) === 0){
+					$this->lastCraftResult = $recipe->getResult();
+					$this->lastCraftTime = microtime(true);
+				}else{
+					$extraItem = $this->inventory->addItem($recipe->getResult());
+					if(count($extraItem) > 0){
+						foreach($extraItem as $item){
+							$this->level->dropItem($this, $item);
+						}
 					}
 				}
-
-				//Win10 Java式客户端会本地乐观合成并在背包重复放置结果(乐观副本),
-				//记录结果供 CONTAINER_SET_SLOT 短窗口拦截, 避免服务端 addItem 之后
-				//客户端又把同一份结果塞进另一个空格造成双份.
-				$this->lastCraftResult = $recipe->getResult();
-				$this->lastCraftTime = microtime(true);
 
 				if(\pocketmine\DEBUG > 0){
 					$dbg = "[craft-debug] ".$this->getName()." CRAFT-OK used=[";
@@ -3950,14 +3952,20 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					if($packet->slot >= $this->inventory->getSize()){
 						break;
 					}
-					//Win10 Java式客户端在合成后会往空格里重复放置一次合成结果(乐观副本),
-					//服务端已通过 addItem 加入结果, 短窗口内拦截这种"往空格加结果"的包
+					//Win10 Java式客户端本地乐观合成: 结果已在鼠标上, 服务端只扣原料未
+					//addItem. 客户端放置合成结果(与记录的 id/damage 相同, 且该槽数量
+					//增加量等于结果数量)时放行一次, 使其作为结果的唯一来源, 不双份.
 					if($this->lastCraftResult !== null and (microtime(true) - $this->lastCraftTime) < 2
 						and $packet->item->getId() > 0
-						and $packet->item->getCount() === $this->lastCraftResult->getCount()
-						and $packet->item->deepEquals($this->lastCraftResult)
-						and $this->inventory->getItem($packet->slot)->getId() === Item::AIR){
-						break;
+						and $packet->item->getDamage() === $this->lastCraftResult->getDamage()
+						and $packet->item->deepEquals($this->lastCraftResult)){
+						$cur = $this->inventory->getItem($packet->slot);
+						$delta = $packet->item->getCount() - ($cur->getId() === $packet->item->getId() ? $cur->getCount() : 0);
+						if($delta === $this->lastCraftResult->getCount()){
+							$this->inventory->setItem($packet->slot, $packet->item);
+							$this->lastCraftResult = null;
+							break;
+						}
 					}
 					$transaction = new BaseTransaction($this->inventory, $packet->slot, $this->inventory->getItem($packet->slot), $packet->item);
 				}elseif($packet->windowid === ContainerSetContentPacket::SPECIAL_ARMOR){ //Our armor
