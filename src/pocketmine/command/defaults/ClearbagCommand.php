@@ -19,7 +19,7 @@ class ClearbagCommand extends VanillaCommand{
             "/clearbag <玩家名>", 
             []
         );
-        $this->setPermission("command.kill");
+        $this->setPermission("pocketmine.command.clearbag");
     }
 
     public function execute(CommandSender $sender, $currentAlias, array $args){
