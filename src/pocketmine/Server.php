@@ -2358,7 +2358,8 @@ private function lookupAddress($address) {
 					// 为每个协议版本创建新的数据包实例
 					$packet = clone $p;
 					$packet->setProtocol($protocol);
-					if(!$packet->isEncoded){
+					if(!$packet->isEncoded or $packet->encodedProtocol !== $packet->protocol){
+						$packet->isEncoded = false;
 						$packet->encode();
 					}
 					$str .= Binary::writeInt(strlen($packet->buffer)) . $packet->buffer;
@@ -2872,7 +2873,10 @@ private function lookupAddress($address) {
 	}
 
 	public function sendRecipeList(Player $p){
-		$p->dataPacket($this->recipeList);
+		$pk = clone $this->recipeList;
+		$pk->setProtocol($p->getProtocol());
+		$pk->isEncoded = false;
+		$p->dataPacket($pk);
 	}
 	
 	public function Oplist(){
