@@ -6,6 +6,9 @@ use pocketmine\event\player\PlayerCreationEvent;
 use pocketmine\network\protocol\DataPacket;
 use pocketmine\network\protocol\Info as ProtocolInfo;
 use pocketmine\network\protocol\Info;
+use pocketmine\network\protocol\ProtocolCompatibility;
+use pocketmine\network\protocol\v11\BatchPacket as BatchPacketV11;
+use pocketmine\network\protocol\v11\Info as InfoV11;
 use pocketmine\Player;
 use pocketmine\Server;
 use pocketmine\utils\Config;
@@ -122,10 +125,18 @@ class RakLibInterface implements ServerInstance, AdvancedSourceInterface{
 		if(isset($this->players[$identifier])){
 			try{
 				if($packet->buffer !== ""){
-					$pk = $this->getPacket($packet->buffer);
+					$pk = $this->getPacket($packet->buffer, $this->players[$identifier]);
 					if($pk !== null){
+						$pk->protocol = (int) $this->players[$identifier]->getProtocol();
 						$pk->decode();
-						$this->players[$identifier]->handleDataPacket($pk);
+						if($pk instanceof BatchPacketV11){
+							$this->network->processBatch($pk, $this->players[$identifier]);
+							return;
+						}
+						$pk = DataPacketManager::toCorePacket($pk);
+						if($pk instanceof DataPacket){
+							$this->players[$identifier]->handleDataPacket($pk);
+						}
 					}
 				}
 			}catch(\Throwable $e){
@@ -200,18 +211,19 @@ class RakLibInterface implements ServerInstance, AdvancedSourceInterface{
 		if(isset($this->identifiers[$h = spl_object_hash($player)])){
 			$identifier = $this->identifiers[$h];
 			$pk = null;
-			
+
+			$protocol = (int) $player->getProtocol();
 			// 为每个玩家设置正确的协议版本
-			$packet->setProtocol($player->getProtocol());
+			$packet->setProtocol($protocol);
 			
-			if(!$packet->isEncoded){
+			// 缓存包(如配方表)编码时的协议与当前玩家不符时, 需按当前协议重新编码
+			if(!$packet->isEncoded or $packet->encodedProtocol !== $packet->protocol){
+				$packet->isEncoded = false;
 				$packet->encode();
-			}elseif(!$needACK){
-				// 不使用缓存的数据包，而是为每个玩家重新编码
-				// 这样可以确保不同协议版本的玩家收到正确的数据包格式
 			}
 
 			if(!$immediate and !$needACK and $packet::NETWORK_ID !== ProtocolInfo::BATCH_PACKET
+				and !($packet instanceof BatchPacketV11 and $packet::NETWORK_ID === InfoV11::BATCH_PACKET)
 				and Network::$BATCH_THRESHOLD >= 0
 				and strlen($packet->buffer) >= Network::$BATCH_THRESHOLD){
 				$this->server->batchPackets([$player], [$packet], true);
@@ -219,17 +231,11 @@ class RakLibInterface implements ServerInstance, AdvancedSourceInterface{
 			}
 
 			if($pk === null){
-				if(in_array($player->getProtocol(), ProtocolInfo::ACCEPTED_013_PROTOCOLS)){
-					$pk = new EncapsulatedPacket();
-					$pk->buffer = $packet->buffer;
-					$pk->reliability = 3;
-					$pk->orderChannel = 0;
-				}else{
-					$pk = new EncapsulatedPacket();
-					$pk->buffer = chr(0x8e) . $packet->buffer;
-					$pk->reliability = 3;
-					$pk->orderChannel = 0;
-				}
+				$packetPrefix = ProtocolCompatibility::getRakLibPacketPrefix($protocol);
+				$pk = new EncapsulatedPacket();
+				$pk->buffer = $packetPrefix . $packet->buffer;
+				$pk->reliability = 3;
+				$pk->orderChannel = 0;
 
 				if($needACK === true){
 					$pk->identifierACK = $this->identifiersACK[$identifier]++;
@@ -244,18 +250,39 @@ class RakLibInterface implements ServerInstance, AdvancedSourceInterface{
 		return null;
 	}
 
-	private function getPacket($buffer){
-		$pid = ord($buffer[1]);
+	private function getPacket($buffer, Player $player = null){
+		if($buffer === ""){
+			return null;
+		}
 
-		if(($data = $this->network->getPacket($pid)) === null){
-			$pid = ord($buffer[0]);
-			if(($data = $this->network->getPacket($pid)) === null){
+		$playerProtocol = $player !== null ? $player->getProtocol() : null;
+		$protocol = $playerProtocol === null ? -1 : (int) $playerProtocol;
+		$first = ord($buffer[0]);
+		$lookupProtocol = $protocol;
+		if($first === 0xfe){
+			if(strlen($buffer) < 2){
 				return null;
 			}
-			$data->setBuffer($buffer, 1);
-			return $data;
+			$pid = ord($buffer[1]);
+			$packetOffset = 2;
+		}elseif($first === 0x8e and !ProtocolCompatibility::isProtocol011($protocol)){
+			if(strlen($buffer) < 2){
+				return null;
+			}
+			$pid = ord($buffer[1]);
+			$packetOffset = 2;
+		}else{
+			$pid = $first;
+			$packetOffset = 1;
+			if(ProtocolCompatibility::isProtocol011($protocol) or ($protocol < 0 and ($pid === InfoV11::LOGIN_PACKET or $pid === InfoV11::BATCH_PACKET))){
+				$lookupProtocol = InfoV11::CURRENT_PROTOCOL;
+			}
 		}
-		$data->setBuffer($buffer, 2);
+
+		if(($data = $this->network->getPacket($pid, $lookupProtocol)) === null){
+			return null;
+		}
+		$data->setBuffer($buffer, $packetOffset);
 
 		return $data;
 	}

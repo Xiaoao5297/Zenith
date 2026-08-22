@@ -65,6 +65,9 @@ use pocketmine\network\protocol\UseItemPacket;
 use pocketmine\network\protocol\PlayerListPacket;
 use pocketmine\network\protocol\PlayerInputPacket;
 use pocketmine\network\protocol\MapInfoRequestPacket;
+use pocketmine\network\protocol\ProtocolCompatibility;
+use pocketmine\network\protocol\v11\BatchPacket as BatchPacketV11;
+use pocketmine\network\protocol\v11\Info as InfoV11;
 use pocketmine\Player;
 use pocketmine\Server;
 use pocketmine\utils\Binary;
@@ -95,6 +98,9 @@ class Network {
 
 	/** @var \SplFixedArray */
 	private $packetPool;
+
+	/** @var \SplFixedArray */
+	private $v11PacketPool;
 
 	/** @var Server */
 	private $server;
@@ -218,11 +224,20 @@ class Network {
 		$this->packetPool[$id] = new $class;
 	}
 
+	public function registerV11Packet($id, $class) {
+		$this->v11PacketPool[$id] = new $class;
+	}
+
 	public function getServer() {
 		return $this->server;
 	}
 
 	public function processBatch(BatchPacket $packet, Player $p) {
+		if($packet instanceof BatchPacketV11 or ProtocolCompatibility::isProtocol011((int) $p->getProtocol())){
+			$this->processProtocol011Batch($packet, $p);
+			return;
+		}
+
 		$str = zlib_decode($packet->payload, 1024 * 1024 * 64); //Max 64MB
 		$len = strlen($str);
 		$offset = 0;
@@ -239,30 +254,25 @@ class Network {
 
 				$offset += $pkLen;
 
-				if (($pk = $this->getPacket(ord($buf[1]))) !== null) {
-					if ($pk::NETWORK_ID === Info::BATCH_PACKET) {
+				$header = ProtocolCompatibility::readPacketHeader($buf);
+				if($header === null){
+					continue;
+				}
+				list($pid, $packetOffset) = $header;
+				if(($pk = $this->getPacket($pid, (int) $p->getProtocol())) !== null){
+					if($pk::NETWORK_ID === Info::BATCH_PACKET or $pk::NETWORK_ID === protocol\v84\InfoV84::BATCH_PACKET){
 						throw new \InvalidStateException("Invalid BatchPacket inside BatchPacket");
 					}
 
-					$pk->setBuffer($buf, 2);
+					$pk->protocol = (int) $p->getProtocol();
+					$pk->setBuffer($buf, $packetOffset);
 
 					$pk->decode();
+					$decodedOffset = $pk->getOffset();
+					$pk = DataPacketManager::toCorePacket($pk);
 					$p->handleDataPacket($pk);
 
-					if ($pk->getOffset() <= 0) {
-						return;
-					}
-				}elseif(($pk = $this->getPacket(ord($buf[0]))) !== null){
-					if ($pk::NETWORK_ID === Info::BATCH_PACKET) {
-						throw new \InvalidStateException("Invalid BatchPacket inside BatchPacket");
-					}
-
-					$pk->setBuffer($buf, 1);
-
-					$pk->decode();
-					$p->handleDataPacket($pk);
-
-					if ($pk->getOffset() <= 0) {
+					if($decodedOffset <= 0){
 						return;
 					}
 				}
@@ -278,15 +288,73 @@ class Network {
 		}
 	}
 
+	private function processProtocol011Batch($packet, Player $p) {
+		if(!$packet instanceof BatchPacket and !$packet instanceof BatchPacketV11){
+			return;
+		}
+
+		$str = zlib_decode($packet->payload, 1024 * 1024 * 64);
+		if($str === false){
+			return;
+		}
+
+		$len = strlen($str);
+		$offset = 0;
+		$protocol = ProtocolCompatibility::isProtocol011((int) $p->getProtocol()) ? (int) $p->getProtocol() : InfoV11::CURRENT_PROTOCOL;
+		try{
+			while($offset < $len){
+				$pid = ord($str[$offset++]);
+				if(($pk = $this->getPacket($pid, $protocol)) === null){
+					continue;
+				}
+
+				$decodedOffset = $this->handleProtocol011BatchPacket($pk, $str, $offset, $p);
+				if($decodedOffset <= $offset){
+					break;
+				}
+				$offset = $decodedOffset;
+			}
+		}catch(\Throwable $e){
+			if(\pocketmine\DEBUG > 1){
+				$logger = $this->server->getLogger();
+				if($logger instanceof MainLogger){
+					$logger->debug("V11 BatchPacket 0x" . bin2hex($packet->payload));
+					$logger->logException($e);
+				}
+			}
+		}
+	}
+
+	private function handleProtocol011BatchPacket($pk, string $buffer, int $packetOffset, Player $p) : int{
+		if($pk::NETWORK_ID === InfoV11::BATCH_PACKET){
+			throw new \InvalidStateException("Invalid v11 BatchPacket inside BatchPacket");
+		}
+
+		$pk->setBuffer($buffer, $packetOffset);
+		$pk->decode();
+		$decodedOffset = $pk->getOffset();
+		if($decodedOffset <= $packetOffset){
+			return $decodedOffset;
+		}
+
+		$corePacket = DataPacketManager::toCorePacket($pk);
+		if($corePacket instanceof DataPacket){
+			$p->handleDataPacket($corePacket);
+		}
+
+		return $decodedOffset;
+	}
+
 	/**
 	 * @param $id
 	 *
 	 * @return DataPacket
 	 */
-	public function getPacket($id) {
+	public function getPacket($id, int $protocol = null) {
+		$isInitialV11Packet = $protocol !== null && $protocol < 0 && $id === InfoV11::BATCH_PACKET;
 		/** @var DataPacket $class */
-		$class = $this->packetPool[$id];
-		if ($class !== null) {
+		$class = (ProtocolCompatibility::isProtocol011((int) $protocol) or $isInitialV11Packet) ? $this->v11PacketPool[$id] : $this->packetPool[$id];
+		if($class !== null){
 			return clone $class;
 		}
 		return null;
@@ -318,6 +386,11 @@ class Network {
 
 	private function registerPackets() {
 		$this->packetPool = new \SplFixedArray(256);
+		$this->v11PacketPool = new \SplFixedArray(256);
+
+		foreach(DataPacketManager::getProtocol011PacketMap() as $id => $class){
+			$this->registerV11Packet($id, $class);
+		}
 
 		$this->registerPacket(ProtocolInfo::LOGIN_PACKET, LoginPacket::class);
 		$this->registerPacket(ProtocolInfo::PLAY_STATUS_PACKET, PlayStatusPacket::class);

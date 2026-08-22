@@ -17,6 +17,7 @@ abstract class DataPacket extends BinaryStream{
     public $isEncoded = false;
     private $channel = 0;
     public $protocol = 0;  // 添加这行
+    public $encodedProtocol = 0; // encode() 时使用的协议版本, 用于判断缓存包是否需要按新协议重新编码
     
     public function pid(){
         return $this::NETWORK_ID;
@@ -34,6 +35,7 @@ abstract class DataPacket extends BinaryStream{
     public function reset(){
         $this->buffer = chr($this::NETWORK_ID);
         $this->offset = 0;
+        $this->encodedProtocol = $this->protocol;
     }
     
     public function setChannel($channel){
@@ -49,11 +51,12 @@ abstract class DataPacket extends BinaryStream{
         $this->buffer = null;
         $this->isEncoded = false;
         $this->offset = 0;
+        $this->encodedProtocol = 0;
         return $this;
     }
     
     // 添加针对不同协议版本的putSlot方法
-    public function putSlot($item){
+    public function putSlot($item, bool $legacy013 = false){
         if($item === null || $item->getId() === 0){
             $this->putShort(0);
             return;
@@ -65,7 +68,7 @@ abstract class DataPacket extends BinaryStream{
         $nbt = $item->getCompoundTag();
         
         // 0.12/0.13 使用大端short NBT长度, 0.14+ 使用小端short
-        if(ProtocolCompatibility::usesLegacySlotFormat((int) ($this->protocol ?? 0))){
+        if($legacy013 or ProtocolCompatibility::usesLegacySlotFormat((int) ($this->protocol ?? 0))){
             $this->putShort(strlen($nbt));
         } else {
             $this->putLShort(strlen($nbt));
@@ -75,7 +78,7 @@ abstract class DataPacket extends BinaryStream{
     }
     
     // 添加针对不同协议版本的getSlot方法
-    public function getSlot(){
+    public function getSlot(bool $legacy013 = false){
         $id = $this->getSignedShort();
 
         if($id <= 0){
@@ -86,7 +89,7 @@ abstract class DataPacket extends BinaryStream{
         $data = $this->getShort();
         
         // 0.12/0.13 使用大端short NBT长度, 0.14+ 使用小端short
-        if(ProtocolCompatibility::usesLegacySlotFormat((int) ($this->protocol ?? 0))){
+        if($legacy013 or ProtocolCompatibility::usesLegacySlotFormat((int) ($this->protocol ?? 0))){
             $nbtLen = $this->getShort();
         } else {
             $nbtLen = $this->getLShort();
