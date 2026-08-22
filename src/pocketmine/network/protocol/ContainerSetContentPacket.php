@@ -39,62 +39,17 @@ class ContainerSetContentPacket extends DataPacket{
 	public function encode(){
 		$this->reset();
 		$this->putByte($this->windowid);
-		
-		// 根据协议版本处理
-		$is013 = in_array($this->protocol, [31, 37, 38, 39]);
-		
-		if($is013){
-			// 0.13版本：使用特定的物品数据格式
-			$this->putShort(count($this->slots));
-			
-			foreach($this->slots as $slot){
-				if($slot === null || $slot->getId() === 0){
-					// 0.13版本的空槽位格式
-					$this->putShort(-1);
-					$this->putByte(0);
-					$this->putShort(0);
-				} else {
-					// 0.13版本的物品数据格式
-					$itemId = $slot->getId();
-					// 确保物品ID在0.13版本的有效范围内
-					if($itemId > 255){
-						$itemId = 255; // 限制在0.13版本的有效范围内
-					}
-					
-					$this->putShort($itemId);
-					$this->putByte($slot->getCount());
-					$this->putShort($slot->getDamage() === null ? 0 : $slot->getDamage());
-					// 0.13版本不发送NBT数据
-				}
+		$this->putShort(count($this->slots));
+		foreach($this->slots as $slot){
+			$this->putSlot($slot);
+		}
+		if($this->windowid === self::SPECIAL_INVENTORY and count($this->hotbar) > 0){
+			$this->putShort(count($this->hotbar));
+			foreach($this->hotbar as $slot){
+				$this->putInt($slot);
 			}
-			
-			// 0.13版本不发送hotbar数据
+		}else{
 			$this->putShort(0);
-		} else {
-			// 0.14版本：正常处理
-			$this->putShort(count($this->slots));
-			
-			foreach($this->slots as $slot){
-				if($slot === null || $slot->getId() === 0){
-					$this->putShort(0);
-				} else {
-					$this->putShort($slot->getId());
-					$this->putByte($slot->getCount());
-					$this->putShort($slot->getDamage() === null ? -1 : $slot->getDamage());
-					$nbt = $slot->getCompoundTag();
-					$this->putLShort(strlen($nbt));
-					$this->put($nbt);
-				}
-			}
-			
-			if($this->windowid === self::SPECIAL_INVENTORY and count($this->hotbar) > 0){
-				$this->putShort(count($this->hotbar));
-				foreach($this->hotbar as $slot){
-					$this->putInt($slot);
-				}
-			}else{
-				$this->putShort(0);
-			}
 		}
 	}
 

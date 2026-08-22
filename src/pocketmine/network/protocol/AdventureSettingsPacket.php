@@ -26,13 +26,7 @@ class AdventureSettingsPacket extends DataPacket{
     public function encode(){
         $this->reset();
         $this->putInt($this->flags);
-        
-        // 根据协议版本
-        if(in_array($this->protocol, [31, 37, 38, 39])){ // 0.13
-            // 0.13只有flags，不发送后面两个字段
-        } else { // 0.14
-            $this->putInt($this->userPermission);
-            $this->putInt($this->globalPermission);
-        }
+        $this->putInt($this->userPermission);
+        $this->putInt($this->globalPermission);
     }
 }

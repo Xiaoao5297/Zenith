@@ -24,10 +24,6 @@ class StartGamePacket extends DataPacket{
     }
     
 public function encode(){
-    // error_log("=== StartGamePacket编码开始 ===");
-    // error_log("协议版本: " . $this->protocol);
-    // error_log("是否为0.13: " . (in_array($this->protocol, [31, 37, 38, 39]) ? "是" : "否"));
-    
     $this->reset();
     $this->putInt($this->seed);
     $this->putByte($this->dimension);
@@ -40,22 +36,15 @@ public function encode(){
     $this->putFloat($this->x);
     $this->putFloat($this->y);
     $this->putFloat($this->z);
-    
-    // 添加更多调试
-    $is013 = in_array($this->protocol, [31, 37, 38, 39]);
-    // error_log("使用格式: " . ($is013 ? "0.13" : "0.14"));
-    
-    if($is013){ // 0.13协议
+
+    // 0.12/0.13 用旧格式, 0.14+ 用新格式
+    if(ProtocolCompatibility::usesLegacySlotFormat((int) ($this->protocol ?? 0))){ // 0.12/0.13协议
         $this->putByte(0);
-        // error_log("写入: putByte(0)");
     } else { // 0.14协议
         $this->putByte(1);
         $this->putByte(1);
         $this->putByte(0);
         $this->putString($this->unknown);
-        // error_log("写入: putByte(1), putByte(1), putByte(0), putString('{$this->unknown}')");
     }
-    
-    // error_log("=== StartGamePacket编码结束 ===");
 }
 }

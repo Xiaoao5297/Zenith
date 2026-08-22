@@ -28,7 +28,7 @@ class LoginPacket extends DataPacket{
 		}
 		$this->protocol1 = $this->getInt();
 		$this->protocol2 = $this->getInt();
-		if($this->protocol1 < 45 or $this->protocol1 > 70){
+		if($this->protocol1 < 21 or $this->protocol1 > 70){
 			$this->setBuffer(null, 0);
 			return;
 		}
@@ -36,8 +36,10 @@ class LoginPacket extends DataPacket{
 		$this->clientUUID = $this->getUUID();
 		$this->serverAddress = $this->getString();
 		$this->clientSecret = $this->getString();
-		if($this->protocol1 == 34){
-			$this->skinName = $this->getByte() > 0;
+		if(ProtocolCompatibility::isProtocol012((int) $this->protocol1)){
+			// 0.12 皮肤格式: slim标志 + 皮肤数据
+			$this->slim = $this->getByte() > 0;
+			$this->skinName = $this->slim ? "Standard_Alex" : "Standard_Steve";
 			$this->skin = $this->getString();
 		}else{
 			$this->skinName = $this->getString();

@@ -25,16 +25,9 @@ class SetTimePacket extends DataPacket{
 	}
 	*/
 	public function encode(){
-    $this->reset();
-    
-    if(in_array($this->protocol, [31, 37, 38, 39])){ // 0.13
-            // 0.13可能使用不同的时间格式
-            $this->putInt((int) (($this->time / 19200) * 19200));
-        } else { // 0.14
-            $this->putInt($this->time);
-        }
-        
-        $this->putByte($this->started ? 1 : 0);
-    }
+		$this->reset();
+		$this->putInt($this->time);
+		$this->putByte($this->started ? 1 : 0);
+	}
 
 }

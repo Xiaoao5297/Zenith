@@ -39,12 +39,11 @@ class ContainerOpenPacket extends DataPacket{
         $this->putInt($this->x);
         $this->putInt($this->y);
         $this->putInt($this->z);
-        
-        // 根据协议版本
-        if(!in_array($this->protocol, [31, 37, 38, 39])){ // 0.14+
+
+        // 0.12 不发 entityId, 0.13+ 发送
+        if(!ProtocolCompatibility::isProtocol012((int) ($this->protocol ?? 0))){
             $this->putLong($this->entityId);
         }
-        // 0.13不发送entityId
     }
 
 }
