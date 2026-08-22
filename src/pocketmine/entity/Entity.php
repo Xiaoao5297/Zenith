@@ -110,8 +110,8 @@ abstract class Entity extends Location implements Metadatable{
     const DATA_PLAYER_FLAGS = 16;
     const DATA_PLAYER_BED_POSITION = 17;
     
-    const DATA_LEAD_HOLDER = 0x00;
-    const DATA_LEAD = 0x00;
+    const DATA_LEAD_HOLDER = 23;
+    const DATA_LEAD = 24;
     
     const SOUTH = 0;
     const WEST = 1;

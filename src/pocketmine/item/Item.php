@@ -529,6 +529,15 @@ class Item{
 	const PUFFER_FISH = 462;
 	const COOKED_SALMON = 463;
 
+	const RAW_MUTTON = 423;
+	const COOKED_MUTTON = 424;
+	const CARROT_ON_A_STICK = 398;
+
+	const STICKY_PISTON = 29;
+	const PISTON = 33;
+	const PISTON_HEAD = 34;
+	const OBSERVER = 251;
+
 	const ENCHANTED_GOLDEN_APPLE = 466;
 	
 	const MINECART_WITH_CHEST = 342, CHEST_MINECART = 342;
