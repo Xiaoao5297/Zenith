@@ -2351,20 +2351,49 @@ private function lookupAddress($address) {
 		
 		// 为每个协议版本的玩家创建单独的数据包
 		foreach($playersByProtocol as $protocol => $protocolPlayers){
+			$is011 = \pocketmine\network\protocol\ProtocolCompatibility::isProtocol011((int) $protocol);
 			$str = "";
 			
 			foreach($packets as $p){
-				if($p instanceof DataPacket){
-					// 为每个协议版本创建新的数据包实例
-					$packet = clone $p;
-					$packet->setProtocol($protocol);
-					if(!$packet->isEncoded or $packet->encodedProtocol !== $packet->protocol){
-						$packet->isEncoded = false;
-						$packet->encode();
+				if($p instanceof \pocketmine\network\protocol\v11\DataPacket){
+					// 已转换的 v11 包(来自 batchDataPacket)
+					if($is011){
+						if(!$p->isEncoded or $p->encodedProtocol !== $protocol){
+							$p->isEncoded = false;
+							$p->setProtocol($protocol);
+							$p->encode();
+						}
+						$str .= $p->buffer;
 					}
-					$str .= Binary::writeInt(strlen($packet->buffer)) . $packet->buffer;
+				}elseif($p instanceof DataPacket){
+					if($is011){
+						// 0.11 批负载: 核心包转 v11 后直接拼接(无长度前缀)
+						$packet011 = DataPacketManager::toProtocol011Packet($p, null);
+						if($packet011 !== null){
+							if(!$packet011->isEncoded or $packet011->encodedProtocol !== $protocol){
+								$packet011->isEncoded = false;
+								$packet011->setProtocol($protocol);
+								$packet011->encode();
+							}
+							$str .= $packet011->buffer;
+						}
+					}else{
+						// 为每个协议版本创建新的数据包实例
+						$packet = clone $p;
+						$packet->setProtocol($protocol);
+						if(!$packet->isEncoded or $packet->encodedProtocol !== $packet->protocol){
+							$packet->isEncoded = false;
+							$packet->encode();
+						}
+						$str .= Binary::writeInt(strlen($packet->buffer)) . $packet->buffer;
+					}
 				}else{
-					$str .= Binary::writeInt(strlen($p)) . $p;
+					if($is011){
+						// 0.11: 已编码的缓冲需重映射为 v11
+						$str .= DataPacketManager::remapPacketBufferToProtocol011($p, $protocolPlayers[0]);
+					}else{
+						$str .= Binary::writeInt(strlen($p)) . $p;
+					}
 				}
 			}
 			
@@ -2373,7 +2402,10 @@ private function lookupAddress($address) {
 				$targets[] = $this->identifiers[spl_object_hash($p)];
 			}
 			
-			if(!$forceSync and $this->networkCompressionAsync){
+			if($is011){
+				// 0.11: 压缩后用 v11 BatchPacket 直接发送
+				$this->broadcastPacketsCallbackV11(zlib_encode($str, ZLIB_ENCODING_DEFLATE, $this->networkCompressionLevel), $targets);
+			}elseif(!$forceSync and $this->networkCompressionAsync){
 				$task = new CompressBatchedTask($str, $targets, $this->networkCompressionLevel);
 				$this->getScheduler()->scheduleAsyncTask($task);
 			}else{
@@ -2382,6 +2414,19 @@ private function lookupAddress($address) {
 		}
 
 		Timings::$playerNetworkTimer->stopTiming();
+	}
+
+	public function broadcastPacketsCallbackV11($data, array $identifiers){
+		$pk = new \pocketmine\network\protocol\v11\BatchPacket();
+		$pk->payload = $data;
+		$pk->encode();
+		$pk->isEncoded = true;
+
+		foreach($identifiers as $i){
+			if(isset($this->players[$i])){
+				$this->players[$i]->dataPacketProtocol011($pk);
+			}
+		}
 	}
 
 	public function broadcastPacketsCallback($data, array $identifiers){

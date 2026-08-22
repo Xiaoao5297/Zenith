@@ -129,6 +129,7 @@ use pocketmine\nbt\tag\ShortTag;
 use pocketmine\nbt\tag\StringTag;
 use pocketmine\network\DataPacketManager;
 use pocketmine\network\Network;
+use pocketmine\network\protocol\ProtocolCompatibility;
 use pocketmine\network\protocol\AdventureSettingsPacket;
 use pocketmine\network\protocol\AnimatePacket;
 use pocketmine\network\protocol\BatchPacket;
@@ -2518,6 +2519,36 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 	public function getProtocol(){
 		return $this->protocol;
+	}
+
+	private function isProtocol011Player() : bool{
+		return ProtocolCompatibility::isProtocol011((int) ($this->protocol ?? 0));
+	}
+
+	public function dataPacketProtocol011(\pocketmine\network\protocol\v11\DataPacket $packet, $needACK = false, $immediate = false){
+		if(!$this->connected or $this->hasTransferred or !$this->isProtocol011Player()){
+			return false;
+		}
+
+		$timings = Timings::getSendDataPacketTimings($packet);
+		$timings->startTiming();
+
+		$this->server->getPluginManager()->callEvent($ev = new DataPacketSendEvent($this, $packet));
+		if($ev->isCancelled()){
+			$timings->stopTiming();
+			return false;
+		}
+
+		$identifier = $this->interface->putPacket($this, $packet, $needACK, $immediate);
+		if($needACK and $identifier !== null){
+			$this->needACK[$identifier] = false;
+
+			$timings->stopTiming();
+			return $identifier;
+		}
+
+		$timings->stopTiming();
+		return true;
 	}
 
 	/**
