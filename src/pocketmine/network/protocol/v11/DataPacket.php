@@ -43,10 +43,17 @@ abstract class DataPacket extends \stdClass{
 	public $offset = 0;
 	public $buffer = "";
 	public $isEncoded = \false;
+	public $protocol = 0;
+	public $encodedProtocol = 0;
 	private $channel = 0;
 
 	public function pid(){
 		return $this::NETWORK_ID;
+	}
+
+	public function setProtocol($protocol){
+		$this->protocol = $protocol;
+		return $this;
 	}
 
 	abstract public function encode();
@@ -56,6 +63,7 @@ abstract class DataPacket extends \stdClass{
 	protected function reset(){
 		$this->buffer = \chr($this::NETWORK_ID);
 		$this->offset = 0;
+		$this->encodedProtocol = $this->protocol;
 	}
 
 	public function setChannel($channel){

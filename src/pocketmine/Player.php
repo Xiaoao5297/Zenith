@@ -127,6 +127,7 @@ use pocketmine\nbt\tag\IntTag;
 use pocketmine\nbt\tag\LongTag;
 use pocketmine\nbt\tag\ShortTag;
 use pocketmine\nbt\tag\StringTag;
+use pocketmine\network\DataPacketManager;
 use pocketmine\network\Network;
 use pocketmine\network\protocol\AdventureSettingsPacket;
 use pocketmine\network\protocol\AnimatePacket;
@@ -1143,6 +1144,11 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			return false;
 		}
 
+		$packet = DataPacketManager::parsePacket($this, $packet);
+		if($packet === null){
+			return false;
+		}
+
 		$timings = Timings::getSendDataPacketTimings($packet);
 		$timings->startTiming();
 		$this->server->getPluginManager()->callEvent($ev = new DataPacketSendEvent($this, $packet));
@@ -1170,6 +1176,12 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	 */
 	public function dataPacket(DataPacket $packet, $needACK = false){
 		if(!$this->connected or $this->hasTransferred){
+			return false;
+		}
+
+		// 按玩家协议版本转换出站包(0.11→v11, 0.12/0.13→核心包带钩子, 0.14+不变)
+		$packet = DataPacketManager::parsePacket($this, $packet);
+		if($packet === null){
 			return false;
 		}
 
@@ -1203,6 +1215,11 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	 */
 	public function directDataPacket(DataPacket $packet, $needACK = false){
 		if($this->connected === false or $this->hasTransferred){
+			return false;
+		}
+
+		$packet = DataPacketManager::parsePacket($this, $packet);
+		if($packet === null){
 			return false;
 		}
 
