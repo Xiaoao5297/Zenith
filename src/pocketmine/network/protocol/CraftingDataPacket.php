@@ -26,6 +26,39 @@ class CraftingDataPacket extends DataPacket{
 	public $entries = [];
 	public $cleanRecipes = false;
 
+	// 0.14/0.15 新增、0.12/0.13 客户端不认识的物品 ID, 含这些物品的配方不能下发给旧版本客户端, 否则渲染配方书时空指针崩溃
+	const ITEMS_013_UNSUPPORTED = [23, 93, 94, 95, 97, 118, 122, 125, 127, 132, 154, 165, 179, 180, 181, 182, 199, 329, 356, 358, 380, 389, 395, 407, 408, 410, 439, 460, 461, 462, 463];
+
+	private function isLegacyCompatible($entry){
+		$items = [];
+		if($entry instanceof ShapedRecipe){
+			$items[] = $entry->getResult();
+			foreach($entry->getIngredientMap() as $row){
+				foreach($row as $it){
+					$items[] = $it;
+				}
+			}
+		}elseif($entry instanceof ShapelessRecipe){
+			$items[] = $entry->getResult();
+			foreach($entry->getIngredientList() as $it){
+				$items[] = $it;
+			}
+		}elseif($entry instanceof FurnaceRecipe){
+			$items[] = $entry->getInput();
+			$items[] = $entry->getResult();
+		}else{
+			return true;
+		}
+
+		foreach($items as $it){
+			if($it !== null and $it->getId() !== 0 and in_array($it->getId(), self::ITEMS_013_UNSUPPORTED, true)){
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	private function writeEntry($entry, BinaryStream $stream, bool $legacy013){
 		if($entry instanceof ShapelessRecipe){
 			return self::writeShapelessRecipe($entry, $stream, $legacy013);
@@ -130,11 +163,19 @@ class CraftingDataPacket extends DataPacket{
 
 	public function encode(){
 		$this->reset();
-		$this->putInt(count($this->entries));
+
+		$legacy013 = ProtocolCompatibility::usesLegacySlotFormat((int) ($this->protocol ?? 0));
+		$entries = $this->entries;
+		if($legacy013){
+			// 0.12/0.13 客户端渲染配方书时遇到不认识的物品会空指针崩溃, 过滤掉含这些物品的配方
+			$entries = array_values(array_filter($entries, function($e){
+				return $this->isLegacyCompatible($e);
+			}));
+		}
+		$this->putInt(count($entries));
 
 		$writer = new BinaryStream();
-		$legacy013 = ProtocolCompatibility::usesLegacySlotFormat((int) ($this->protocol ?? 0));
-		foreach($this->entries as $d){
+		foreach($entries as $d){
 			$entryType = $this->writeEntry($d, $writer, $legacy013);
 			if($entryType >= 0){
 				$this->putInt($entryType);
