@@ -50,9 +50,21 @@ class CraftingDataPacket extends DataPacket{
 			return true;
 		}
 
+		$is012 = ProtocolCompatibility::isProtocol012((int) ($this->protocol ?? 0));
 		foreach($items as $it){
-			if($it !== null and $it->getId() !== 0 and in_array($it->getId(), self::ITEMS_013_UNSUPPORTED, true)){
-				return false;
+			if($it === null or $it->getId() === 0){
+				continue;
+			}
+			if($is012){
+				// 0.12: 只用 0.12 客户端认识的物品(白名单), 否则渲染配方书时空指针崩溃
+				if(!ProtocolCompatibility::isProtocol012RegisteredRecipeItem($it->getId(), (int) $it->getDamage())){
+					return false;
+				}
+			}else{
+				// 0.13: 排除 0.14/0.15 新增、0.13 不认识的物品
+				if(in_array($it->getId(), self::ITEMS_013_UNSUPPORTED, true)){
+					return false;
+				}
 			}
 		}
 
