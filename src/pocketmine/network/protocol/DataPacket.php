@@ -64,14 +64,10 @@ abstract class DataPacket extends BinaryStream{
         $this->putShort($item->getDamage() === null ? -1 : $item->getDamage());
         $nbt = $item->getCompoundTag();
         
-        // 根据协议版本使用不同的方法
-        $is013 = in_array($this->protocol, [31, 37, 38, 39]);
-        
-        if($is013){
-            // 0.13协议使用putShort
+        // 0.12/0.13 使用大端short NBT长度, 0.14+ 使用小端short
+        if(ProtocolCompatibility::usesLegacySlotFormat((int) ($this->protocol ?? 0))){
             $this->putShort(strlen($nbt));
         } else {
-            // 0.14协议使用putLShort
             $this->putLShort(strlen($nbt));
         }
         
@@ -89,14 +85,10 @@ abstract class DataPacket extends BinaryStream{
         $cnt = $this->getByte();
         $data = $this->getShort();
         
-        // 根据协议版本使用不同的方法
-        $is013 = in_array($this->protocol, [31, 37, 38, 39]);
-        
-        if($is013){
-            // 0.13协议使用getShort
+        // 0.12/0.13 使用大端short NBT长度, 0.14+ 使用小端short
+        if(ProtocolCompatibility::usesLegacySlotFormat((int) ($this->protocol ?? 0))){
             $nbtLen = $this->getShort();
         } else {
-            // 0.14协议使用getLShort
             $nbtLen = $this->getLShort();
         }
 

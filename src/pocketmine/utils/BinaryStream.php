@@ -183,7 +183,7 @@ class BinaryStream extends \stdClass{
 		$this->put($uuid->toBinary());
 	}
 
-	public function getSlot(){
+	public function getSlot(bool $legacy013 = false){
 		$id = $this->getSignedShort();
 
 		if($id <= 0){
@@ -194,7 +194,7 @@ class BinaryStream extends \stdClass{
 
 		$data = $this->getShort();
 
-		$nbtLen = $this->getLShort();
+		$nbtLen = $legacy013 ? $this->getShort() : $this->getLShort();
 
 		$nbt = "";
 
@@ -209,7 +209,7 @@ class BinaryStream extends \stdClass{
 		);
 	}
 
-	public function putSlot(Item $item){
+	public function putSlot(Item $item, bool $legacy013 = false){
 		if($item->getId() === 0){
 			$this->putShort(0);
 			return;
@@ -219,7 +219,11 @@ class BinaryStream extends \stdClass{
 		$this->putByte($item->getCount());
 		$this->putShort($item->getDamage() === null ? -1 : $item->getDamage());
 		$nbt = $item->getCompoundTag();
-		$this->putLShort(strlen($nbt));
+		if($legacy013){
+			$this->putShort(strlen($nbt));
+		}else{
+			$this->putLShort(strlen($nbt));
+		}
 		$this->put($nbt);
 
 	}

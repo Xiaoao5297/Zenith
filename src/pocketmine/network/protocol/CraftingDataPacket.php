@@ -26,13 +26,13 @@ class CraftingDataPacket extends DataPacket{
 	public $entries = [];
 	public $cleanRecipes = false;
 
-	private function writeEntry($entry, BinaryStream $stream){
+	private function writeEntry($entry, BinaryStream $stream, bool $legacy013){
 		if($entry instanceof ShapelessRecipe){
-			return self::writeShapelessRecipe($entry, $stream);
+			return self::writeShapelessRecipe($entry, $stream, $legacy013);
 		}elseif($entry instanceof ShapedRecipe){
-			return self::writeShapedRecipe($entry, $stream);
+			return self::writeShapedRecipe($entry, $stream, $legacy013);
 		}elseif($entry instanceof FurnaceRecipe){
-			return self::writeFurnaceRecipe($entry, $stream);
+			return self::writeFurnaceRecipe($entry, $stream, $legacy013);
 		}elseif($entry instanceof EnchantmentList){
 			return self::writeEnchantList($entry, $stream);
 		}
@@ -40,76 +40,47 @@ class CraftingDataPacket extends DataPacket{
 		return -1;
 	}
 
-	private function writeShapelessRecipe(ShapelessRecipe $recipe, BinaryStream $stream){
+	private static function writeShapelessRecipe(ShapelessRecipe $recipe, BinaryStream $stream, bool $legacy013){
 		$stream->putInt($recipe->getIngredientCount());
 		foreach($recipe->getIngredientList() as $item){
-			// 根据协议版本使用不同的方法
-			$is013 = in_array($this->protocol, [31, 37, 38, 39]);
-			
-			if($is013){
-				// 0.13协议
-				$nbt = $item->getCompoundTag();
-				$stream->putShort($item->getId());
-				$stream->putByte($item->getCount());
-				$stream->putShort($item->getDamage() === null ? -1 : $item->getDamage());
-				$stream->putShort(strlen($nbt));
-				$stream->put($nbt);
-			} else {
-				// 0.14协议
-				$stream->putSlot($item);
-			}
+			$stream->putSlot($item, $legacy013);
 		}
 
 		$stream->putInt(1);
-		
-		// 根据协议版本使用不同的方法
-		$is013 = in_array($this->protocol, [31, 37, 38, 39]);
-		
-		if($is013){
-			// 0.13协议
-			$nbt = $recipe->getResult()->getCompoundTag();
-			$stream->putShort($recipe->getResult()->getId());
-			$stream->putByte($recipe->getResult()->getCount());
-			$stream->putShort($recipe->getResult()->getDamage() === null ? -1 : $recipe->getResult()->getDamage());
-			$stream->putShort(strlen($nbt));
-			$stream->put($nbt);
-		} else {
-			// 0.14协议
-			$stream->putSlot($recipe->getResult());
-		}
+		$stream->putSlot($recipe->getResult(), $legacy013);
 
 		$stream->putUUID($recipe->getId());
 
 		return CraftingDataPacket::ENTRY_SHAPELESS;
 	}
 
-	private static function writeShapedRecipe(ShapedRecipe $recipe, BinaryStream $stream){
+	private static function writeShapedRecipe(ShapedRecipe $recipe, BinaryStream $stream, bool $legacy013){
 		$stream->putInt($recipe->getWidth());
 		$stream->putInt($recipe->getHeight());
 
 		for($z = 0; $z < $recipe->getWidth(); ++$z){
 			for($x = 0; $x < $recipe->getHeight(); ++$x){
-				$stream->putSlot($recipe->getIngredient($x, $z));
+				$stream->putSlot($recipe->getIngredient($x, $z), $legacy013);
 			}
 		}
 
 		$stream->putInt(1);
-		$stream->putSlot($recipe->getResult());
+		$stream->putSlot($recipe->getResult(), $legacy013);
 
 		$stream->putUUID($recipe->getId());
 
 		return CraftingDataPacket::ENTRY_SHAPED;
 	}
 
-	private static function writeFurnaceRecipe(FurnaceRecipe $recipe, BinaryStream $stream){
+	private static function writeFurnaceRecipe(FurnaceRecipe $recipe, BinaryStream $stream, bool $legacy013){
 		if($recipe->getInput()->getDamage() !== 0){ //Data recipe
 			$stream->putInt(($recipe->getInput()->getId() << 16) | ($recipe->getInput()->getDamage()));
-			$stream->putSlot($recipe->getResult());
+			$stream->putSlot($recipe->getResult(), $legacy013);
 
 			return CraftingDataPacket::ENTRY_FURNACE_DATA;
 		}else{
 			$stream->putInt($recipe->getInput()->getId());
-			$stream->putSlot($recipe->getResult());
+			$stream->putSlot($recipe->getResult(), $legacy013);
 
 			return CraftingDataPacket::ENTRY_FURNACE;
 		}
@@ -159,35 +130,25 @@ class CraftingDataPacket extends DataPacket{
 
 	public function encode(){
 		$this->reset();
-		
-		// 根据协议版本处理
-		$is013 = in_array($this->protocol, [31, 37, 38, 39]);
-		
-		if($is013){
-			// 0.13协议：发送少量合成数据，使用正确的格式
-			$this->putInt(0); // 暂时不发送任何配方，防止崩溃
-			$this->putByte(0);
-		} else {
-			// 0.14协议：正常处理
-			$this->putInt(count($this->entries));
+		$this->putInt(count($this->entries));
 
-			$writer = new BinaryStream();
-			foreach($this->entries as $d){
-				$entryType = $this->writeEntry($d, $writer);
-				if($entryType >= 0){
-					$this->putInt($entryType);
-					$this->putInt(strlen($writer->getBuffer()));
-					$this->put($writer->getBuffer());
-				}else{
-					$this->putInt(-1);
-					$this->putInt(0);
-				}
-
-				$writer->reset();
+		$writer = new BinaryStream();
+		$legacy013 = ProtocolCompatibility::usesLegacySlotFormat((int) ($this->protocol ?? 0));
+		foreach($this->entries as $d){
+			$entryType = $this->writeEntry($d, $writer, $legacy013);
+			if($entryType >= 0){
+				$this->putInt($entryType);
+				$this->putInt(strlen($writer->getBuffer()));
+				$this->put($writer->getBuffer());
+			}else{
+				$this->putInt(-1);
+				$this->putInt(0);
 			}
 
-			$this->putByte($this->cleanRecipes ? 1 : 0);
+			$writer->reset();
 		}
+
+		$this->putByte($this->cleanRecipes ? 1 : 0);
 	}
 
 }

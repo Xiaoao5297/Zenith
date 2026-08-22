@@ -25,19 +25,8 @@ class FullChunkDataPacket extends DataPacket{
         $this->putInt($this->chunkX);
         $this->putInt($this->chunkZ);
         $this->putByte($this->order);
-        
-        // 根据协议版本处理chunk数据
-        $is013 = in_array($this->protocol, [31, 37, 38, 39]);
-        
-        if($is013){
-            // 0.13协议处理
-            $this->putInt(strlen($this->data));
-            $this->put($this->data);
-        } else {
-            // 0.14协议处理
-            $this->putInt(strlen($this->data));
-            $this->put($this->data);
-        }
+		$this->putInt(strlen($this->data));
+		$this->put($this->data);
 	}
 
 }

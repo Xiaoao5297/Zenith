@@ -39,8 +39,9 @@ class UseItemPacket extends DataPacket{
 	}
 	
 	public function decodeAdditional($protocol){
+		$this->protocol = (int) $protocol;
 		$this->slot = -1;
-		if($protocol >= Info::CURRENT_PROTOCOL){
+		if($protocol >= Info::V014_CURRENT_PROTOCOL){
 			$this->slot = $this->getInt();
 		}
 		$this->item = $this->getSlot();

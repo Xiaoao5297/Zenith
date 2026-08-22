@@ -50,15 +50,6 @@ class MovePlayerPacket extends DataPacket{
 		$this->putFloat($this->pitch);
 		$this->putByte($this->mode);
 		$this->putByte($this->onGround > 0);
-		
-		// 根据协议版本添加额外处理
-		$is013 = in_array($this->protocol, [31, 37, 38, 39]);
-		
-		if($is013){
-			// 0.13协议可能需要额外的处理
-		} else {
-			// 0.14协议可能需要额外的处理
-		}
 	}
 
 }
