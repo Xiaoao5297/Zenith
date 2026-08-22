@@ -12,8 +12,15 @@ interface Info{
 	 * Actual Minecraft: PE protocol version
 	 */
 	const CURRENT_PROTOCOL = 70;
-	const ACCEPTED_PROTOCOLS = [31, 37, 38, 39, 41, 42, 43, 44, 45, 46, 60, 70];
-	const ACCEPTED_013_PROTOCOLS = [31, 37, 38, 39];
+	const V014_CURRENT_PROTOCOL = 70;
+	// 协议版本分组 (MinecraftWiki: 0.11=21~27, 0.12=28~34, 0.13=37~39, 0.14=41~70, 0.15=60~84, 0.16=90~91)
+	const V011_PROTOCOLS = [21, 22, 23, 24, 25, 26, 27];
+	const V012_PROTOCOLS = [28, 29, 30, 31, 32, 33, 34];
+	const V013_PROTOCOLS = [37, 38, 39];
+	const V014_PROTOCOLS = [41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70];
+	const V015_PROTOCOLS = [];
+	const ACCEPTED_PROTOCOLS = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 37, 38, 39, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70];
+	const ACCEPTED_013_PROTOCOLS = [37, 38, 39];
 
 	const LOGIN_PACKET = 0x8f;
 	const PLAY_STATUS_PACKET = 0x90;
