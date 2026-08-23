@@ -399,6 +399,9 @@ class Server{
 	/** @var CraftingDataPacket */
 	private $recipeList = null;
 
+	/** @var CraftingDataPacket[] 按协议版本缓存的配方列表 */
+	private $recipeLists = [];
+
 	/** @var Synapse */
 	private $synapse = null;
 	
@@ -2915,11 +2918,59 @@ private function lookupAddress($address) {
 		$pk->isEncoded = true;
 
 		$this->recipeList = $pk;
+
+		// 按协议版本构建配方列表(参照 lycore): 0.12 映射物品/丢弃无法映射的配方, 0.13 保留(编码时过滤), 0.14 全部
+		$this->recipeLists = [
+			"012" => $this->buildRecipeListForProtocol(34, true),
+			"013" => $this->buildRecipeListForProtocol(37, false),
+			"014" => $this->buildRecipeListForProtocol(70, false),
+		];
+	}
+
+	private function buildRecipeListForProtocol(int $protocol, bool $mapItems){
+		$pk = new CraftingDataPacket();
+		$pk->cleanRecipes = true;
+
+		foreach($this->getCraftingManager()->getRecipes() as $recipe){
+			if($mapItems){
+				$mapped = \pocketmine\network\protocol\ProtocolCompatibility::mapCraftingRecipeForProtocol($protocol, $recipe);
+				if($mapped === null){
+					continue;
+				}
+				$recipe = $mapped;
+			}
+			if($recipe instanceof ShapedRecipe){
+				$pk->addShapedRecipe($recipe);
+			}elseif($recipe instanceof ShapelessRecipe){
+				$pk->addShapelessRecipe($recipe);
+			}
+		}
+
+		foreach($this->getCraftingManager()->getFurnaceRecipes() as $recipe){
+			if($mapItems){
+				$mapped = \pocketmine\network\protocol\ProtocolCompatibility::mapCraftingRecipeForProtocol($protocol, $recipe);
+				if($mapped === null){
+					continue;
+				}
+				$recipe = $mapped;
+			}
+			$pk->addFurnaceRecipe($recipe);
+		}
+
+		return $pk;
 	}
 
 	public function sendRecipeList(Player $p){
-		$pk = clone $this->recipeList;
-		$pk->setProtocol($p->getProtocol());
+		$protocol = (int) $p->getProtocol();
+		if(\pocketmine\network\protocol\ProtocolCompatibility::isProtocol012($protocol)){
+			$pk = $this->recipeLists["012"];
+		}elseif(\pocketmine\network\protocol\ProtocolCompatibility::isProtocol013($protocol)){
+			$pk = $this->recipeLists["013"];
+		}else{
+			$pk = $this->recipeList;
+		}
+		$pk = clone $pk;
+		$pk->setProtocol($protocol);
 		$pk->isEncoded = false;
 		$p->dataPacket($pk);
 	}
