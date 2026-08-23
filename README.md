@@ -1,4 +1,4 @@
-# Incore-PRO
+# Zenith
 
 > 这个核心还在基础阶段，如果您发现了 bug 或者有宝贵的建议，请提交 Issues！
 
@@ -28,10 +28,10 @@ Incore 适合希望在 PocketMine-MP 上运行稳定服务器的开发者，尤�
 2. 获取 Incore
 	- 通过 git 克隆仓库：
     ```sh
-	  git clone https://github.com/Xiaoao5297/Incore-Pro.git
+	  git clone https://github.com/Xiaoao5297/Zenith.git
     ``` 
 	- 进入目录：
-	  `cd Incore-Pro`
+	  `cd Zenith`
 
 3. 配置 PocketMine-MP
 	- 下载并解压 PocketMine-MP 到服务器目录，确保 PHP 版本兼容。

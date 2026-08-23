@@ -223,7 +223,7 @@ td{color:#8b949e}
 <tr><td>Gamemode</td><td>{$gm}</td></tr>
 </table>
 
-<div class="footer">InCore Pro</div>
+<div class="footer">Zenith</div>
 
 <script>
 var buf={tps:[],mem:[],load:[]};
