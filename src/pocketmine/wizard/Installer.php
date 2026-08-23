@@ -40,7 +40,7 @@ class Installer{
 	private $defaultLang;
 
 	public function __construct(){
-		echo "[*] InCore Pro 配置程序\n";
+		echo "[*] Zenith 配置程序\n";
 		echo "[*] 请选择语言:\n";
 		foreach(InstallerLang::$languages as $short => $native){
 			echo " $native => $short\n";

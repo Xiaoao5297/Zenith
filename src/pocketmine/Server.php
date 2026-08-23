@@ -1813,12 +1813,12 @@ class Server{
     §3 _/ // / / / /__/ /_/ / /  /  __/  / ____/ /  / /_/ /
     §3/___/_/ /_/\___/\____/_/   \___/  /_/   /_/   \____/ 
                                                      
-    §b“InCore Pro” Minecraft PE 0.14.x 服务端 §a开发代号：" . CODENAME . " §e坏猫工厂荣誉出品
+    §b“Zenith” Minecraft PE 0.14.x 服务端 §a开发代号：" . CODENAME . " §e坏猫工厂荣誉出品
     §b 在 “INCore” 基础上重构
     §e版本: §b" . VERSION . "        §ePHP版本: §b". phpversion() . "
     §a本核心在 §dSCAXE §a的代码基础上构建
     发做出重要贡献：§6WTFDoge, wusheng233, Win1145, byd666
-    §eGitHub: §bhttps://github.com/Xiaoao5297/InCorePro
+    §eGitHub: §bhttps://github.com/Xiaoao5297/Zenith
 ";
 
 			$this->MapData = new MapData($this, $dataPath);
@@ -3116,7 +3116,7 @@ private function lookupAddress($address) {
 
 		echo sprintf(
 			"\x1b]0;%s | 在线 %d/%d | 内存 %s | U %.2f D %.2f kB/s | TPS %.2f | 加载 %.2f%%\x07",
-			"坏猫工厂 Genisys InCore Pro",
+			"坏猫工厂 Genisys Zenith",
 			count($this->players),
 			$this->getMaxPlayers(),
 			$usage,
