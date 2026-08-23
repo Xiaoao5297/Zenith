@@ -232,7 +232,7 @@ class Network {
 		return $this->server;
 	}
 
-	public function processBatch(BatchPacket $packet, Player $p) {
+	public function processBatch($packet, Player $p) {
 		if($packet instanceof BatchPacketV11 or ProtocolCompatibility::isProtocol011((int) $p->getProtocol())){
 			$this->processProtocol011Batch($packet, $p);
 			return;
