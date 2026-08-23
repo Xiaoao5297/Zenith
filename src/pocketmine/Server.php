@@ -404,7 +404,7 @@ class Server{
 
 	/** @var Synapse */
 	private $synapse = null;
-	
+
 
 	/**
 	 * @return string
@@ -1501,7 +1501,7 @@ class Server{
 		}
 		$this->operators->save(true);
 	}
-	
+
 	/**
 	 * @param string $name
 	 */
@@ -1561,7 +1561,7 @@ class Server{
 	public function getOps(){
 		return $this->operators;
 	}
-	
+
 
 	public function reloadWhitelist(){
 		$this->whitelist->reload();
@@ -1807,12 +1807,12 @@ class Server{
 
 
 			$this->aboutstring = "服务端信息：\n
-    §3    ____                              ____           
-    §3   /  _/___  _________  ________     / __ \_________ 
-    §3   / // __ \/ ___/ __ \/ ___/ _ \   / /_/ / ___/ __ \
-    §3 _/ // / / / /__/ /_/ / /  /  __/  / ____/ /  / /_/ /
-    §3/___/_/ /_/\___/\____/_/   \___/  /_/   /_/   \____/ 
-                                                     
+    §3 _____                _  __   __
+    §3/__  /  ___   ____   (_)/ /_ / /_
+    §3  / /  / _ \ / __ \ / // __// __ \
+    §3 / /__/  __// / / // // /_ / / / /
+    §3/____/\___//_/ /_//_/ \__//_/ /_/
+
     §b“Zenith” Minecraft PE 0.14.x 服务端 §a开发代号：" . CODENAME . " §e坏猫工厂荣誉出品
     §b 在 “INCore” 基础上重构
     §e版本: §b" . VERSION . "        §ePHP版本: §b". phpversion() . "
@@ -1824,10 +1824,10 @@ class Server{
 			$this->MapData = new MapData($this, $dataPath);
 
 			$this->about();
-            
+
             // $this->logger->info("正在加载pocketmine.yml...");\
 			$this->getLogger()->info($this->getLanguage()->translateString("pocketmine.loading.pocketmine.yml"));
-            
+
 			if(!file_exists($this->dataPath . "pocketmine.yml")){
 				$content = file_get_contents($this->filePath . "src/pocketmine/resources/pocketmine.yml");
 				if($version->isDev()){
@@ -2112,7 +2112,7 @@ class Server{
 				}
 				$this->netherLevel = $this->getLevelByName($this->netherName);
 			}
-			
+
 			if($this->enderEnabled){
 				if(!$this->loadLevel($this->enderName)){
 					//$this->logger->info("正在生成末地 ".$this->enderName);
@@ -2120,7 +2120,7 @@ class Server{
 				}
 				$this->enderLevel = $this->getLevelByName($this->enderName);
 			}
-			
+
 			if($this->skyworldEnabled){
 				if(!$this->loadLevel($this->skyworldName)){
 					$this->generateLevel($this->skyworldName, time(), Generator::getGenerator("skyworld"));
@@ -2223,7 +2223,7 @@ private function lookupAddress($address) {
 		if(!is_array($recipients)){
 			return $this->broadcast($message, self::BROADCAST_CHANNEL_USERS);
 		}
-		
+
 		/** @var Player[] $recipients */
 		foreach($recipients as $recipient){
 			$recipient->sendMessage($message);
@@ -2339,7 +2339,7 @@ private function lookupAddress($address) {
 	 */
 	public function batchPackets(array $players, array $packets, $forceSync = false){
 		Timings::$playerNetworkTimer->startTiming();
-		
+
 		// 按协议版本分组玩家
 		$playersByProtocol = [];
 		foreach($players as $p){
@@ -2351,12 +2351,12 @@ private function lookupAddress($address) {
 				$playersByProtocol[$protocol][] = $p;
 			}
 		}
-		
+
 		// 为每个协议版本的玩家创建单独的数据包
 		foreach($playersByProtocol as $protocol => $protocolPlayers){
 			$is011 = \pocketmine\network\protocol\ProtocolCompatibility::isProtocol011((int) $protocol);
 			$str = "";
-			
+
 			foreach($packets as $p){
 				if($p instanceof \pocketmine\network\protocol\v11\DataPacket){
 					// 已转换的 v11 包(来自 batchDataPacket)
@@ -2399,12 +2399,12 @@ private function lookupAddress($address) {
 					}
 				}
 			}
-			
+
 			$targets = [];
 			foreach($protocolPlayers as $p){
 				$targets[] = $this->identifiers[spl_object_hash($p)];
 			}
-			
+
 			if($is011){
 				// 0.11: 压缩后用 v11 BatchPacket 直接发送
 				$this->broadcastPacketsCallbackV11(zlib_encode($str, ZLIB_ENCODING_DEFLATE, $this->networkCompressionLevel), $targets);
@@ -2974,11 +2974,11 @@ private function lookupAddress($address) {
 		$pk->isEncoded = false;
 		$p->dataPacket($pk);
 	}
-	
+
 	public function Oplist(){
 		$olist = array_fill(0, 50, '');
 		$i = 0;
-		foreach(array_keys($this->getOps()->getAll()) as $ops)	{			
+		foreach(array_keys($this->getOps()->getAll()) as $ops)	{
 			$p = $this->getPlayer($ops);
 			$olist[$i] = "§l§d   $ops ";
 			$i ++;
@@ -3191,7 +3191,7 @@ private function lookupAddress($address) {
 			$this->logger->logException($e);
 		}
 	}
-	
+
 
 	/**
 	 * Tries to execute a server tick
@@ -3367,5 +3367,5 @@ private function lookupAddress($address) {
 		Tile::registerTile(DLDetector::class);
 		Tile::registerTile(Cauldron::class);
 	}
-	
+
 }
