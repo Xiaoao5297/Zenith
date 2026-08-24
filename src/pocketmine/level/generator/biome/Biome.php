@@ -31,6 +31,8 @@ use pocketmine\level\generator\normal\biome\MesaBiome;
 use pocketmine\level\generator\normal\biome\DrakOakBiome;
 use pocketmine\level\generator\normal\biome\PinkForestBiome;
 use pocketmine\level\generator\normal\biome\GoldenForestBiome;
+use pocketmine\level\generator\normal\biome\VillageBiome;
+use pocketmine\level\generator\normal\biome\DesertHillsBiome;
 use pocketmine\level\generator\hell\HellBiome;
 use pocketmine\level\generator\populator\Populator;
 use pocketmine\utils\Random;
@@ -81,9 +83,10 @@ abstract class Biome{
 	const MESA_PLATEAU = 39; //恶地高原
 	const PINK_FOREST = 40; //樱花树林
 	const GOLDEN_FOREST = 41; //枫树林
-	const SKY = 42;
-	
-	const MAX_BIOMES = 317;
+ 	const SKY = 42;
+	const VILLAGE = 43; //村庄
+ 	
+ 	const MAX_BIOMES = 317;
 
 	/** @var Biome[] */
 	private static $biomes = [];
@@ -157,6 +160,9 @@ abstract class Biome{
 		self::register(self::GOLDEN_FOREST, new GoldenForestBiome());
 
 		self::register(self::BIRCH_FOREST, new ForestBiome(ForestBiome::TYPE_BIRCH));
+
+		self::register(self::DESERT_HILLS, new DesertHillsBiome());
+		self::register(self::VILLAGE, new VillageBiome());
 	}
 
 	/**

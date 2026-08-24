@@ -21,6 +21,7 @@
 namespace pocketmine\level\generator\normal\biome;
 
 use pocketmine\level\generator\normal\populator\Temple;
+use pocketmine\level\generator\normal\populator\VillagePopulator;
 use pocketmine\level\generator\normal\populator\Well;
 
 class DesertBiome extends SandyBiome{
@@ -35,6 +36,7 @@ class DesertBiome extends SandyBiome{
         
         $this->addPopulator($temple);
 		$this->addPopulator($well);
+		$this->addPopulator(new VillagePopulator());
 
 		$this->temperature = 2;
 		$this->rainfall = 0;
