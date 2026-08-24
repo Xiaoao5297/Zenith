@@ -26,4 +26,13 @@ class Arrow extends Item {
 		parent::__construct(self::ARROW, $meta, $count, "Arrow");
 	}
 
+	// 0.14 基础核心无药水箭, 兼容 ProtocolCompatibility 的物品映射调用
+	public function isTipped() : bool{
+		return false;
+	}
+
+	public function toLegacyTippedArrowSurrogate() : Item{
+		return Item::get(Item::ARROW, 0, $this->getCount());
+	}
+
 }
