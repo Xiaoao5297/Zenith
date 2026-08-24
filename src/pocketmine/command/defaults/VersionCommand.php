@@ -48,7 +48,7 @@ class VersionCommand extends VanillaCommand{
 			$sender->sendMessage("-----服务端信息-----");
 			$sender->sendMessage("服务器名称：" . $sender->getServer()->getConfigString("motd"));
 			$sender->sendMessage("版本：Minecraft PE 0.14.x");
-			$sender->sendMessage("核心：坏猫工厂 Genisys Zenith (开发代号：" . $sender->getServer()->getCodename() . "）");
+			$sender->sendMessage("核心: Genisys Zenith (开发代号：" . $sender->getServer()->getCodename() . "）");
 			$sender->sendMessage("执行API版本：2.0.0");
 			$sender->sendMessage("版本：" . $sender->getServer()->getVersion());
 			$sender->sendMessage("协议版本：41, 42, 43, 44, 45, 46, 60, 70");
