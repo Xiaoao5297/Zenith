@@ -295,6 +295,7 @@ class Network {
 		}
 
 		$str = zlib_decode($packet->payload, 1024 * 1024 * 64);
+		error_log("[0.11-DEBUG] batch payload len=" . strlen($packet->payload) . " zlib=" . var_export($str !== false, true) . " strlen=" . strlen((string) $str));
 		if($str === false){
 			return;
 		}
@@ -305,17 +306,20 @@ class Network {
 		try{
 			while($offset < $len){
 				$pid = ord($str[$offset++]);
+				error_log("[0.11-DEBUG] inner pid=0x" . dechex($pid) . " offset={$offset}/{$len}");
 				if(($pk = $this->getPacket($pid, $protocol)) === null){
 					continue;
 				}
 
 				$decodedOffset = $this->handleProtocol011BatchPacket($pk, $str, $offset, $p);
+				error_log("[0.11-DEBUG] decoded offset={$decodedOffset}");
 				if($decodedOffset <= $offset){
 					break;
 				}
 				$offset = $decodedOffset;
 			}
 		}catch(\Throwable $e){
+			error_log("[0.11-DEBUG] exception: " . $e->getMessage());
 			if(\pocketmine\DEBUG > 1){
 				$logger = $this->server->getLogger();
 				if($logger instanceof MainLogger){
