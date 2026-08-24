@@ -45,6 +45,10 @@ class Painting extends Hanging{
 	}
 
 	public function getDrops(){
+		if($this->getLevel() !== null and $this->getLevel()->getServer()->isWorldNonLivingEntityDropsDisabled($this->getLevel())){
+			return [];
+		}
+
 		return [ItemItem::get(ItemItem::PAINTING, 0, 1)];
 	}
 }

@@ -326,6 +326,9 @@ class Server{
 	/** Advanced Config */
 	public $advancedConfig = null;
 
+	/** @var array<string, string[]> */
+	public $worldBehaviorConfig = [];
+
 	public $weatherEnabled = true;
 	public $foodEnabled = true;
 	public $expEnabled = true;
@@ -1637,6 +1640,17 @@ class Server{
 		$this->skyworldx = $this->getAdvancedProperty("skyworld.spawn-x", 0);
 		$this->skyworldy = $this->getAdvancedProperty("skyworld.spawn-y", 64);
 		$this->skyworldz = $this->getAdvancedProperty("skyworld.spawn-z", 0);
+		$this->worldBehaviorConfig = [
+			"no-natural-mob-spawn" => $this->normalizeWorldNameList($this->getAdvancedProperty("world.no-natural-mob-spawn", [])),
+			"no-mob-death-drops-and-experience" => $this->normalizeWorldNameList($this->getAdvancedProperty("world.no-mob-death-drops-and-experience", [])),
+			"no-creeper-block-damage" => $this->normalizeWorldNameList($this->getAdvancedProperty("world.no-creeper-block-damage", [])),
+			"no-tnt-block-damage" => $this->normalizeWorldNameList($this->getAdvancedProperty("world.no-tnt-block-damage", [])),
+			"no-hunger-health-regeneration" => $this->normalizeWorldNameList($this->getAdvancedProperty("world.no-hunger-health-regeneration", [])),
+			"no-crop-growth" => $this->normalizeWorldNameList($this->getAdvancedProperty("world.no-crop-growth", [])),
+			"no-non-living-entity-drops" => $this->normalizeWorldNameList($this->getAdvancedProperty("world.no-non-living-entity-drops", [])),
+			"keep-inventory" => $this->normalizeWorldNameList($this->getAdvancedProperty("world.keep-inventory", [])),
+			"do-daylight-cycle" => $this->normalizeWorldNameList($this->getAdvancedProperty("world.do-daylight-cycle", [])),
+		];
 		$this->weatherRandomDurationMin = $this->getAdvancedProperty("level.weather-random-duration-min", 6000);
 		$this->weatherRandomDurationMax = $this->getAdvancedProperty("level.weather-random-duration-max", 12000);
 		$this->hungerHealth = $this->getAdvancedProperty("player.hunger-health", 10);
@@ -3180,6 +3194,538 @@ private function lookupAddress($address) {
 
 		return $base;
 	}
+
+	public function getSupportedGamerules() : array{
+		return [
+			"doMobSpawning" => [
+				"type" => "bool",
+				"behavior" => "no-natural-mob-spawn",
+				"default" => true,
+				"listedValue" => false,
+			],
+			"doMobLoot" => [
+				"type" => "bool",
+				"behavior" => "no-mob-death-drops-and-experience",
+				"default" => true,
+				"listedValue" => false,
+			],
+			"mobGriefing" => [
+				"type" => "bool",
+				"behavior" => "no-creeper-block-damage",
+				"default" => true,
+				"listedValue" => false,
+			],
+			"tnTExplodes" => [
+				"type" => "bool",
+				"behavior" => "no-tnt-block-damage",
+				"default" => true,
+				"listedValue" => false,
+			],
+			"naturalRegeneration" => [
+				"type" => "bool",
+				"behavior" => "no-hunger-health-regeneration",
+				"default" => true,
+				"listedValue" => false,
+			],
+			"randomTickSpeed" => [
+				"type" => "int",
+				"behavior" => "no-crop-growth",
+				"default" => 1,
+				"listedValue" => 0,
+			],
+			"doEntityDrops" => [
+				"type" => "bool",
+				"behavior" => "no-non-living-entity-drops",
+				"default" => true,
+				"listedValue" => false,
+			],
+			"keepInventory" => [
+				"type" => "bool",
+				"behavior" => "keep-inventory",
+				"default" => $this->keepInventory,
+				"listedValue" => true,
+			],
+			"doDaylightCycle" => [
+				"type" => "bool",
+				"behavior" => "do-daylight-cycle",
+				"default" => true,
+				"listedValue" => false,
+			],
+		];
+	}
+
+	public function getWorldGamerule($level, string $rule){
+		$rules = $this->getSupportedGamerules();
+		if(!isset($rules[$rule])){
+			return null;
+		}
+
+		$override = $this->getWorldGameruleOverride($level, $rule);
+		if($override !== null){
+			return $this->normalizeGameruleValue($rules[$rule], $override);
+		}
+
+		$definition = $rules[$rule];
+		if($this->isWorldBehaviorDisabled($level, $definition["behavior"])){
+			return $definition["listedValue"];
+		}
+
+		return $definition["default"];
+	}
+
+	public function setWorldGamerule($level, string $rule, $value) : bool{
+		$rules = $this->getSupportedGamerules();
+		if(!isset($rules[$rule])){
+			return false;
+		}
+
+		$definition = $rules[$rule];
+		$value = $this->normalizeGameruleValue($definition, $value);
+		$this->persistWorldGameruleValue($level, $rule, $value);
+		$this->persistWorldGamerule($level, $definition["behavior"], $value === $this->normalizeGameruleValue($definition, $definition["listedValue"]));
+		if($rule === "doDaylightCycle" and $level instanceof Level){
+			$level->sendTime();
+		}
+		return true;
+	}
+
+	private function getWorldGameruleOverride($level, string $rule){
+		if(!($this->advancedConfig instanceof Config)){
+			return null;
+		}
+
+		$world = $this->getWorldConfigName($level);
+		if($world === ""){
+			return null;
+		}
+
+		$worldConfig = $this->advancedConfig->get("world", []);
+		if(!is_array($worldConfig) or !isset($worldConfig["gamerules"]) or !is_array($worldConfig["gamerules"])){
+			return null;
+		}
+
+		if(isset($worldConfig["gamerules"][$world]) and is_array($worldConfig["gamerules"][$world]) and array_key_exists($rule, $worldConfig["gamerules"][$world])){
+			return $worldConfig["gamerules"][$world][$rule];
+		}
+
+		return null;
+	}
+
+	private function persistWorldGameruleValue($level, string $rule, $value) : void{
+		if(!($this->advancedConfig instanceof Config)){
+			return;
+		}
+
+		$world = $this->getWorldConfigName($level);
+		if($world === ""){
+			return;
+		}
+
+		$worldConfig = $this->advancedConfig->get("world", []);
+		if(!is_array($worldConfig)){
+			$worldConfig = [];
+		}
+		if(!isset($worldConfig["gamerules"]) or !is_array($worldConfig["gamerules"])){
+			$worldConfig["gamerules"] = [];
+		}
+		if(!isset($worldConfig["gamerules"][$world]) or !is_array($worldConfig["gamerules"][$world])){
+			$worldConfig["gamerules"][$world] = [];
+		}
+
+		$worldConfig["gamerules"][$world][$rule] = $value;
+		$this->advancedConfig->set("world", $worldConfig);
+	}
+
+	private function normalizeGameruleValue(array $definition, $value){
+		if($definition["type"] === "int"){
+			return max(0, (int) $value);
+		}
+
+		if(is_string($value)){
+			$value = strtolower(trim($value));
+			if($value === "false" or $value === "0" or $value === "off" or $value === "no"){
+				return false;
+			}
+			if($value === "true" or $value === "1" or $value === "on" or $value === "yes"){
+				return true;
+			}
+		}
+
+		return (bool) $value;
+	}
+
+	private function getWorldConfigName($level) : string{
+		if($level instanceof Level){
+			return trim((string) $level->getFolderName());
+		}
+
+		if(is_object($level) and method_exists($level, "getFolderName")){
+			return trim((string) $level->getFolderName());
+		}
+
+		return trim((string) $level);
+	}
+
+	private function persistWorldGamerule($level, string $behavior, bool $listed) : void{
+		$world = $this->getWorldConfigName($level);
+		if($world === ""){
+			return;
+		}
+
+		$current = isset($this->worldBehaviorConfig[$behavior]) ? $this->worldBehaviorConfig[$behavior] : $this->normalizeWorldNameList($this->getAdvancedProperty("world." . $behavior, []));
+		$worlds = [];
+		foreach($current as $entry){
+			$entry = trim((string) $entry);
+			if($entry !== ""){
+				$worlds[$this->normalizeWorldName($entry)] = $entry;
+			}
+		}
+
+		$normalized = $this->normalizeWorldName($world);
+		if($listed){
+			$worlds[$normalized] = $world;
+		}else{
+			unset($worlds[$normalized]);
+		}
+
+		$list = array_values($worlds);
+		sort($list, SORT_NATURAL | SORT_FLAG_CASE);
+		$this->worldBehaviorConfig[$behavior] = $this->normalizeWorldNameList($list);
+
+		if($this->advancedConfig instanceof Config){
+			$this->advancedConfig->setNested("world." . $behavior, $list);
+			$this->saveAdvancedConfig();
+		}
+	}
+
+	private function saveAdvancedConfig() : void{
+		if($this->advancedConfig instanceof Config){
+			$path = $this->dataPath . "genisys.yml";
+			$content = file_get_contents($path);
+			if(is_string($content)){
+				file_put_contents($path, $this->writeAdvancedConfigDataPreservingComments($content, $this->advancedConfig->getAll()));
+			}else{
+				$this->advancedConfig->save(false);
+			}
+		}
+	}
+
+	private function normalizeWorldName($name) : string{
+		return strtolower(trim((string) $name));
+	}
+
+	public function normalizeWorldNameList($value) : array{
+		if(is_string($value)){
+			$value = preg_split('/[,;]/', $value);
+		}elseif(!is_array($value)){
+			$value = [$value];
+		}
+
+		$worlds = [];
+		foreach($value as $world){
+			$world = $this->normalizeWorldName($world);
+			if($world !== ""){
+				$worlds[$world] = true;
+			}
+		}
+
+		return array_keys($worlds);
+	}
+
+	public function isWorldBehaviorDisabled($level, string $behavior) : bool{
+		if(!isset($this->worldBehaviorConfig[$behavior]) or count($this->worldBehaviorConfig[$behavior]) === 0){
+			return false;
+		}
+
+		$names = [];
+		if($level instanceof Level){
+			$names[] = $level->getFolderName();
+			try{
+				$names[] = $level->getName();
+			}catch(\Throwable $e){
+			}
+		}elseif(is_object($level)){
+			if(method_exists($level, "getFolderName")){
+				$names[] = $level->getFolderName();
+			}
+			if(method_exists($level, "getName")){
+				$names[] = $level->getName();
+			}
+		}else{
+			$names[] = $level;
+		}
+
+		foreach($names as $name){
+			if(in_array($this->normalizeWorldName($name), $this->worldBehaviorConfig[$behavior], true)){
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public function isWorldNaturalMobSpawnDisabled($level) : bool{
+		$override = $this->getWorldGameruleOverride($level, "doMobSpawning");
+		if($override !== null){
+			return !$this->getWorldGamerule($level, "doMobSpawning");
+		}
+
+		return $this->isWorldBehaviorDisabled($level, "no-natural-mob-spawn");
+	}
+
+	public function isWorldMobDeathDropsAndExperienceDisabled($level) : bool{
+		$override = $this->getWorldGameruleOverride($level, "doMobLoot");
+		if($override !== null){
+			return !$this->getWorldGamerule($level, "doMobLoot");
+		}
+
+		return $this->isWorldBehaviorDisabled($level, "no-mob-death-drops-and-experience");
+	}
+
+	public function isWorldCreeperBlockDamageDisabled($level) : bool{
+		$override = $this->getWorldGameruleOverride($level, "mobGriefing");
+		if($override !== null){
+			return !$this->getWorldGamerule($level, "mobGriefing");
+		}
+
+		return $this->isWorldBehaviorDisabled($level, "no-creeper-block-damage");
+	}
+
+	public function isWorldTntBlockDamageDisabled($level) : bool{
+		$override = $this->getWorldGameruleOverride($level, "tnTExplodes");
+		if($override !== null){
+			return !$this->getWorldGamerule($level, "tnTExplodes");
+		}
+
+		return $this->isWorldBehaviorDisabled($level, "no-tnt-block-damage");
+	}
+
+	public function isWorldHungerHealthRegenerationDisabled($level) : bool{
+		$override = $this->getWorldGameruleOverride($level, "naturalRegeneration");
+		if($override !== null){
+			return !$this->getWorldGamerule($level, "naturalRegeneration");
+		}
+
+		return $this->isWorldBehaviorDisabled($level, "no-hunger-health-regeneration");
+	}
+
+	public function isWorldCropGrowthDisabled($level) : bool{
+		$override = $this->getWorldGameruleOverride($level, "randomTickSpeed");
+		if($override !== null){
+			return $this->getWorldGamerule($level, "randomTickSpeed") <= 0;
+		}
+
+		return $this->isWorldBehaviorDisabled($level, "no-crop-growth");
+	}
+
+	public function isWorldNonLivingEntityDropsDisabled($level) : bool{
+		$override = $this->getWorldGameruleOverride($level, "doEntityDrops");
+		if($override !== null){
+			return !$this->getWorldGamerule($level, "doEntityDrops");
+		}
+
+		return $this->isWorldBehaviorDisabled($level, "no-non-living-entity-drops");
+	}
+
+	public function isWorldKeepInventoryEnabled($level) : bool{
+		$override = $this->getWorldGameruleOverride($level, "keepInventory");
+		if($override !== null){
+			return $this->getWorldGamerule($level, "keepInventory");
+		}
+
+		return $this->keepInventory or $this->isWorldBehaviorDisabled($level, "keep-inventory");
+	}
+
+	public function isWorldKeepExperienceEnabled($level) : bool{
+		return $this->keepExperience or $this->isWorldKeepInventoryEnabled($level);
+	}
+
+	public function isWorldDaylightCycleDisabled($level) : bool{
+		$override = $this->getWorldGameruleOverride($level, "doDaylightCycle");
+		if($override !== null){
+			return !$this->getWorldGamerule($level, "doDaylightCycle");
+		}
+
+		return $this->isWorldBehaviorDisabled($level, "do-daylight-cycle");
+	}
+
+	private function writeAdvancedConfigDataPreservingComments(string $content, array $data) : string{
+		$lineEnding = strpos($content, "\r\n") !== false ? "\r\n" : "\n";
+		$hasTrailingNewline = preg_match('/(\r\n|\n|\r)$/', $content) === 1;
+		$lines = preg_split('/\r\n|\n|\r/', $content);
+		if($hasTrailingNewline and end($lines) === ""){
+			array_pop($lines);
+		}
+
+		$output = [];
+		$pathStack = [];
+		$seenPaths = [];
+		$count = count($lines);
+		for($i = 0; $i < $count; ++$i){
+			$line = $lines[$i];
+			if(preg_match('/^(\s*)([A-Za-z0-9_-]+)\s*:\s*(.*)$/', $line, $matches) !== 1){
+				$output[] = $line;
+				continue;
+			}
+
+			$indent = strlen($matches[1]);
+			while(count($pathStack) > 0 and $pathStack[count($pathStack) - 1]["indent"] >= $indent){
+				$entry = array_pop($pathStack);
+				$this->appendMissingAdvancedConfigYamlChildren($output, $data, $entry["path"], $entry["indent"] + 1, $seenPaths);
+			}
+
+			$key = $matches[2];
+			$path = [];
+			foreach($pathStack as $entry){
+				$path[] = $entry["key"];
+			}
+			$parentPath = $path;
+			$path[] = $key;
+			$seenPaths[$this->getAdvancedConfigPathKey($parentPath)][$key] = true;
+
+			$found = false;
+			$value = $this->getAdvancedConfigDataPath($data, $path, $found);
+			$inlineValue = trim($matches[3]);
+			if($found and (!is_array($value) or $inlineValue !== "")){
+				foreach($this->emitAdvancedConfigYamlEntry($matches[1], $key, $value) as $emittedLine){
+					$output[] = $emittedLine;
+				}
+				if(is_array($value)){
+					$this->skipAdvancedConfigYamlChildren($lines, $i, $indent);
+				}
+				continue;
+			}
+
+			$output[] = $line;
+			if($inlineValue === ""){
+				$pathStack[] = [
+					"indent" => $indent,
+					"key" => $key,
+					"path" => $path,
+				];
+			}
+		}
+		while(count($pathStack) > 0){
+			$entry = array_pop($pathStack);
+			$this->appendMissingAdvancedConfigYamlChildren($output, $data, $entry["path"], $entry["indent"] + 1, $seenPaths);
+		}
+		$this->appendMissingAdvancedConfigYamlChildren($output, $data, [], 0, $seenPaths);
+
+		return implode($lineEnding, $output) . ($hasTrailingNewline ? $lineEnding : "");
+	}
+
+	private function appendMissingAdvancedConfigYamlChildren(array &$output, array $data, array $path, int $childIndent, array &$seenPaths) : void{
+		$found = false;
+		$value = $this->getAdvancedConfigDataPath($data, $path, $found);
+		if(!$found or !is_array($value) or $this->isAdvancedConfigList($value)){
+			return;
+		}
+
+		$pathKey = $this->getAdvancedConfigPathKey($path);
+		$seen = isset($seenPaths[$pathKey]) ? $seenPaths[$pathKey] : [];
+		foreach($value as $key => $childValue){
+			if(isset($seen[$key])){
+				continue;
+			}
+			foreach($this->emitAdvancedConfigYamlEntry(str_repeat(" ", $childIndent), (string) $key, $childValue) as $childLine){
+				$output[] = $childLine;
+			}
+			$seenPaths[$pathKey][$key] = true;
+		}
+	}
+
+	private function getAdvancedConfigPathKey(array $path) : string{
+		return implode("\0", $path);
+	}
+
+	private function getAdvancedConfigDataPath(array $data, array $path, bool &$found){
+		$current = $data;
+		foreach($path as $key){
+			if(!is_array($current) or !array_key_exists($key, $current)){
+				$found = false;
+				return null;
+			}
+			$current = $current[$key];
+		}
+
+		$found = true;
+		return $current;
+	}
+
+	private function skipAdvancedConfigYamlChildren(array $lines, int &$index, int $indent) : void{
+		$count = count($lines);
+		while($index + 1 < $count){
+			$nextLine = $lines[$index + 1];
+			if(trim($nextLine) === ""){
+				break;
+			}
+			$nextIndent = strlen($nextLine) - strlen(ltrim($nextLine, " \t"));
+			if($nextIndent <= $indent){
+				break;
+			}
+			++$index;
+		}
+	}
+
+	private function emitAdvancedConfigYamlEntry(string $indent, string $key, $value) : array{
+		if(!is_array($value)){
+			return [$indent . $key . ": " . $this->formatAdvancedConfigYamlScalar($value)];
+		}
+
+		if(count($value) === 0){
+			return [$indent . $key . ": []"];
+		}
+
+		$lines = [$indent . $key . ":"];
+		$childIndent = $indent . " ";
+		if($this->isAdvancedConfigList($value)){
+			foreach($value as $entry){
+				if(is_array($entry)){
+					$lines[] = $childIndent . "-";
+					foreach($entry as $childKey => $childValue){
+						foreach($this->emitAdvancedConfigYamlEntry($childIndent . " ", (string) $childKey, $childValue) as $childLine){
+							$lines[] = $childLine;
+						}
+					}
+				}else{
+					$lines[] = $childIndent . "- " . $this->formatAdvancedConfigYamlScalar($entry);
+				}
+			}
+			return $lines;
+		}
+
+		foreach($value as $childKey => $childValue){
+			foreach($this->emitAdvancedConfigYamlEntry($childIndent, (string) $childKey, $childValue) as $childLine){
+				$lines[] = $childLine;
+			}
+		}
+
+		return $lines;
+	}
+
+	private function isAdvancedConfigList(array $value) : bool{
+		return array_keys($value) === range(0, count($value) - 1);
+	}
+
+	private function formatAdvancedConfigYamlScalar($value) : string{
+		if(is_bool($value)){
+			return $value ? "true" : "false";
+		}
+		if(is_int($value) or is_float($value)){
+			return (string) $value;
+		}
+		if($value === null){
+			return "null";
+		}
+
+		$value = (string) $value;
+		if($value !== "" and preg_match('/^[A-Za-z0-9_.\/-]+$/', $value) === 1 and !is_numeric($value) and !in_array(strtolower($value), ["true", "false", "null", "yes", "no", "on", "off"], true)){
+			return $value;
+		}
+
+		return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+	}
+
 
 	public function updateQuery(){
 		try{

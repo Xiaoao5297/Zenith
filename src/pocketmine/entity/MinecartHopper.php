@@ -448,8 +448,10 @@ class MinecartHopper extends Vehicle {
 	
 	public function close(){
 		if(!$this->closed){
-			foreach($this->getDrops() as $item){
+			if(!$this->getLevel()->getServer()->isWorldNonLivingEntityDropsDisabled($this->getLevel())){
+				foreach($this->getDrops() as $item){
 				$this->getLevel()->dropItem($this, $item);
+				}
 			}
 		}
 		parent::close();

@@ -845,7 +845,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			$this->usedChunks = [];
 			$pk = new SetTimePacket();
 			$pk->time = $this->level->getTime();
-			$pk->started = $this->level->stopTime == false;
+			$pk->started = $this->level->stopTime == false && !$this->server->isWorldDaylightCycleDisabled($this->level);
 			$this->dataPacket($pk);
 
 			$targetLevel->getWeather()->sendWeather($this);
@@ -983,7 +983,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 		$pk = new SetTimePacket();
 		$pk->time = $this->level->getTime();
-		$pk->started = $this->level->stopTime == false;
+		$pk->started = $this->level->stopTime == false && !$this->server->isWorldDaylightCycleDisabled($this->level);
 		$this->dataPacket($pk);
 
 		$pos = $this->level->getSafeSpawn($this);
@@ -2021,7 +2021,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					$this->subtractFood(1);
 				}
 
-				if((($currentTick % $this->server->regenerationInterval) == 0) and $this->getHealth() < $this->getMaxHealth() && $this->getFood() >= $this->server->regenerationFoodThreshold && $this->foodEnabled){
+				if((($currentTick % $this->server->regenerationInterval) == 0) and $this->getHealth() < $this->getMaxHealth() && $this->getFood() >= $this->server->regenerationFoodThreshold && $this->foodEnabled && !$this->server->isWorldHungerHealthRegenerationDisabled($this->getLevel())){
 					$ev = new EntityRegainHealthEvent($this, 1, EntityRegainHealthEvent::CAUSE_EATING);
 					$this->heal(1, $ev);
 				}
@@ -2474,7 +2474,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 		$pk = new SetTimePacket();
 		$pk->time = $this->level->getTime();
-		$pk->started = $this->level->stopTime == false;
+		$pk->started = $this->level->stopTime == false && !$this->server->isWorldDaylightCycleDisabled($this->level);
 		$this->dataPacket($pk);
 
 		$pk = new SetSpawnPositionPacket();
@@ -4586,7 +4586,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 		$this->server->getPluginManager()->callEvent($ev = new PlayerDeathEvent($this, $this->getDrops(), new TranslationContainer($message, $params)));
 
-		if(!$ev->getKeepInventory() and !$this->server->keepInventory){
+		if(!$ev->getKeepInventory() and !$this->server->keepInventory and !$this->server->isWorldKeepInventoryEnabled($this->getLevel())){
 			foreach($ev->getDrops() as $item){
 				$this->level->dropItem($this, $item);
 			}
@@ -4596,7 +4596,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			}
 		}
 
-		if($this->server->expEnabled and (!$ev->getKeepExperience() and !$this->server->keepInventory)){
+		if($this->server->expEnabled and (!$ev->getKeepExperience() and !$this->server->keepInventory) and !$this->server->isWorldKeepExperienceEnabled($this->getLevel())){
 			$exp = $this->getExp();
 			if($exp > 100) $exp = 100;
 			$this->getLevel()->spawnXPOrb($this->add(0, 0.2, 0), $exp);

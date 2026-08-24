@@ -1614,7 +1614,7 @@ abstract class Entity extends Location implements Metadatable{
         $this->removeAllEffects();
         $this->scheduleUpdate();
 
-        if($this->getLevel()->getServer()->expEnabled) {
+        if($this->getLevel()->getServer()->expEnabled and !$this->getLevel()->getServer()->isWorldMobDeathDropsAndExperienceDisabled($this->getLevel())) {
             $exp = mt_rand($this->getDropExpMin(), $this->getDropExpMax());
             if($exp > 0) $this->getLevel()->spawnXPOrb($this, $exp);
         }

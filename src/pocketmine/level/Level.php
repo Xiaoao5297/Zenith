@@ -269,6 +269,24 @@ class Level implements ChunkManager, Metadatable{
 		Block::BEETROOT_BLOCK => Beetroot::class,
 	];
 
+	private $cropGrowthRandomTickBlocks = [
+		Block::WHEAT_BLOCK => true,
+		Block::COCOA_BLOCK => true,
+		Block::CACTUS => true,
+		Block::SUGARCANE_BLOCK => true,
+		Block::PUMPKIN_STEM => true,
+		Block::NETHER_WART_BLOCK => true,
+		Block::MELON_STEM => true,
+		Block::CARROT_BLOCK => true,
+		Block::POTATO_BLOCK => true,
+		Block::BEETROOT_BLOCK => true,
+	];
+
+	private function shouldSkipCropGrowthRandomTick($blockId) : bool{
+		return $this->server->isWorldCropGrowthDisabled($this) and isset($this->cropGrowthRandomTickBlocks[$blockId]);
+	}
+
+
 	/** @var LevelTimings */
 	public $timings;
 
@@ -723,7 +741,7 @@ class Level implements ChunkManager, Metadatable{
 	 * Changes to this function won't be recorded on the version.
 	 */
 	public function checkTime(){
-		if($this->stopTime == true){
+		if($this->stopTime == true or $this->server->isWorldDaylightCycleDisabled($this)){
 			return;
 		}else{
 			$this->time += 1;
@@ -744,7 +762,7 @@ class Level implements ChunkManager, Metadatable{
 	public function sendTime(){
 		$pk = new SetTimePacket();
 		$pk->time = (int) $this->time;
-		$pk->started = $this->stopTime == false;
+		$pk->started = $this->stopTime == false && !$this->server->isWorldDaylightCycleDisabled($this);
 
 		Server::broadcastPacket($this->players, $pk);
 	}
@@ -1030,7 +1048,7 @@ class Level implements ChunkManager, Metadatable{
 							$z = ($k >> 16) & 0x0f;
 
 							$blockId = $section->getBlockId($x, $y, $z);
-							if(isset($this->randomTickBlocks[$blockId])){
+							if(isset($this->randomTickBlocks[$blockId]) and !$this->shouldSkipCropGrowthRandomTick($blockId)){
 								$class = $this->randomTickBlocks[$blockId];
 								/** @var Block $block */
 								$block = new $class($section->getBlockData($x, $y, $z));
@@ -1053,7 +1071,7 @@ class Level implements ChunkManager, Metadatable{
 						$z = ($k >> 16) & 0x0f;
 
 						$blockTest |= $blockId = $chunk->getBlockId($x, $y + ($Y << 4), $z);
-						if(isset($this->randomTickBlocks[$blockId])){
+						if(isset($this->randomTickBlocks[$blockId]) and !$this->shouldSkipCropGrowthRandomTick($blockId)){
 							$class = $this->randomTickBlocks[$blockId];
 							/** @var Block $block */
 							$block = new $class($chunk->getBlockData($x, $y + ($Y << 4), $z));
