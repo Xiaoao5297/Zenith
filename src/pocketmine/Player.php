@@ -895,6 +895,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		if($this->connected === false){
 			return;
 		}
+		error_log("[0.11-DEBUG] sendChunk x={$x} z={$z} payloadLen=" . (is_string($payload) ? strlen($payload) : "obj") . " proto=" . var_export($this->protocol, true));
 
 		$this->usedChunks[Level::chunkHash($x, $z)] = true;
 		$this->chunkLoadCount++;
@@ -1410,7 +1411,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		}else{
 			$pk = new ContainerSetContentPacket();
 			$pk->windowid = ContainerSetContentPacket::SPECIAL_CREATIVE;
-			$pk->slots = array_merge(Item::getCreativeItems(), $this->personalCreativeItems);
+			$pk->slots = $this->getCreativeItemsForProtocol();
 			$this->dataPacket($pk);
 		}
 
@@ -2511,7 +2512,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		}else{
 			$pk = new ContainerSetContentPacket();
 			$pk->windowid = ContainerSetContentPacket::SPECIAL_CREATIVE;
-			$pk->slots = array_merge(Item::getCreativeItems(), $this->personalCreativeItems);
+			$pk->slots = $this->getCreativeItemsForProtocol();
 			$this->dataPacket($pk);
 		}
 		$this->forceMovement = $this->teleportPosition = $this->getPosition();
@@ -2523,6 +2524,22 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 	private function isProtocol011Player() : bool{
 		return ProtocolCompatibility::isProtocol011((int) ($this->protocol ?? 0));
+	}
+
+	private function getCreativeItemsForProtocol() : array{
+		$protocol = (int) ($this->protocol ?? 0);
+		$items = array_merge(Item::getCreativeItems(), $this->personalCreativeItems);
+		if(ProtocolCompatibility::isProtocol011($protocol) or ProtocolCompatibility::isProtocol012($protocol) or ProtocolCompatibility::isProtocol013($protocol)){
+			$filtered = [];
+			foreach($items as $item){
+				$mapped = ProtocolCompatibility::mapCreativeInventoryItemForProtocol($protocol, $item);
+				if($mapped instanceof \pocketmine\item\Item and $mapped->getId() !== 0){
+					$filtered[] = $mapped;
+				}
+			}
+			return $filtered;
+		}
+		return $items;
 	}
 
 	public function dataPacketProtocol011(\pocketmine\network\protocol\v11\DataPacket $packet, $needACK = false, $immediate = false){
