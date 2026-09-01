@@ -316,6 +316,12 @@ class Server{
 	/** @var Level */
 	private $levelDefault = null;
 
+	/** @var string[] 新生成的需要预加载的世界列表 */
+	private $preGenerateQueue = [];
+
+	/** @var int 预加载区块半径 */
+	private $preGenerateRadius = 8;
+
 	public $aboutstring = "";
 
 	/** Advanced Config */
@@ -2042,7 +2048,9 @@ class Server{
 					}elseif(PHP_INT_SIZE === 8){
 						$seed = (int) $seed;
 					}
-					$this->generateLevel($default, $seed === 0 ? time() : $seed);
+					if($this->generateLevel($default, $seed === 0 ? time() : $seed)){
+						$this->preGenerateQueue[] = $default;
+					}
 				}
 
 				$this->setDefaultLevel($this->getLevelByName($default));
@@ -2061,22 +2069,28 @@ class Server{
 			if($this->netherEnabled){
 				if(!$this->loadLevel($this->netherName)){
 					//$this->logger->info("正在生成地狱 ".$this->netherName);
-					$this->generateLevel($this->netherName, time(), Generator::getGenerator("nether"));
+					if($this->generateLevel($this->netherName, time(), Generator::getGenerator("nether"))){
+						$this->preGenerateQueue[] = $this->netherName;
+					}
 				}
 				$this->netherLevel = $this->getLevelByName($this->netherName);
 			}
-			
+
 			if($this->enderEnabled){
 				if(!$this->loadLevel($this->enderName)){
 					//$this->logger->info("正在生成末地 ".$this->enderName);
-					$this->generateLevel($this->enderName, time(), Generator::getGenerator("ender"));
+					if($this->generateLevel($this->enderName, time(), Generator::getGenerator("ender"))){
+						$this->preGenerateQueue[] = $this->enderName;
+					}
 				}
 				$this->enderLevel = $this->getLevelByName($this->enderName);
 			}
-			
+
 			if($this->skyworldEnabled){
 				if(!$this->loadLevel($this->skyworldName)){
-					$this->generateLevel($this->skyworldName, time(), Generator::getGenerator("skyworld"));
+					if($this->generateLevel($this->skyworldName, time(), Generator::getGenerator("skyworld"))){
+						$this->preGenerateQueue[] = $this->skyworldName;
+					}
 				}
 				$this->skyworldLevel = $this->getLevelByName($this->skyworldName);
 				$skyworldpos = (new Vector3($this->skyworldx, $this->skyworldy, $this->skyworldz))->round();
@@ -2567,6 +2581,100 @@ private function lookupAddress($address) {
 	}
 
 	/**
+	 * 同步预生成新区块的区块（仅首次生成世界时执行）
+	 */
+	private function preGenerateWorlds(){
+		if(empty($this->preGenerateQueue)){
+			return;
+		}
+
+		$order = ["world", "nether", "ender", "skyworld"];
+		usort($this->preGenerateQueue, function($a, $b) use ($order){
+			$ia = array_search($a, $order);
+			$ib = array_search($b, $order);
+			if($ia === false && $ib === false) return 0;
+			if($ia === false) return 1;
+			if($ib === false) return -1;
+			return $ia - $ib;
+		});
+
+		$this->logger->notice("检测到新世界，开始预加载地形...");
+
+		foreach($this->preGenerateQueue as $worldName){
+			$level = $this->getLevelByName($worldName);
+			if(!($level instanceof Level)){
+				$this->logger->warning("世界 $worldName 未加载，跳过预生成");
+				continue;
+			}
+
+			$generator = $level->getGenerator();
+			if(!($generator instanceof Generator)){
+				$this->logger->warning("世界 $worldName 没有地形生成器，跳过预生成");
+				continue;
+			}
+
+			$this->logger->notice("正在预加载世界: $worldName");
+
+			$spawn = $level->getSpawnLocation();
+			$centerX = $spawn->getX() >> 4;
+			$centerZ = $spawn->getZ() >> 4;
+
+			$radius = $this->preGenerateRadius;
+			$total = (2 * $radius + 1) * (2 * $radius + 1);
+			$count = 0;
+			$lastProgress = -1;
+
+			// 按距出生点距离排序
+			$orderByDist = [];
+			for($x = -$radius; $x <= $radius; ++$x){
+				for($z = -$radius; $z <= $radius; ++$z){
+					$dist = $x * $x + $z * $z;
+					$orderByDist[$dist][] = [$centerX + $x, $centerZ + $z];
+				}
+			}
+			ksort($orderByDist);
+
+			foreach($orderByDist as $dist => $chunks){
+				foreach($chunks as [$chunkX, $chunkZ]){
+					// 1. 加载当前区块及周围8个邻居到内存（不存在则创建空区块）
+					for($dx = -1; $dx <= 1; ++$dx){
+						for($dz = -1; $dz <= 1; ++$dz){
+							$level->getChunk($chunkX + $dx, $chunkZ + $dz, true);
+						}
+					}
+
+					// 2. 同步生成地形（直接调用 Generator，不经过异步任务）
+					$generator->generateChunk($chunkX, $chunkZ);
+					$generator->populateChunk($chunkX, $chunkZ);
+
+					// 3. 标记区块状态
+					$chunk = $level->getChunk($chunkX, $chunkZ, false);
+					if($chunk !== null){
+						$chunk->setGenerated();
+						$chunk->recalculateHeightMap();
+						$chunk->populateSkyLight();
+						$chunk->setLightPopulated();
+						$chunk->setPopulated();
+						$level->generateChunkCallback($chunkX, $chunkZ, $chunk);
+					}
+
+					++$count;
+
+					$progress = (int)($count / $total * 100);
+					if($progress >= $lastProgress + 10){
+						$lastProgress = $progress;
+						$this->logger->info("  §7[$worldName] §a{$progress}% §7($count/$total)");
+					}
+				}
+			}
+
+			$this->logger->notice("世界 $worldName 预加载完成 (§b{$count}§f 个区块)");
+		}
+
+		$this->preGenerateQueue = [];
+	}
+
+	/**
 	 * Starts the PocketMine-MP server and starts processing ticks and packets
 	 */
 	public function start(){
@@ -2608,6 +2716,8 @@ private function lookupAddress($address) {
         }
 
 		$this->logger->info($this->getLanguage()->translateString("pocketmine.server.startFinished", [round(microtime(true) - \pocketmine\START_TIME, 3)]));
+
+		$this->preGenerateWorlds();
 
 		if(!file_exists($this->getPluginPath() . DIRECTORY_SEPARATOR . "Genisys")){
 			@mkdir($this->getPluginPath() . DIRECTORY_SEPARATOR . "Genisys");

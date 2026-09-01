@@ -207,8 +207,12 @@ class McRegion extends BaseLevelProvider{
 		self::getRegionIndex($chunkX, $chunkZ, $regionX, $regionZ);
 		$this->loadRegion($regionX, $regionZ);
 		$this->level->timings->syncChunkLoadDataTimer->startTiming();
-		$chunk = $this->getRegion($regionX, $regionZ)->readChunk($chunkX - $regionX * 32, $chunkZ - $regionZ * 32);
+		$region = $this->getRegion($regionX, $regionZ);
+		$chunk = $region->readChunk($chunkX - $regionX * 32, $chunkZ - $regionZ * 32);
 		if($chunk === null and $create){
+			if($region->chunkExists($chunkX - $regionX * 32, $chunkZ - $regionZ * 32)){
+				$this->getServer()->getLogger()->error("检测到损坏的区块数据 [$chunkX, $chunkZ]，已用空区块替代并重新生成（原始数据可能已丢失）");
+			}
 			$chunk = $this->getEmptyChunk($chunkX, $chunkZ);
 		}
 		$this->level->timings->syncChunkLoadDataTimer->stopTiming();
