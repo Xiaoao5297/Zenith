@@ -1109,8 +1109,11 @@ class Level implements ChunkManager, Metadatable{
 		foreach($this->chunks as $chunk){
 			if($chunk->hasChanged()){
 				$this->provider->setChunk($chunk->getX(), $chunk->getZ(), $chunk);
-				$this->provider->saveChunk($chunk->getX(), $chunk->getZ());
-				$chunk->setChanged(false);
+				if($this->provider->saveChunk($chunk->getX(), $chunk->getZ()) !== false){
+					$chunk->setChanged(false);
+				}else{
+					$this->server->getLogger()->error("保存区块失败，保留未保存标记 [" . $chunk->getX() . ", " . $chunk->getZ() . "]");
+				}
 			}
 		}
 	}

@@ -27,6 +27,7 @@ class RegionLoader{
 	protected $locationTable = [];
 
 	public $lastUsed;
+	protected $closed = false;
 
 	public function __construct(LevelProvider $level, $regionX, $regionZ){
 		$this->x = $regionX;
@@ -40,7 +41,8 @@ class RegionLoader{
 		$this->filePointer = fopen($this->filePath, "r+b");
 		stream_set_read_buffer($this->filePointer, 1024 * 16); //16KB
 		stream_set_write_buffer($this->filePointer, 1024 * 16); //16KB
-		if(!$exists){
+		$size = filesize($this->filePath);
+		if(!$exists and ($size === false or $size === 0)){
 			$this->createBlank();
 		}else{
 			$this->loadLocationTable();
@@ -50,7 +52,7 @@ class RegionLoader{
 	}
 
 	public function __destruct(){
-		if(is_resource($this->filePointer)){
+		if(!$this->closed and is_resource($this->filePointer)){
 			$this->writeLocationTable();
 			fclose($this->filePointer);
 		}
@@ -132,9 +134,11 @@ class RegionLoader{
 
 		fseek($this->filePointer, $this->locationTable[$index][0] << 12);
 		fwrite($this->filePointer, str_pad(Binary::writeInt($length) . chr(self::COMPRESSION_ZLIB) . $chunkData, $sectors << 12, "\x00", STR_PAD_RIGHT));
+		fflush($this->filePointer);
 
 		if($indexChanged){
 			$this->writeLocationIndex($index);
+			fflush($this->filePointer);
 		}
 	}
 
@@ -157,8 +161,11 @@ class RegionLoader{
 	}
 
 	public function close(){
-		$this->writeLocationTable();
-		fclose($this->filePointer);
+		if(!$this->closed){
+			$this->writeLocationTable();
+			fclose($this->filePointer);
+			$this->closed = true;
+		}
 		$this->levelProvider = null;
 	}
 
