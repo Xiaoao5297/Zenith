@@ -359,16 +359,17 @@ class Chunk extends BaseFullChunk{
 		$nbt->xPos = new IntTag("xPos", $this->x);
 		$nbt->zPos = new IntTag("zPos", $this->z);
 
-		if($this->isGenerated()){
-			$nbt->Blocks = new ByteArrayTag("Blocks", $this->getBlockIdArray());
-			$nbt->Data = new ByteArrayTag("Data", $this->getBlockDataArray());
-			$nbt->SkyLight = new ByteArrayTag("SkyLight", $this->getBlockSkyLightArray());
-			$nbt->BlockLight = new ByteArrayTag("BlockLight", $this->getBlockLightArray());
+		//Always write block data. If a chunk is saved at all, its terrain must not be lost:
+		//saving it without the arrays (the old isGenerated() guard) made a chunk reload as
+		//permanent air when the terrain flag got lost.
+		$nbt->Blocks = new ByteArrayTag("Blocks", $this->getBlockIdArray());
+		$nbt->Data = new ByteArrayTag("Data", $this->getBlockDataArray());
+		$nbt->SkyLight = new ByteArrayTag("SkyLight", $this->getBlockSkyLightArray());
+		$nbt->BlockLight = new ByteArrayTag("BlockLight", $this->getBlockLightArray());
 
-			$nbt->BiomeColors = new IntArrayTag("BiomeColors", $this->getBiomeColorArray());
+		$nbt->BiomeColors = new IntArrayTag("BiomeColors", $this->getBiomeColorArray());
 
-			$nbt->HeightMap = new IntArrayTag("HeightMap", $this->getHeightMapArray());
-		}
+		$nbt->HeightMap = new IntArrayTag("HeightMap", $this->getHeightMapArray());
 
 		$entities = [];
 
