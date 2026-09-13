@@ -289,7 +289,10 @@ class Effect{
 			$entity->setDataFlag(Entity::DATA_FLAGS, Entity::DATA_FLAG_INVISIBLE, true);
 			$entity->setDataProperty(Entity::DATA_SHOW_NAMETAG, Entity::DATA_TYPE_BYTE, 0);
 		}elseif($this->id === Effect::SPEED){
-			$attr = $entity->getAttributeMap()->getAttribute(Attribute::MOVEMENT_SPEED);
+			$attr = $entity->getAttributeMap() !== null ? $entity->getAttributeMap()->getAttribute(Attribute::MOVEMENT_SPEED) : null;
+			if($attr === null){
+				return;
+			}
 			if($modify and $oldEffect !== null){
 				$speed = $attr->getValue() / (1 + 0.2 * $oldEffect->getAmplifier());
 			}else{
@@ -298,7 +301,10 @@ class Effect{
 			$speed *= (1 + 0.2 * $this->amplifier);
 			$attr->setValue($speed);
 		}elseif($this->id === Effect::SLOWNESS){
-			$attr = $entity->getAttributeMap()->getAttribute(Attribute::MOVEMENT_SPEED);
+			$attr = $entity->getAttributeMap() !== null ? $entity->getAttributeMap()->getAttribute(Attribute::MOVEMENT_SPEED) : null;
+			if($attr === null){
+				return;
+			}
 			if($modify and $oldEffect !== null){
 				$speed = $attr->getValue() / (1 - 0.15 * $oldEffect->getAmplifier());
 			}else{

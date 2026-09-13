@@ -922,7 +922,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	}
 
 	protected function sendNextChunk(){
-		if($this->connected === false){
+		if($this->connected === false or $this->closed){
 			return;
 		}
 
@@ -977,6 +977,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	}
 
 	protected function doFirstSpawn(){
+		if($this->closed or !$this->isOnline()){
+			return;
+		}
 		$this->spawned = true;
 
 		$this->sendSettings();
@@ -4703,7 +4706,12 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		}
 
 		$this->food = $amount;
-		$this->getAttributeMap()->getAttribute(Attribute::HUNGER)->setValue($amount);
+		if($this->getAttributeMap() !== null){
+			$hunger = $this->getAttributeMap()->getAttribute(Attribute::HUNGER);
+			if($hunger !== null){
+				$hunger->setValue($amount);
+			}
+		}
 
 		return true;
 	}
