@@ -2432,7 +2432,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 		$nbt->lastPlayed = new LongTag("lastPlayed", floor(microtime(true) * 1000));
 		if($this->server->getAutoSave()){
-			$this->server->saveOfflinePlayerData($this->username, $nbt, true);
+			$this->server->saveOfflinePlayerData($this->username, $nbt, false);
 		}
 
 		parent::__construct($this->level->getChunk($nbt["Pos"][0] >> 4, $nbt["Pos"][2] >> 4, true), $nbt);
@@ -2642,6 +2642,10 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 
 				$this->username = TextFormat::clean($packet->username);
+				if(!\pocketmine\utils\Utils::isValidPlayerName($this->username)){
+					$this->kick("玩家名包含非法字符，请更换名称后重试", false);
+					break;
+				}
 				$this->displayName = $this->username;
 				$this->setNameTag($this->username);
 				$this->iusername = strtolower($this->username);

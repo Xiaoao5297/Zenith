@@ -10,6 +10,82 @@ use pocketmine\ThreadManager;
  * Big collection of functions
  */
 class Utils{
+	/**
+	 * Player names are used to build file paths (players/<name>.dat), so they
+	 * must never contain path separators or traversal sequences.
+	 *
+	 * @param mixed $name
+	 * @return bool
+	 */
+	public static function isValidPlayerName($name){
+		if(!is_string($name) or $name === "" or $name === "." or $name === ".." or strlen($name) > 20){
+			return false;
+		}
+		return preg_match('/^[A-Za-z0-9_\-\.\+@]+$/', $name) === 1;
+	}
+
+	/**
+	 * Level folder names are used to build paths (worlds/<name>/) as well.
+	 *
+	 * @param mixed $name
+	 * @return bool
+	 */
+	public static function isValidLevelName($name){
+		if(!is_string($name) or $name === "" or $name === "." or $name === ".." or strlen($name) > 32){
+			return false;
+		}
+		return preg_match('/^[A-Za-z0-9_\-\.]+$/', $name) === 1;
+	}
+
+	/**
+	 * Atomically write $contents to $path: write a temp file, flush it,
+	 * then rename() over the target. rename() is atomic on the same
+	 * filesystem, so a crash/kill can never leave a truncated target file.
+	 *
+	 * @return bool true on success
+	 */
+	public static function atomicWriteFile($path, $contents){
+		$dir = dirname($path);
+		if(!is_dir($dir)){
+			@mkdir($dir, 0777, true);
+		}
+		// sweep stale temp files left by previously killed writes
+		$stale = glob($path . ".tmp.*");
+		if(is_array($stale)){
+			$now = time();
+			foreach($stale as $f){
+				if(is_file($f) and ($now - @filemtime($f)) > 3600){
+					@unlink($f);
+				}
+			}
+		}
+		$tmp = $path . ".tmp." . getmypid() . "." . bin2hex(random_bytes(6));
+		$fp = @fopen($tmp, "wb");
+		if($fp === false){
+			return false;
+		}
+		$len = strlen($contents);
+		$written = 0;
+		while($written < $len){
+			$n = @fwrite($fp, substr($contents, $written));
+			if($n === false or $n === 0){
+				break;
+			}
+			$written += $n;
+		}
+		@fflush($fp);
+		@fclose($fp);
+		if($written !== $len){
+			@unlink($tmp);
+			return false;
+		}
+		if(!@rename($tmp, $path)){
+			@unlink($tmp);
+			return false;
+		}
+		return true;
+	}
+
 	public static $online = true;
 	public static $ip = false;
 	public static $os;
@@ -402,7 +478,7 @@ class Utils{
 		$ch = curl_init($page);
 		curl_setopt($ch, CURLOPT_HTTPHEADER, array_merge(["User-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:12.0) Gecko/20100101 Firefox/12.0 PocketMine-MP"], $extraHeaders));
 		curl_setopt($ch, CURLOPT_AUTOREFERER, true);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
 		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 		curl_setopt($ch, CURLOPT_FORBID_REUSE, 1);
 		curl_setopt($ch, CURLOPT_FRESH_CONNECT, 1);
@@ -433,7 +509,7 @@ class Utils{
 
 		$ch = curl_init($page);
 		curl_setopt($ch, CURLOPT_POST, 1);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
 		curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
 		curl_setopt($ch, CURLOPT_FORBID_REUSE, 1);
 		curl_setopt($ch, CURLOPT_FRESH_CONNECT, 1);
