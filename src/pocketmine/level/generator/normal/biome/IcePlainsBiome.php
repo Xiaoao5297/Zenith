@@ -22,6 +22,7 @@ namespace pocketmine\level\generator\normal\biome;
 
 use pocketmine\level\generator\normal\populator\Igloo;
 use pocketmine\level\generator\populator\TallGrass;
+use pocketmine\level\generator\normal\populator\VillagePopulator;
 
 class IcePlainsBiome extends SnowyBiome{
 
@@ -34,6 +35,7 @@ class IcePlainsBiome extends SnowyBiome{
 
 		$this->addPopulator($tallGrass);
 		$this->addPopulator($igloo);
+		$this->addPopulator(new VillagePopulator());
 
 		$this->setElevation(63, 74);
 

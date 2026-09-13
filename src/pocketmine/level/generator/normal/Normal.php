@@ -27,6 +27,12 @@ use pocketmine\level\generator\populator\Ore;
 use pocketmine\level\generator\populator\Populator;
 use pocketmine\level\generator\populator\TallGrass;
 use pocketmine\level\generator\populator\Tree;
+use pocketmine\level\generator\normal\populator\DesertStructures;
+use pocketmine\level\generator\normal\populator\JungleTemple;
+use pocketmine\level\generator\normal\populator\PillagerOutpost;
+use pocketmine\level\generator\normal\populator\RuinedPortal;
+use pocketmine\level\generator\normal\populator\Stronghold;
+use pocketmine\level\generator\normal\populator\WoodlandMansion;
 use pocketmine\level\Level;
 use pocketmine\math\Vector3 as Vector3;
 use pocketmine\utils\Random;
@@ -119,13 +125,8 @@ class Normal extends Generator{
 		return $this->selector->pickBiome($x + $xNoise - 1, $z + $zNoise - 1);
 	}
 
-	public function init(ChunkManager $level, Random $random){
-		$this->level = $level;
-		$this->random = $random;
-		$this->random->setSeed($this->level->getSeed());
-		$this->noiseBase = new Simplex($this->random, 4, 1 / 4, 1 / 32);
-		$this->random->setSeed($this->level->getSeed());
-		$this->selector = new BiomeSelector($this->random, function($temperature, $rainfall, $River, $ocean, $hills){ //此算法从pnx抄袭
+	public static function createBiomeSelector(Random $random) : BiomeSelector{
+		$selector = new BiomeSelector($random, function($temperature, $rainfall, $River, $ocean, $hills){ //此算法从pnx抄袭
 			if ($ocean < -0.15) {
 				if ($ocean < -0.91) {
 					if ($ocean < -0.92) {
@@ -234,36 +235,47 @@ class Normal extends Generator{
 			}
 		}, Biome::getBiome(Biome::PLAINS));
 		
-		$this->selector->addBiome(Biome::getBiome(Biome::OCEAN));
-		$this->selector->addBiome(Biome::getBiome(Biome::FROZEN_OCEAN));
-		$this->selector->addBiome(Biome::getBiome(Biome::DEEP_OCEAN));
-		$this->selector->addBiome(Biome::getBiome(Biome::PLAINS));
-		$this->selector->addBiome(Biome::getBiome(Biome::DESERT));
-		$this->selector->addBiome(Biome::getBiome(Biome::MOUNTAINS));
-		$this->selector->addBiome(Biome::getBiome(Biome::FOREST));
-		$this->selector->addBiome(Biome::getBiome(Biome::TAIGA));
-		$this->selector->addBiome(Biome::getBiome(Biome::TAIGA_HILLS));
-		$this->selector->addBiome(Biome::getBiome(Biome::COLD_TAIGA));
-		$this->selector->addBiome(Biome::getBiome(Biome::COLD_TAIGA_HILLS));
-		$this->selector->addBiome(Biome::getBiome(Biome::SWAMP));
-		$this->selector->addBiome(Biome::getBiome(Biome::RIVER));
-		$this->selector->addBiome(Biome::getBiome(Biome::FROZEN_RIVER));
-		$this->selector->addBiome(Biome::getBiome(Biome::ICE_PLAINS));
-		$this->selector->addBiome(Biome::getBiome(Biome::ICE_MOUNTAINS));
-		$this->selector->addBiome(Biome::getBiome(Biome::SMALL_MOUNTAINS));
-		$this->selector->addBiome(Biome::getBiome(Biome::BIRCH_FOREST));
-		$this->selector->addBiome(Biome::getBiome(Biome::BEACH));
-		$this->selector->addBiome(Biome::getBiome(Biome::COLD_BEACH));
-		$this->selector->addBiome(Biome::getBiome(Biome::SAVANNA));
-		$this->selector->addBiome(Biome::getBiome(Biome::JUNGLE));
-		$this->selector->addBiome(Biome::getBiome(Biome::MESA));
-		$this->selector->addBiome(Biome::getBiome(Biome::MUSHROOM_ISLAND));
-		$this->selector->addBiome(Biome::getBiome(Biome::MUSHROOM_ISLAND_SHORE));
-		$this->selector->addBiome(Biome::getBiome(Biome::ROOFED_FOREST));
-		$this->selector->addBiome(Biome::getBiome(Biome::PINK_FOREST));
-		$this->selector->addBiome(Biome::getBiome(Biome::GOLDEN_FOREST));
+		$selector->addBiome(Biome::getBiome(Biome::OCEAN));
+		$selector->addBiome(Biome::getBiome(Biome::FROZEN_OCEAN));
+		$selector->addBiome(Biome::getBiome(Biome::DEEP_OCEAN));
+		$selector->addBiome(Biome::getBiome(Biome::PLAINS));
+		$selector->addBiome(Biome::getBiome(Biome::DESERT));
+		$selector->addBiome(Biome::getBiome(Biome::MOUNTAINS));
+		$selector->addBiome(Biome::getBiome(Biome::FOREST));
+		$selector->addBiome(Biome::getBiome(Biome::TAIGA));
+		$selector->addBiome(Biome::getBiome(Biome::TAIGA_HILLS));
+		$selector->addBiome(Biome::getBiome(Biome::COLD_TAIGA));
+		$selector->addBiome(Biome::getBiome(Biome::COLD_TAIGA_HILLS));
+		$selector->addBiome(Biome::getBiome(Biome::SWAMP));
+		$selector->addBiome(Biome::getBiome(Biome::RIVER));
+		$selector->addBiome(Biome::getBiome(Biome::FROZEN_RIVER));
+		$selector->addBiome(Biome::getBiome(Biome::ICE_PLAINS));
+		$selector->addBiome(Biome::getBiome(Biome::ICE_MOUNTAINS));
+		$selector->addBiome(Biome::getBiome(Biome::SMALL_MOUNTAINS));
+		$selector->addBiome(Biome::getBiome(Biome::BIRCH_FOREST));
+		$selector->addBiome(Biome::getBiome(Biome::BEACH));
+		$selector->addBiome(Biome::getBiome(Biome::COLD_BEACH));
+		$selector->addBiome(Biome::getBiome(Biome::SAVANNA));
+		$selector->addBiome(Biome::getBiome(Biome::JUNGLE));
+		$selector->addBiome(Biome::getBiome(Biome::MESA));
+		$selector->addBiome(Biome::getBiome(Biome::MUSHROOM_ISLAND));
+		$selector->addBiome(Biome::getBiome(Biome::MUSHROOM_ISLAND_SHORE));
+		$selector->addBiome(Biome::getBiome(Biome::ROOFED_FOREST));
+		$selector->addBiome(Biome::getBiome(Biome::PINK_FOREST));
+		$selector->addBiome(Biome::getBiome(Biome::GOLDEN_FOREST));
 
-		$this->selector->recalculate();
+		$selector->recalculate();
+
+		return $selector;
+	}
+
+	public function init(ChunkManager $level, Random $random){
+		$this->level = $level;
+		$this->random = $random;
+		$this->random->setSeed($this->level->getSeed());
+		$this->noiseBase = new Simplex($this->random, 4, 1 / 4, 1 / 32);
+		$this->random->setSeed($this->level->getSeed());
+		$this->selector = self::createBiomeSelector($this->random);
 
 		$cover = new GroundCover();
 		$this->generationPopulators[] = $cover;
@@ -273,6 +285,13 @@ class Normal extends Generator{
 		
 		$Mineshaft = new Mineshaft();
 		$this->populators[] = $Mineshaft;
+
+		$this->populators[] = new Stronghold();
+		$this->populators[] = new DesertStructures();
+		$this->populators[] = new JungleTemple();
+		$this->populators[] = new PillagerOutpost();
+		$this->populators[] = new WoodlandMansion();
+		$this->populators[] = new RuinedPortal();
 
 		$ores = new Ore();
 		$ores->setOreTypes([

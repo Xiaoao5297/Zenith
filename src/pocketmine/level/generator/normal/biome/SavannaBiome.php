@@ -24,6 +24,7 @@ use pocketmine\level\generator\populator\TallGrass;
 use pocketmine\level\generator\populator\Grass;
 use pocketmine\level\generator\populator\AcaciaTree;
 use pocketmine\block\Block;
+use pocketmine\level\generator\normal\populator\VillagePopulator;
 
 
 class SavannaBiome extends GrassyBiome{
@@ -39,6 +40,7 @@ class SavannaBiome extends GrassyBiome{
 		$this->addPopulator($tree);
 		$this->addPopulator($tallGrass);
 		$this->addPopulator($Grass);
+		$this->addPopulator(new VillagePopulator());
 
 		$this->setElevation(62, 68);
 
