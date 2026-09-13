@@ -4,7 +4,7 @@
 
 ## 介绍
 
-Incore 是一个基于 PocketMine-MP 的核心，基于 SCAXE 和 Genisys。
+Zenith 是一个基于 PocketMine-MP 的核心，基于 SCAXE, Genisys 和 Incore。
 
 特点：
 - 支持 `PHP 7.3` - `7.4`
@@ -33,16 +33,12 @@ Incore 适合希望在 PocketMine-MP 上运行稳定服务器的开发者，尤�
 	- 进入目录：
 	  `cd Zenith`
 
-3. 配置 PocketMine-MP
-	- 下载并解压 PocketMine-MP 到服务器目录，确保 PHP 版本兼容。
-	- 将 Incore 的核心文件放入 PocketMine-MP 的 `src` 目录或按项目 README 指示替换对应文件。
-
-4. 启动服务器
+3. 启动服务器
 	- 进入 PocketMine-MP 根目录，执行：
 	  `./start.sh`
 	- 若使用自定义启动脚本或 Supervisor，请按各自方式启动。
 
-5. 常见操作
+4. 常见操作
 	- 更新 Incore：在仓库根目录执行 `git pull` 并重启服务器。
 	- 安装插件：将插件放入 `plugins` 目录，重启或使用 `reload`（不推荐在生产服热加载）。
 

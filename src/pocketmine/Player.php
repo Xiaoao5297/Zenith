@@ -43,6 +43,7 @@ use pocketmine\entity\MinecartHopper;
 use pocketmine\entity\MinecartTNT;
 use pocketmine\entity\Projectile;
 use pocketmine\entity\ThrownExpBottle;
+use pocketmine\entity\Villager;
 use pocketmine\entity\ThrownPotion;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\ItemFrameDropItemEvent;
@@ -101,6 +102,7 @@ use pocketmine\inventory\Inventory;
 use pocketmine\inventory\InventoryHolder;
 use pocketmine\inventory\PlayerInventory;
 use pocketmine\inventory\ShapedRecipe;
+use pocketmine\inventory\VillagerTradeInventory;
 use pocketmine\inventory\ShapelessRecipe;
 use pocketmine\inventory\SimpleTransactionGroup;
 use pocketmine\item\FoodSource;
@@ -3432,6 +3434,12 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 
 				if($packet->action === InteractPacket::ACTION_RIGHT_CLICK){
+					if($target instanceof Villager){
+						if(!$target->isBaby()){
+							$target->openTradeWindow($this);
+						}
+						break;
+					}
 					if($target instanceof Animal){
 						$item = $this->getInventory()->getItemInHand();
 						if($target instanceof Sheep and $item instanceof Shears){
@@ -3974,6 +3982,17 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					/** @var $packet \pocketmine\network\protocol\ContainerSetSlotPacket */
 					if($inv instanceof EnchantInventory and $packet->item->hasEnchantments()){
 						$inv->onEnchant($this, $inv->getItem($packet->slot), $packet->item);
+					}
+
+					if($inv instanceof VillagerTradeInventory){
+						$this->currentTransaction = null;
+						$result = $inv->handlePlayerClick($this, $packet->slot);
+						if($this->getWindowId($inv) !== -1){
+							$inv->sendContents($this);
+						}
+						$this->inventory->sendContents($this);
+						$this->inventory->sendHeldItem($this);
+						break;
 					}
 
 					if($this->usingAnvil == true){

@@ -35,7 +35,7 @@ check_php_version() {
     return 1
 }
 
-for candidate in ./bin/php /usr/local/php73/bin/php /usr/bin/php ./bin/php73/bin/php; do
+for candidate in ./bin/php /usr/local/php73/bin/php /usr/bin/php ./bin/php73/bin/php /usr/local/php74/bin/php ./bin/php74/bin/php; do
     if check_php_version "$candidate"; then
         PHP_BINARY="$candidate"
         break
@@ -53,6 +53,8 @@ if [ -f ./PocketMine-iTX.phar ]; then
 elif [ -f ./Genisys*.phar ]; then
     # 修复通配符问题
     POCKETMINE_FILE=$(ls ./Genisys*.phar 2>/dev/null | head -n1)
+elif [ -f ./Zenith*.phar ]; then
+    POCKETMINE_FILE=$(ls ./Zenith*.phar 2>/dev/null | head -n1)
 elif [ -f ./PocketMine-MP.phar ]; then
     POCKETMINE_FILE="./PocketMine-MP.phar"
 elif [ -f ./src/pocketmine/PocketMine.php ]; then
