@@ -233,6 +233,7 @@ class Network {
 	}
 
 	public function processBatch($packet, Player $p) {
+		error_log("[0.11-DEBUG] processBatch class=" . get_class($packet) . " playerProto=" . var_export($p->getProtocol(), true));
 		if($packet instanceof BatchPacketV11 or ProtocolCompatibility::isProtocol011((int) $p->getProtocol())){
 			$this->processProtocol011Batch($packet, $p);
 			return;

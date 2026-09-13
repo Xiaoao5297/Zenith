@@ -86,6 +86,26 @@ skyworld:
  spawn-y: 64
  spawn-z: -50
 
+world:
+ #按世界名单禁用自然刷怪 (填写世界文件夹名, 多个用逗号分隔)
+ no-natural-mob-spawn: []
+ #按世界名单禁用生物掉落与经验
+ no-mob-death-drops-and-experience: []
+ #按世界名单禁用苦力怕破坏方块
+ no-creeper-block-damage: []
+ #按世界名单禁用TNT破坏方块
+ no-tnt-block-damage: []
+ #按世界名单禁用饥饿与生命恢复
+ no-hunger-health-regeneration: []
+ #按世界名单禁用作物生长 (randomTickSpeed)
+ no-crop-growth: []
+ #按世界名单禁用非生物实体掉落
+ no-non-living-entity-drops: []
+ #按世界名单开启死亡不掉落
+ keep-inventory: []
+ #按世界名单禁用昼夜循环
+ do-daylight-cycle: []
+
 server:
  #预生成经验数据，0=禁用
  experience-cache: 65535

@@ -70,6 +70,7 @@ use pocketmine\command\defaults\VersionCommand;
 use pocketmine\command\defaults\WhitelistCommand;
 use pocketmine\command\defaults\XpCommand;
 use pocketmine\command\defaults\FillCommand;
+use pocketmine\command\defaults\GameruleCommand;
 use pocketmine\command\defaults\EmojiCommand;
 use pocketmine\event\TranslationContainer;
 use pocketmine\Player;
@@ -126,6 +127,7 @@ class SimpleCommandMap implements CommandMap{
 		$this->register("pocketmine", new BiomeCommand("biome"));
 		$this->register("pocketmine", new CaveCommand("cave"));
 		$this->register("pocketmine", new ChunkInfoCommand("chunkinfo"));
+		$this->register("pocketmine", new GameruleCommand("gamerule"));
 
 		$this->register("pocketmine", new VersionCommand("version"));
 		$this->register("pocketmine", new FillCommand("fill"));

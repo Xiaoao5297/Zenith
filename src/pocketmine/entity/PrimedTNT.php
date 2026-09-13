@@ -127,7 +127,7 @@ class PrimedTNT extends Entity implements Explosive{
 
 		if(!$ev->isCancelled()){
 			$explosion = new Explosion($this, $ev->getForce(), $this);
-			if($ev->isBlockBreaking()){
+			if($ev->isBlockBreaking() and !$this->server->isWorldTntBlockDamageDisabled($this->getLevel())){
 				$explosion->explodeA();
 			}
 			$explosion->explodeB();

@@ -128,6 +128,7 @@ class RakLibInterface implements ServerInstance, AdvancedSourceInterface{
 					$pk = $this->getPacket($packet->buffer, $this->players[$identifier]);
 					if($pk !== null){
 						$pk->protocol = (int) $this->players[$identifier]->getProtocol();
+						error_log("[0.11-DEBUG] inbound class=" . get_class($pk) . " pid=0x" . dechex($pk::NETWORK_ID) . " playerProto=" . var_export($this->players[$identifier]->getProtocol(), true));
 						$pk->decode();
 						if($pk instanceof BatchPacketV11){
 							$this->network->processBatch($pk, $this->players[$identifier]);
