@@ -473,7 +473,7 @@ namespace pocketmine {
 	@ini_set("opcache.mmap_base", bin2hex(Utils::getRandomBytes(8, false))); //Fix OPCache address errors
 
 	$lang = "unknown";
-	if(!file_exists(\pocketmine\DATA . "server.properties") and !isset($opts["no-wizard"])){
+	if(!file_exists(\pocketmine\DATA . "server.properties") and !file_exists(\pocketmine\DATA . "config" . DIRECTORY_SEPARATOR . "server.properties") and !isset($opts["no-wizard"])){
 		$inst = new Installer();
 		$lang = $inst->getDefaultLang();
 	}

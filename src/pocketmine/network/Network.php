@@ -230,12 +230,15 @@ class Network {
 			while ($offset < $len) {
 				$pkLen = Binary::readInt(substr($str, $offset, 4));
 				$offset += 4;
+				if($pkLen <= 0 or ($offset + $pkLen) > $len){
+					break;
+				}
 
 				$buf = substr($str, $offset, $pkLen);
 
 				$offset += $pkLen;
 
-				if (($pk = $this->getPacket(ord($buf[1]))) !== null) {
+				if (strlen($buf) >= 2 and ($pk = $this->getPacket(ord($buf[1]))) !== null) {
 					if ($pk::NETWORK_ID === Info::BATCH_PACKET) {
 						throw new \InvalidStateException("Invalid BatchPacket inside BatchPacket");
 					}

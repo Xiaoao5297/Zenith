@@ -235,6 +235,9 @@ class Server{
 	/** @var SimpleCommandMap */
 	private $commandMap = null;
 
+	/** @var \pocketmine\utils\BackupManager|null */
+	private $backupManager = null;
+
 	/** @var CraftingManager */
 	private $craftingManager;
 
@@ -459,6 +462,74 @@ class Server{
 	/**
 	 * @return string
 	 */
+	public function getConfigPath(){
+		return $this->dataPath . "config" . DIRECTORY_SEPARATOR;
+	}
+
+	/**
+	 * Resolve a core config file. New layout: config/<name>.
+	 * Legacy layout (server root) is still supported as a fallback, so an
+	 * old server works without copying anything. If neither exists, the
+	 * config/ path is returned so any new default is created there.
+	 *
+	 * @param string $name
+	 * @return string
+	 */
+	public function getConfigFile($name){
+		$dir = $this->getConfigPath();
+		if(file_exists($dir . $name)){
+			return $dir . $name;
+		}
+		if(file_exists($this->dataPath . $name)){
+			return $this->dataPath . $name;
+		}
+		return $dir . $name;
+	}
+
+	/**
+	 * Automatically migrate legacy core config files from the server root into
+	 * config/. Pure PHP and cross-platform (works on Windows). Existing files
+	 * in config/ are never overwritten; uses rename with a copy fallback.
+	 */
+	private function migrateLegacyConfigs(){
+		$dir = $this->getConfigPath();
+		if(!is_dir($dir)){
+			@mkdir($dir, 0777, true);
+		}
+		// legacy-name => config-name (preferred names first, so they win)
+		$map = [
+			"pocketmine.yml" => "pocketmine.yml",
+			"genisys.yml" => "genisys.yml",
+			"server.properties" => "server.properties",
+			"ops.txt" => "ops.txt",
+			"white-list.txt" => "white-list.txt",
+			"whitelist.txt" => "white-list.txt",
+			"banned-players.txt" => "banned-players.txt",
+			"banned.txt" => "banned-players.txt",
+			"banned-ips.txt" => "banned-ips.txt",
+			"banned-cids.txt" => "banned-cids.txt",
+			"permissions.yml" => "permissions.yml",
+			"backup.yml" => "backup.yml"
+		];
+		$moved = [];
+		foreach($map as $legacy => $target){
+			$src = $this->dataPath . $legacy;
+			$dst = $dir . $target;
+			if(!is_file($src) or file_exists($dst)){
+				continue;
+			}
+			if(@rename($src, $dst)){
+				$moved[] = $legacy;
+			}elseif(@copy($src, $dst)){
+				@unlink($src);
+				$moved[] = $legacy;
+			}
+		}
+		if(count($moved) > 0){
+			$this->logger->info("[配置] 已自动迁移到 config/ : " . implode(", ", $moved));
+		}
+	}
+
 	public function getDataPath(){
 		return $this->dataPath;
 	}
@@ -849,6 +920,13 @@ class Server{
 	}
 
 	/**
+	 * @return \pocketmine\utils\BackupManager|null
+	 */
+	public function getBackupManager(){
+		return $this->backupManager;
+	}
+
+	/**
 	 * @return Player[]
 	 */
 	public function getOnlinePlayers(){
@@ -883,6 +961,10 @@ class Server{
 	 */
 	public function getOfflinePlayerData($name){
 		$name = strtolower($name);
+		if(!\pocketmine\utils\Utils::isValidPlayerName($name)){
+			$this->logger->warning("[Security] 拒绝非法玩家名读取: " . preg_replace('/[^A-Za-z0-9_\-\.]/', '?', strval($name)));
+			$name = "invalid_" . substr(sha1(strval($name)), 0, 10);
+		}
 		$path = $this->getDataPath() . "players/";
 		if(file_exists($path . "$name.dat")){
 			try{
@@ -1003,14 +1085,20 @@ class Server{
 	 * @param bool     $async
 	 */
 	public function saveOfflinePlayerData($name, CompoundTag $nbtTag, $async = false){
+		if(!\pocketmine\utils\Utils::isValidPlayerName(strtolower(strval($name)))){
+			$this->logger->warning("[Security] 拒绝非法玩家名保存: " . preg_replace('/[^A-Za-z0-9_\-\.]/', '?', strval($name)));
+			return;
+		}
 		$nbt = new NBT(NBT::BIG_ENDIAN);
 		try{
 			$nbt->setData($nbtTag);
 
+			$buffer = $nbt->writeCompressed();
+			$dataFile = $this->getDataPath() . "players/" . strtolower($name) . ".dat";
 			if($async){
-				$this->getScheduler()->scheduleAsyncTask(new FileWriteTask($this->getDataPath() . "players/" . strtolower($name) . ".dat", $nbt->writeCompressed()));
+				$this->getScheduler()->scheduleAsyncTask(new FileWriteTask($dataFile, $buffer));
 			}else{
-				file_put_contents($this->getDataPath() . "players/" . strtolower($name) . ".dat", $nbt->writeCompressed());
+				\pocketmine\utils\Utils::atomicWriteFile($dataFile, $buffer);
 			}
 		}catch(\Throwable $e){
 			$this->logger->critical($this->getLanguage()->translateString("pocketmine.data.saveError", [$name, $e->getMessage()]));
@@ -1194,8 +1282,8 @@ class Server{
 	 * @throws LevelException
 	 */
 	public function loadLevel($name){
-		if(trim($name) === ""){
-			throw new LevelException("Invalid empty level name");
+		if(trim($name) === "" or !\pocketmine\utils\Utils::isValidLevelName($name)){
+			throw new LevelException("Invalid level name");
 		}
 		if($this->isLevelLoaded($name)){
 			return true;
@@ -1252,7 +1340,7 @@ class Server{
 	 * @return bool
 	 */
 	public function generateLevel($name, $seed = null, $generator = null, $options = []){
-		if(trim($name) === "" or $this->isLevelGenerated($name)){
+		if(trim($name) === "" or !\pocketmine\utils\Utils::isValidLevelName($name) or $this->isLevelGenerated($name)){
 			return false;
 		}
 
@@ -1326,7 +1414,7 @@ class Server{
 	 * @return bool
 	 */
 	public function isLevelGenerated($name){
-		if(trim($name) === ""){
+		if(trim($name) === "" or !\pocketmine\utils\Utils::isValidLevelName($name)){
 			return false;
 		}
 		$path = $this->getDataPath() . "worlds/" . $name . "/";
@@ -1797,16 +1885,19 @@ class Server{
 
 			$this->about();
             
+            $this->migrateLegacyConfigs();
             $this->logger->info("正在加载pocketmine.yml...");
             
-			if(!file_exists($this->dataPath . "pocketmine.yml")){
+			@mkdir($this->getConfigPath(), 0777, true);
+			$pocketmineYml = $this->getConfigFile("pocketmine.yml");
+			if(!file_exists($pocketmineYml)){
 				$content = file_get_contents($this->filePath . "src/pocketmine/resources/pocketmine.yml");
 				if($version->isDev()){
 					$content = str_replace("preferred-channel: stable", "preferred-channel: beta", $content);
 				}
-				@file_put_contents($this->dataPath . "pocketmine.yml", $content);
+				@file_put_contents($pocketmineYml, $content);
 			}
-			$this->config = new Config($configPath = $this->dataPath . "pocketmine.yml", Config::YAML, []);
+			$this->config = new Config($configPath = $pocketmineYml, Config::YAML, []);
 			$nowLang = $this->getProperty("settings.language", "eng");
 			if($defaultLang != "unknown" and $nowLang != $defaultLang){
 				@file_put_contents($configPath, str_replace('language: "' . $nowLang . '"', 'language: "' . $defaultLang . '"', file_get_contents($configPath)));
@@ -1823,11 +1914,12 @@ class Server{
 				$content = file_get_contents($file = $this->filePath . "src/pocketmine/resources/genisys_eng.yml");
 			}
 
-			if(!file_exists($this->dataPath . "genisys.yml")){
-				@file_put_contents($this->dataPath . "genisys.yml", $content);
+			$genisysYml = $this->getConfigFile("genisys.yml");
+			if(!file_exists($genisysYml)){
+				@file_put_contents($genisysYml, $content);
 			}
 			$internelConfig = new Config($file, Config::YAML, []);
-			$this->advancedConfig = new Config($this->dataPath . "genisys.yml", Config::YAML, []);
+			$this->advancedConfig = new Config($genisysYml, Config::YAML, []);
 			$cfgVer = $this->getAdvancedProperty("config.version", 0, $internelConfig);
 			$advVer = $this->getAdvancedProperty("config.version", 0);
 
@@ -1836,7 +1928,7 @@ class Server{
 			if($this->expWriteAhead > 0) $this->generateExpCache($this->expWriteAhead);
 
 			$this->logger->info("正在加载服务器配置...");
-			$this->properties = new Config($this->dataPath . "server.properties", Config::PROPERTIES, [
+			$this->properties = new Config($this->getConfigFile("server.properties"), Config::PROPERTIES, [
 				"motd" => "Minecraft PE 0.14 Server",
 				"server-port" => 19132,
 				"white-list" => false,
@@ -1909,19 +2001,22 @@ class Server{
 			$this->playerMetadata = new PlayerMetadataStore();
 			$this->levelMetadata = new LevelMetadataStore();
 
-			$this->operators = new Config($this->dataPath . "ops.txt", Config::ENUM);
-			$this->whitelist = new Config($this->dataPath . "white-list.txt", Config::ENUM);
-			if(file_exists($this->dataPath . "banned.txt") and !file_exists($this->dataPath . "banned-players.txt")){
-				@rename($this->dataPath . "banned.txt", $this->dataPath . "banned-players.txt");
+			$this->operators = new Config($this->getConfigFile("ops.txt"), Config::ENUM);
+			$this->whitelist = new Config($this->getConfigFile("white-list.txt"), Config::ENUM);
+			$bannedPlayersFile = $this->getConfigFile("banned-players.txt");
+			if(!file_exists($bannedPlayersFile) and file_exists($this->dataPath . "banned.txt")){
+				@rename($this->dataPath . "banned.txt", $bannedPlayersFile);
 			}
-			@touch($this->dataPath . "banned-players.txt");
-			$this->banByName = new BanList($this->dataPath . "banned-players.txt");
+			@touch($bannedPlayersFile);
+			$this->banByName = new BanList($bannedPlayersFile);
 			$this->banByName->load();
-			@touch($this->dataPath . "banned-ips.txt");
-			$this->banByIP = new BanList($this->dataPath . "banned-ips.txt");
+			$bannedIpsFile = $this->getConfigFile("banned-ips.txt");
+			@touch($bannedIpsFile);
+			$this->banByIP = new BanList($bannedIpsFile);
 			$this->banByIP->load();
-			@touch($this->dataPath . "banned-cids.txt");
-			$this->banByCID = new BanList($this->dataPath . "banned-cids.txt");
+			$bannedCidsFile = $this->getConfigFile("banned-cids.txt");
+			@touch($bannedCidsFile);
+			$this->banByCID = new BanList($bannedCidsFile);
 			$this->banByCID->load();
 
 			$this->maxPlayers = $this->getConfigInt("max-players", 20);
@@ -1963,6 +2058,7 @@ class Server{
 
 			$this->consoleSender = new ConsoleCommandSender();
 			$this->commandMap = new SimpleCommandMap($this);
+			$this->backupManager = new \pocketmine\utils\BackupManager($this);
 
 			$this->registerEntities();
 			$this->registerTiles();
