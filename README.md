@@ -4,7 +4,7 @@
 
 ## 介绍
 
-Incore 是一个基于 PocketMine-MP 的核心，基于 SCAXE 和 Genisys。
+Zenith 是一个基于 PocketMine-MP 的核心，基于 SCAXE 和 Genisys 以及 Incore。
 
 特点：
 - 支持 `PHP 7.3` - `7.4`
@@ -13,7 +13,7 @@ Incore 是一个基于 PocketMine-MP 的核心，基于 SCAXE 和 Genisys。
 - 继承 axe 核心的优化思路，结合 Genisys 的架构设计
 
 说明：
-Incore 适合希望在 PocketMine-MP 上运行稳定服务器的开发者，尤其是需要兼容 PHP 7.3 的环境。
+Zenith 适合希望在 PocketMine-MP 上运行稳定和安全服务器的开发者，尤其是需要兼容 PHP 7.3 的环境。
 
 ---
 
