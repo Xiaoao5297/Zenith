@@ -20,6 +20,7 @@ use pocketmine\level\generator\populator\NetherGlowStone;
 use pocketmine\level\generator\populator\NetherLava;
 use pocketmine\level\generator\populator\NetherOre;
 use pocketmine\level\generator\populator\Populator;
+use pocketmine\level\generator\hell\populator\NetherFortressPopulator;
 
 use pocketmine\math\Vector3 as Vector3;
 use pocketmine\utils\Random;
@@ -100,6 +101,7 @@ class Nether extends Generator{
 		]);
 		$this->populators[] = $ores;
 		$this->populators[] = new NetherGlowStone();
+		$this->populators[] = new NetherFortressPopulator();
 		$groundFire = new GroundFire();
 		$groundFire->setBaseAmount(1);
 		$groundFire->setRandomAmount(1);

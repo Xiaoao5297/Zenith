@@ -245,6 +245,9 @@ class Network {
 			while ($offset < $len) {
 				$pkLen = Binary::readInt(substr($str, $offset, 4));
 				$offset += 4;
+				if($pkLen <= 0 or ($offset + $pkLen) > $len){
+					break;
+				}
 
 				if($pkLen <= 0 or $pkLen > ($len - $offset)){
 					break;

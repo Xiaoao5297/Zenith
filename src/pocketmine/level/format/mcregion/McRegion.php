@@ -161,6 +161,10 @@ class McRegion extends BaseLevelProvider{
 
 	public function unloadChunks(){
 		foreach($this->chunks as $chunk){
+			if($chunk->hasChanged()){
+				$this->saveChunk($chunk->getX(), $chunk->getZ());
+				$chunk->setChanged(false);
+			}
 			$this->unloadChunk($chunk->getX(), $chunk->getZ(), false);
 		}
 		$this->chunks = [];
@@ -207,8 +211,20 @@ class McRegion extends BaseLevelProvider{
 		self::getRegionIndex($chunkX, $chunkZ, $regionX, $regionZ);
 		$this->loadRegion($regionX, $regionZ);
 		$this->level->timings->syncChunkLoadDataTimer->startTiming();
-		$chunk = $this->getRegion($regionX, $regionZ)->readChunk($chunkX - $regionX * 32, $chunkZ - $regionZ * 32);
+		$region = $this->getRegion($regionX, $regionZ);
+		$chunk = $region->readChunk($chunkX - $regionX * 32, $chunkZ - $regionZ * 32);
 		if($chunk === null and $create){
+			if($region->chunkExists($chunkX - $regionX * 32, $chunkZ - $regionZ * 32)){
+				$this->getServer()->getLogger()->error("检测到损坏的区块数据 [$chunkX, $chunkZ]，原始数据可能已丢失！正在隔离 region 文件用于抢救");
+				$quarantine = $this->level->getServer()->getDataPath() . "corrupt-quarantine/";
+				@mkdir($quarantine, 0777, true);
+				$regionFile = $this->level->getPath() . "region/r." . $regionX . "." . $regionZ . ".mcr";
+				if(is_file($regionFile)){
+					$tag = date("Ymd-His") . "_r." . $regionX . "." . $regionZ;
+					@copy($regionFile, $quarantine . $tag . ".mcr");
+					$this->getServer()->getLogger()->error("已隔离: " . $quarantine . $tag . ".mcr");
+				}
+			}
 			$chunk = $this->getEmptyChunk($chunkX, $chunkZ);
 		}
 		$this->level->timings->syncChunkLoadDataTimer->stopTiming();

@@ -35,7 +35,36 @@ class FileWriteTask extends AsyncTask{
 
 	public function onRun(){
 		try{
-			file_put_contents($this->path, $this->contents, (int) $this->flags);
+			if($this->flags !== 0){
+				file_put_contents($this->path, $this->contents, (int) $this->flags);
+				return;
+			}
+			$path = $this->path;
+			$dir = dirname($path);
+			if(!is_dir($dir)){
+				@mkdir($dir, 0777, true);
+			}
+			$tmp = $path . ".tmp." . getmypid() . "." . bin2hex(random_bytes(6));
+			$fp = @fopen($tmp, "wb");
+			if($fp === false){
+				return;
+			}
+			$len = strlen($this->contents);
+			$written = 0;
+			while($written < $len){
+				$n = @fwrite($fp, substr($this->contents, $written));
+				if($n === false or $n === 0){
+					break;
+				}
+				$written += $n;
+			}
+			@fflush($fp);
+			@fclose($fp);
+			if($written === $len){
+				@rename($tmp, $path);
+			}else{
+				@unlink($tmp);
+			}
 		}catch (\Throwable $e){
 
 		}

@@ -70,8 +70,11 @@ class Boat extends Vehicle{
 	
 	public function close(){
 		if(!$this->closed){
-			foreach($this->getDrops() as $item){
-				$this->getLevel()->dropItem($this, $item);
+			$server = $this->getLevel()->getServer();
+			if(!method_exists($server, "isWorldNonLivingEntityDropsDisabled") or !$server->isWorldNonLivingEntityDropsDisabled($this->getLevel())){
+				foreach($this->getDrops() as $item){
+					$this->getLevel()->dropItem($this, $item);
+				}
 			}
 		}
 		parent::close();

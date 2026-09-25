@@ -43,6 +43,7 @@ use pocketmine\entity\MinecartHopper;
 use pocketmine\entity\MinecartTNT;
 use pocketmine\entity\Projectile;
 use pocketmine\entity\ThrownExpBottle;
+use pocketmine\entity\Villager;
 use pocketmine\entity\ThrownPotion;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\ItemFrameDropItemEvent;
@@ -101,6 +102,7 @@ use pocketmine\inventory\Inventory;
 use pocketmine\inventory\InventoryHolder;
 use pocketmine\inventory\PlayerInventory;
 use pocketmine\inventory\ShapedRecipe;
+use pocketmine\inventory\VillagerTradeInventory;
 use pocketmine\inventory\ShapelessRecipe;
 use pocketmine\inventory\SimpleTransactionGroup;
 use pocketmine\item\FoodSource;
@@ -845,7 +847,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			$this->usedChunks = [];
 			$pk = new SetTimePacket();
 			$pk->time = $this->level->getTime();
-			$pk->started = $this->level->stopTime == false;
+			$pk->started = $this->level->stopTime == false && !$this->server->isWorldDaylightCycleDisabled($this->level);
 			$this->dataPacket($pk);
 
 			$targetLevel->getWeather()->sendWeather($this);
@@ -920,7 +922,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	}
 
 	protected function sendNextChunk(){
-		if($this->connected === false){
+		if($this->connected === false or $this->closed){
 			return;
 		}
 
@@ -975,6 +977,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	}
 
 	protected function doFirstSpawn(){
+		if($this->closed or !$this->isOnline()){
+			return;
+		}
 		$this->spawned = true;
 
 		$this->sendSettings();
@@ -983,7 +988,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 		$pk = new SetTimePacket();
 		$pk->time = $this->level->getTime();
-		$pk->started = $this->level->stopTime == false;
+		$pk->started = $this->level->stopTime == false && !$this->server->isWorldDaylightCycleDisabled($this->level);
 		$this->dataPacket($pk);
 
 		$pos = $this->level->getSafeSpawn($this);
@@ -2021,7 +2026,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					$this->subtractFood(1);
 				}
 
-				if((($currentTick % $this->server->regenerationInterval) == 0) and $this->getHealth() < $this->getMaxHealth() && $this->getFood() >= $this->server->regenerationFoodThreshold && $this->foodEnabled){
+				if((($currentTick % $this->server->regenerationInterval) == 0) and $this->getHealth() < $this->getMaxHealth() && $this->getFood() >= $this->server->regenerationFoodThreshold && $this->foodEnabled && !$this->server->isWorldHungerHealthRegenerationDisabled($this->getLevel())){
 					$ev = new EntityRegainHealthEvent($this, 1, EntityRegainHealthEvent::CAUSE_EATING);
 					$this->heal(1, $ev);
 				}
@@ -2427,7 +2432,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 		$nbt->lastPlayed = new LongTag("lastPlayed", floor(microtime(true) * 1000));
 		if($this->server->getAutoSave()){
-			$this->server->saveOfflinePlayerData($this->username, $nbt, true);
+			$this->server->saveOfflinePlayerData($this->username, $nbt, false);
 		}
 
 		parent::__construct($this->level->getChunk($nbt["Pos"][0] >> 4, $nbt["Pos"][2] >> 4, true), $nbt);
@@ -2474,7 +2479,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 		$pk = new SetTimePacket();
 		$pk->time = $this->level->getTime();
-		$pk->started = $this->level->stopTime == false;
+		$pk->started = $this->level->stopTime == false && !$this->server->isWorldDaylightCycleDisabled($this->level);
 		$this->dataPacket($pk);
 
 		$pk = new SetSpawnPositionPacket();
@@ -2637,6 +2642,10 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 
 				$this->username = TextFormat::clean($packet->username);
+				if(!\pocketmine\utils\Utils::isValidPlayerName($this->username)){
+					$this->kick("玩家名包含非法字符，请更换名称后重试", false);
+					break;
+				}
 				$this->displayName = $this->username;
 				$this->setNameTag($this->username);
 				$this->iusername = strtolower($this->username);
@@ -3432,6 +3441,12 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 
 				if($packet->action === InteractPacket::ACTION_RIGHT_CLICK){
+					if($target instanceof Villager){
+						if(!$target->isBaby()){
+							$target->openTradeWindow($this);
+						}
+						break;
+					}
 					if($target instanceof Animal){
 						$item = $this->getInventory()->getItemInHand();
 						if($target instanceof Sheep and $item instanceof Shears){
@@ -3974,6 +3989,17 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					/** @var $packet \pocketmine\network\protocol\ContainerSetSlotPacket */
 					if($inv instanceof EnchantInventory and $packet->item->hasEnchantments()){
 						$inv->onEnchant($this, $inv->getItem($packet->slot), $packet->item);
+					}
+
+					if($inv instanceof VillagerTradeInventory){
+						$this->currentTransaction = null;
+						$result = $inv->handlePlayerClick($this, $packet->slot);
+						if($this->getWindowId($inv) !== -1){
+							$inv->sendContents($this);
+						}
+						$this->inventory->sendContents($this);
+						$this->inventory->sendHeldItem($this);
+						break;
 					}
 
 					if($this->usingAnvil == true){
@@ -4586,7 +4612,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 		$this->server->getPluginManager()->callEvent($ev = new PlayerDeathEvent($this, $this->getDrops(), new TranslationContainer($message, $params)));
 
-		if(!$ev->getKeepInventory() and !$this->server->keepInventory){
+		if(!$ev->getKeepInventory() and !$this->server->keepInventory and !$this->server->isWorldKeepInventoryEnabled($this->getLevel())){
 			foreach($ev->getDrops() as $item){
 				$this->level->dropItem($this, $item);
 			}
@@ -4596,7 +4622,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			}
 		}
 
-		if($this->server->expEnabled and (!$ev->getKeepExperience() and !$this->server->keepInventory)){
+		if($this->server->expEnabled and (!$ev->getKeepExperience() and !$this->server->keepInventory) and !$this->server->isWorldKeepExperienceEnabled($this->getLevel())){
 			$exp = $this->getExp();
 			if($exp > 100) $exp = 100;
 			$this->getLevel()->spawnXPOrb($this->add(0, 0.2, 0), $exp);
@@ -4684,7 +4710,12 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		}
 
 		$this->food = $amount;
-		$this->getAttributeMap()->getAttribute(Attribute::HUNGER)->setValue($amount);
+		if($this->getAttributeMap() !== null){
+			$hunger = $this->getAttributeMap()->getAttribute(Attribute::HUNGER);
+			if($hunger !== null){
+				$hunger->setValue($amount);
+			}
+		}
 
 		return true;
 	}

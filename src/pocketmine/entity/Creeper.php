@@ -88,7 +88,7 @@ class Creeper extends Monster{
 			}else{
 				$this->setSwelled(false);
                 $e = new Explosion(new Position($this->getX() , $this->getY() , $this->getZ() , $this->getLevel()) , 5);
-                if ($this->getLevel()->getServer()->aiConfig["creeperexplode"]) $e->explode();
+                if ($this->getLevel()->getServer()->aiConfig["creeperexplode"] and !$this->getLevel()->getServer()->isWorldCreeperBlockDamageDisabled($this->getLevel())) $e->explode();
                 else $e->explodeB();
 				$this->getLevel()->removeEntity($this);
 			}

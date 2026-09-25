@@ -21,6 +21,7 @@
 
 namespace pocketmine\command;
 
+use pocketmine\command\defaults\BackupCommand;
 use pocketmine\command\defaults\BanCommand;
 use pocketmine\command\defaults\BanIpCommand;
 use pocketmine\command\defaults\BanListCommand;
@@ -70,6 +71,7 @@ use pocketmine\command\defaults\VersionCommand;
 use pocketmine\command\defaults\WhitelistCommand;
 use pocketmine\command\defaults\XpCommand;
 use pocketmine\command\defaults\FillCommand;
+use pocketmine\command\defaults\GameruleCommand;
 use pocketmine\command\defaults\EmojiCommand;
 use pocketmine\event\TranslationContainer;
 use pocketmine\Player;
@@ -126,6 +128,7 @@ class SimpleCommandMap implements CommandMap{
 		$this->register("pocketmine", new BiomeCommand("biome"));
 		$this->register("pocketmine", new CaveCommand("cave"));
 		$this->register("pocketmine", new ChunkInfoCommand("chunkinfo"));
+		$this->register("pocketmine", new GameruleCommand("gamerule"));
 
 		$this->register("pocketmine", new VersionCommand("version"));
 		$this->register("pocketmine", new FillCommand("fill"));
@@ -151,6 +154,7 @@ class SimpleCommandMap implements CommandMap{
 		$this->register("pocketmine", new SaveOnCommand("save-on"));
 		$this->register("pocketmine", new SaveOffCommand("save-off"));
 		$this->register("pocketmine", new SaveCommand("save-all"));
+		$this->register("pocketmine", new BackupCommand("backup"));
 		$this->register("pocketmine", new GiveCommand("give"));
 		$this->register("pocketmine", new EffectCommand("effect"));
 		$this->register("pocketmine", new EnchantCommand("enchant"));

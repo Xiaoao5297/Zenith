@@ -27,6 +27,7 @@ use pocketmine\level\generator\populator\WaterPit;
 use pocketmine\block\Block;
 use pocketmine\block\Flower as FlowerBlock;
 use pocketmine\level\generator\populator\Flower;
+use pocketmine\level\generator\normal\populator\VillagePopulator;
 use pocketmine\level\generator\populator\Sugarcane;
 use pocketmine\level\generator\populator\TallSugarcane;
 
@@ -65,6 +66,7 @@ class PlainBiome extends GrassyBiome{
 		$this->addPopulator($flower);
 		$this->addPopulator($waterPit);
 		$this->addPopulator($lilyPad);
+		$this->addPopulator(new VillagePopulator());
 
 		$this->setElevation(61, 68);
 

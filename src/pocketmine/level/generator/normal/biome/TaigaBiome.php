@@ -24,6 +24,7 @@ use pocketmine\block\Sapling;
 use pocketmine\block\Block;
 use pocketmine\level\generator\populator\MossStone;
 use pocketmine\level\generator\populator\Tree;
+use pocketmine\level\generator\normal\populator\VillagePopulator;
 
 class TaigaBiome extends SnowyBiome{
 
@@ -38,6 +39,7 @@ class TaigaBiome extends SnowyBiome{
 		$mossStone->setBaseAmount(1);
 
 		$this->addPopulator($mossStone);
+		$this->addPopulator(new VillagePopulator());
 
 		$this->setElevation(63, 81);
 

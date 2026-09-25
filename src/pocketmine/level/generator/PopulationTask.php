@@ -28,24 +28,51 @@ class PopulationTask extends AsyncTask{
 	public $chunk7;
 	public $chunk8;
 
+	/** @var bool[] whether each of the 9 positions was loaded when the task was created */
+	public $chunkLoaded = [];
+	/** @var bool[] hasChanged() snapshot of each loaded position */
+	public $chunkChanged = [];
+
+	/** @var int */
+	public $chunkX;
+	/** @var int */
+	public $chunkZ;
+	/** @var string|null */
+	public $errorMessage = null;
+
 	public function __construct(Level $level, FullChunk $chunk){
 		$this->state = true;
 		$this->levelId = $level->getId();
 		$this->chunk = $chunk->toFastBinary();
 		$this->chunkClass = get_class($chunk);
+		$this->chunkX = $chunk->getX();
+		$this->chunkZ = $chunk->getZ();
 
 		for($i = 0; $i < 9; ++$i){
 			if($i === 4){
+				$this->chunkLoaded[4] = true;
+				$this->chunkChanged[4] = $chunk->hasChanged();
 				continue;
 			}
 			$xx = -1 + $i % 3;
 			$zz = -1 + (int) ($i / 3);
 			$ck = $level->getChunk($chunk->getX() + $xx, $chunk->getZ() + $zz, false);
+			$this->chunkLoaded[$i] = $ck !== null;
+			$this->chunkChanged[$i] = $ck !== null ? $ck->hasChanged() : false;
 			$this->{"chunk$i"} = $ck !== null ? $ck->toFastBinary() : null;
 		}
 	}
 
 	public function onRun(){
+		try{
+			$this->runPopulation();
+		}catch(\Throwable $e){
+			$this->state = false;
+			$this->errorMessage = "PopulationTask failed for chunk ({$this->chunkX}, {$this->chunkZ}): " . $e->getMessage();
+		}
+	}
+
+	private function runPopulation(){
 		/** @var SimpleChunkManager $manager */
 		$manager = $this->getFromThreadStore("generation.level{$this->levelId}.manager");
 		/** @var Generator $generator */
@@ -136,6 +163,10 @@ class PopulationTask extends AsyncTask{
 		$level = $server->getLevel($this->levelId);
 		if($level !== null){
 			if($this->state === false){
+				if($this->errorMessage !== null){
+					$level->getServer()->getLogger()->error($this->errorMessage);
+				}
+				$level->cancelChunkPopulation($this->chunkX, $this->chunkZ);
 				$level->registerGenerator();
 				return;
 			}
@@ -146,7 +177,7 @@ class PopulationTask extends AsyncTask{
 			$chunk = $chunkC::fromFastBinary($this->chunk, $level->getProvider());
 
 			if($chunk === null){
-				//TODO error
+				$level->cancelChunkPopulation($this->chunkX, $this->chunkZ);
 				return;
 			}
 
@@ -155,13 +186,29 @@ class PopulationTask extends AsyncTask{
 					continue;
 				}
 				$c = $this->{"chunk$i"};
+				if($c === null){
+					continue;
+				}
+				//The async side filled this position with an empty chunk (it was not loaded
+				//when the task was created). Writing it back could swallow the real chunk the
+				//main thread has loaded since. Only write back chunks that were loaded and
+				//have not been modified on the main thread after the snapshot was taken.
+				if(!$this->chunkLoaded[$i]){
+					continue;
+				}
+				$cx = $chunk->getX() - 1 + $i % 3;
+				$cz = $chunk->getZ() - 1 + (int) ($i / 3);
+				$current = $level->getChunk($cx, $cz, false);
+				if($current !== null and $current->hasChanged() !== $this->chunkChanged[$i]){
+					continue;
+				}
+				$c = $chunkC::fromFastBinary($c, $level->getProvider());
 				if($c !== null){
-					$c = $chunkC::fromFastBinary($c, $level->getProvider());
-					$level->generateChunkCallback($c->getX(), $c->getZ(), $c);
+					$level->generateChunkCallback($c->getX(), $c->getZ(), $c, $this->chunkChanged[$i]);
 				}
 			}
 
-			$level->generateChunkCallback($chunk->getX(), $chunk->getZ(), $chunk);
+			$level->generateChunkCallback($chunk->getX(), $chunk->getZ(), $chunk, $this->chunkChanged[4]);
 		}
 	}
 }

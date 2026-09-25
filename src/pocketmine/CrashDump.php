@@ -94,9 +94,9 @@ class CrashDump{
 
 		if($this->server->getProperty("auto-report.send-settings", true) !== false){
 			$this->data["parameters"] = (array) $arguments;
-			$this->data["server.properties"] = @file_get_contents($this->server->getDataPath() . "server.properties");
+			$this->data["server.properties"] = @file_get_contents($this->server->getConfigFile("server.properties"));
 			$this->data["server.properties"] = preg_replace("#^rcon\\.password=(.*)$#m", "rcon.password=******", $this->data["server.properties"]);
-			$this->data["pocketmine.yml"] = @file_get_contents($this->server->getDataPath() . "pocketmine.yml");
+			$this->data["pocketmine.yml"] = @file_get_contents($this->server->getConfigFile("pocketmine.yml"));
 		}else{
 			$this->data["pocketmine.yml"] = "";
 			$this->data["server.properties"] = "";

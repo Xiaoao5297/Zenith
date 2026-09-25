@@ -75,7 +75,8 @@ class Human extends Creature implements ProjectileSource, InventoryHolder{
 	}
 
 	public function getFood() : float{
-		return $this->attributeMap->getAttribute(Attribute::HUNGER)->getValue();
+		$attr = $this->attributeMap !== null ? $this->attributeMap->getAttribute(Attribute::HUNGER) : null;
+		return $attr !== null ? $attr->getValue() : 20.0;
 	}
 
 	/**
@@ -87,7 +88,10 @@ class Human extends Creature implements ProjectileSource, InventoryHolder{
 	 * @throws \InvalidArgumentException
 	 */
 	public function setFood(float $new){
-		$attr = $this->attributeMap->getAttribute(Attribute::HUNGER);
+		$attr = $this->attributeMap !== null ? $this->attributeMap->getAttribute(Attribute::HUNGER) : null;
+		if($attr === null){
+			return;
+		}
 		$old = $attr->getValue();
 		$attr->setValue($new);
 		// ranges: 18-20 (regen), 7-17 (none), 1-6 (no sprint), 0 (health depletion)
@@ -103,11 +107,15 @@ class Human extends Creature implements ProjectileSource, InventoryHolder{
 	}
 
 	public function getMaxFood() : float{
-		return $this->attributeMap->getAttribute(Attribute::HUNGER)->getMaxValue();
+		$attr = $this->attributeMap !== null ? $this->attributeMap->getAttribute(Attribute::HUNGER) : null;
+		return $attr !== null ? $attr->getMaxValue() : 20.0;
 	}
 
 	public function addFood(float $amount){
-		$attr = $this->attributeMap->getAttribute(Attribute::HUNGER);
+		$attr = $this->attributeMap !== null ? $this->attributeMap->getAttribute(Attribute::HUNGER) : null;
+		if($attr === null){
+			return;
+		}
 		$amount += $attr->getValue();
 		$amount = max(min($amount, $attr->getMaxValue()), $attr->getMinValue());
 		$this->setFood($amount);

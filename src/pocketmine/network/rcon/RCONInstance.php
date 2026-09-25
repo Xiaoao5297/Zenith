@@ -137,7 +137,7 @@ class RCONInstance extends Thread{
 									continue;
 								}
 								$res = (array) [
-									"serverStatus" => unserialize($this->serverStatus),
+									"serverStatus" => unserialize($this->serverStatus, ["allowed_classes" => false]),
 									"logger" => str_replace("\n", "\r\n", trim($this->logger->getMessages()))
 								];
 								$this->writePacket($client, $requestID, 0, serialize($res));

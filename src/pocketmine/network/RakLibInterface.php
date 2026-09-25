@@ -151,9 +151,11 @@ class RakLibInterface implements ServerInstance, AdvancedSourceInterface{
 
 	public function blockAddress($address, $timeout = 300){
 		$this->interface->blockAddress($address, $timeout);
-		if($this->server->netshBlock){
-			passthru('netsh advfirewall firewall add rule name="Scaxe_Block_'.$address.'" dir=in remoteip='.$address.' action=block');
+		if($this->server->netshBlock and filter_var($address, FILTER_VALIDATE_IP) !== false){
+			passthru('netsh advfirewall firewall add rule name=' . escapeshellarg('Scaxe_Block_' . $address) . ' dir=in remoteip=' . escapeshellarg($address) . ' action=block');
 			$this->server->getLogger()->notice("已成功调用Windows防火墙封禁此IP");
+		}elseif($this->server->netshBlock){
+			$this->server->getLogger()->warning("[Security] 非法IP，跳过 netsh 封禁: " . $address);
 		}
 	}
 

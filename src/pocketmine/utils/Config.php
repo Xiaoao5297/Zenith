@@ -143,7 +143,7 @@ class Config{
 						$this->config = yaml_parse($content);
 						break;
 					case Config::SERIALIZED:
-						$this->config = unserialize($content);
+						$this->config = unserialize($content, ["allowed_classes" => false]);
 						break;
 					case Config::ENUM:
 						$this->parseList($content);
@@ -205,7 +205,7 @@ class Config{
 				if($async){
 					Server::getInstance()->getScheduler()->scheduleAsyncTask(new FileWriteTask($this->file, $content));
 				}else{
-					file_put_contents($this->file, $content);
+					Utils::atomicWriteFile($this->file, $content);
 				}
 			}catch(\Throwable $e){
 				$logger = Server::getInstance()->getLogger();

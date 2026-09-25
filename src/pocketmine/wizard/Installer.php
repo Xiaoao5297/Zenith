@@ -40,6 +40,7 @@ class Installer{
 	private $defaultLang;
 
 	public function __construct(){
+		@mkdir(\pocketmine\DATA . "config", 0777, true);
 		echo "[*] Zenith 配置程序\n";
 		echo "[*] 请选择语言:\n";
 		foreach(InstallerLang::$languages as $short => $native){
@@ -117,7 +118,7 @@ LICENSE;
 	}
 
 	private function generateBaseConfig(){
-		$config = new Config(\pocketmine\DATA . "server.properties", Config::PROPERTIES);
+		$config = new Config(\pocketmine\DATA . "config" . DIRECTORY_SEPARATOR . "server.properties", Config::PROPERTIES);
 		echo "[?] " . $this->lang->name_your_server . " (" . self::DEFAULT_NAME . "): ";
 		$config->set("server-name", $this->getInput(self::DEFAULT_NAME));
 		echo "[?] " . $this->lang->name_your_motd . " (" . self::DEFAULT_NAME . "): ";
@@ -179,13 +180,13 @@ LICENSE;
 		if($op === ""){
 			echo "[!] " . $this->lang->op_warning . "\n";
 		}else{
-			$ops = new Config(\pocketmine\DATA . "ops.txt", Config::ENUM);
+			$ops = new Config(\pocketmine\DATA . "config" . DIRECTORY_SEPARATOR . "ops.txt", Config::ENUM);
 			$ops->set($op, true);
 			$ops->save();
 		}
 		echo "[*] " . $this->lang->whitelist_info . "\n";
 		echo "[?] " . $this->lang->whitelist_enable . " (y/N): ";
-		$config = new Config(\pocketmine\DATA . "server.properties", Config::PROPERTIES);
+		$config = new Config(\pocketmine\DATA . "config" . DIRECTORY_SEPARATOR . "server.properties", Config::PROPERTIES);
 		if(strtolower($this->getInput("n")) === "y"){
 			echo "[!] " . $this->lang->whitelist_warning . "\n";
 			$config->set("white-list", true);
@@ -196,7 +197,7 @@ LICENSE;
 	}
 
 	private function networkFunctions(){
-		$config = new Config(\pocketmine\DATA . "server.properties", Config::PROPERTIES);
+		$config = new Config(\pocketmine\DATA . "config" . DIRECTORY_SEPARATOR . "server.properties", Config::PROPERTIES);
 		echo "[!] " . $this->lang->query_warning1 . "\n";
 		echo "[!] " . $this->lang->query_warning2 . "\n";
 		echo "[?] " . $this->lang->query_disable . " (y/N): ";

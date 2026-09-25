@@ -269,6 +269,24 @@ class Level implements ChunkManager, Metadatable{
 		Block::BEETROOT_BLOCK => Beetroot::class,
 	];
 
+	private $cropGrowthRandomTickBlocks = [
+		Block::WHEAT_BLOCK => true,
+		Block::COCOA_BLOCK => true,
+		Block::CACTUS => true,
+		Block::SUGARCANE_BLOCK => true,
+		Block::PUMPKIN_STEM => true,
+		Block::NETHER_WART_BLOCK => true,
+		Block::MELON_STEM => true,
+		Block::CARROT_BLOCK => true,
+		Block::POTATO_BLOCK => true,
+		Block::BEETROOT_BLOCK => true,
+	];
+
+	private function shouldSkipCropGrowthRandomTick($blockId) : bool{
+		return $this->server->isWorldCropGrowthDisabled($this) and isset($this->cropGrowthRandomTickBlocks[$blockId]);
+	}
+
+
 	/** @var LevelTimings */
 	public $timings;
 
@@ -464,6 +482,13 @@ class Level implements ChunkManager, Metadatable{
 			return $this->generatorInstance->getWaterHeight();
 		}
 		return 0;
+	}
+
+	/**
+	 * @return Generator|null
+	 */
+	public function getGenerator(){
+		return $this->generatorInstance;
 	}
 
 	public function registerGenerator(){
@@ -723,7 +748,7 @@ class Level implements ChunkManager, Metadatable{
 	 * Changes to this function won't be recorded on the version.
 	 */
 	public function checkTime(){
-		if($this->stopTime == true){
+		if($this->stopTime == true or $this->server->isWorldDaylightCycleDisabled($this)){
 			return;
 		}else{
 			$this->time += 1;
@@ -744,7 +769,7 @@ class Level implements ChunkManager, Metadatable{
 	public function sendTime(){
 		$pk = new SetTimePacket();
 		$pk->time = (int) $this->time;
-		$pk->started = $this->stopTime == false;
+		$pk->started = $this->stopTime == false && !$this->server->isWorldDaylightCycleDisabled($this);
 
 		Server::broadcastPacket($this->players, $pk);
 	}
@@ -1030,7 +1055,7 @@ class Level implements ChunkManager, Metadatable{
 							$z = ($k >> 16) & 0x0f;
 
 							$blockId = $section->getBlockId($x, $y, $z);
-							if(isset($this->randomTickBlocks[$blockId])){
+							if(isset($this->randomTickBlocks[$blockId]) and !$this->shouldSkipCropGrowthRandomTick($blockId)){
 								$class = $this->randomTickBlocks[$blockId];
 								/** @var Block $block */
 								$block = new $class($section->getBlockData($x, $y, $z));
@@ -1053,7 +1078,7 @@ class Level implements ChunkManager, Metadatable{
 						$z = ($k >> 16) & 0x0f;
 
 						$blockTest |= $blockId = $chunk->getBlockId($x, $y + ($Y << 4), $z);
-						if(isset($this->randomTickBlocks[$blockId])){
+						if(isset($this->randomTickBlocks[$blockId]) and !$this->shouldSkipCropGrowthRandomTick($blockId)){
 							$class = $this->randomTickBlocks[$blockId];
 							/** @var Block $block */
 							$block = new $class($chunk->getBlockData($x, $y + ($Y << 4), $z));
@@ -1103,8 +1128,11 @@ class Level implements ChunkManager, Metadatable{
 		foreach($this->chunks as $chunk){
 			if($chunk->hasChanged()){
 				$this->provider->setChunk($chunk->getX(), $chunk->getZ(), $chunk);
-				$this->provider->saveChunk($chunk->getX(), $chunk->getZ());
-				$chunk->setChanged(false);
+				if($this->provider->saveChunk($chunk->getX(), $chunk->getZ()) !== false){
+					$chunk->setChanged(false);
+				}else{
+					$this->server->getLogger()->error("保存区块失败，保留未保存标记 [" . $chunk->getX() . ", " . $chunk->getZ() . "]");
+				}
 			}
 		}
 	}
@@ -1334,7 +1362,7 @@ class Level implements ChunkManager, Metadatable{
 			$level = $chunk->getBlockSkyLight($pos->x & 0x0f, $pos->y & 0x7f, $pos->z & 0x0f);
 			//TODO: decrease light level by time of day
 			if($level < 15){
-				$level = max($chunk->getBlockLight($pos->x & 0x0f, $pos->y & 0x7f, $pos->z & 0x0f));
+				$level = max($level, $chunk->getBlockLight($pos->x & 0x0f, $pos->y & 0x7f, $pos->z & 0x0f));
 			}
 		}
 
@@ -2359,7 +2387,7 @@ class Level implements ChunkManager, Metadatable{
 		return $this->getChunk($x, $z, $create);
 	}
 
-	public function generateChunkCallback($x, $z, FullChunk $chunk){
+	public function generateChunkCallback($x, $z, FullChunk $chunk, $skipIfChanged = null){
 		Timings::$generationCallbackTimer->startTiming();
 		if(isset($this->chunkPopulationQueue[$index = Level::chunkHash($x, $z)])){
 			$oldChunk = $this->getChunk($x, $z, false);
@@ -2369,6 +2397,11 @@ class Level implements ChunkManager, Metadatable{
 				}
 			}
 			unset($this->chunkPopulationQueue[$index]);
+			//Do not overwrite the chunk if it has been modified after the async task took its snapshot
+			if($skipIfChanged !== null and $oldChunk !== null and $oldChunk->hasChanged() !== $skipIfChanged){
+				Timings::$generationCallbackTimer->stopTiming();
+				return;
+			}
 			$chunk->setProvider($this->provider);
 			$this->setChunk($x, $z, $chunk, false);
 			$chunk = $this->getChunk($x, $z, false);
@@ -2380,15 +2413,55 @@ class Level implements ChunkManager, Metadatable{
 				}
 			}
 		}elseif(isset($this->chunkGenerationQueue[$index]) or isset($this->chunkPopulationLock[$index])){
+			$oldChunk = $this->getChunk($x, $z, false);
 			unset($this->chunkGenerationQueue[$index]);
 			unset($this->chunkPopulationLock[$index]);
+			if($skipIfChanged !== null and $oldChunk !== null and $oldChunk->hasChanged() !== $skipIfChanged){
+				Timings::$generationCallbackTimer->stopTiming();
+				return;
+			}
 			$chunk->setProvider($this->provider);
 			$this->setChunk($x, $z, $chunk, false);
 		}else{
+			$oldChunk = $this->getChunk($x, $z, false);
+			if($skipIfChanged !== null and $oldChunk !== null and $oldChunk->hasChanged() !== $skipIfChanged){
+				Timings::$generationCallbackTimer->stopTiming();
+				return;
+			}
 			$chunk->setProvider($this->provider);
 			$this->setChunk($x, $z, $chunk, false);
 		}
 		Timings::$generationCallbackTimer->stopTiming();
+	}
+
+	/**
+	 * Cancels a pending chunk population request and releases its locks.
+	 * Used when a PopulationTask fails, to avoid the 3x3 area being stuck forever.
+	 *
+	 * @param int $x
+	 * @param int $z
+	 */
+	public function cancelChunkPopulation($x, $z){
+		$index = Level::chunkHash($x, $z);
+		if(isset($this->chunkPopulationQueue[$index])){
+			unset($this->chunkPopulationQueue[$index]);
+			for($xx = -1; $xx <= 1; ++$xx){
+				for($zz = -1; $zz <= 1; ++$zz){
+					unset($this->chunkPopulationLock[Level::chunkHash($x + $xx, $z + $zz)]);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Cancels a pending chunk generation request.
+	 * Used when a GenerationTask fails, so the chunk can be queued again later.
+	 *
+	 * @param int $x
+	 * @param int $z
+	 */
+	public function cancelChunkGeneration($x, $z){
+		unset($this->chunkGenerationQueue[Level::chunkHash($x, $z)]);
 	}
 
 	/**

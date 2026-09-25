@@ -123,7 +123,7 @@ abstract class BaseLevelProvider implements LevelProvider{
 			"Data" => $this->levelData
 		]));
 		$buffer = $nbt->writeCompressed();
-		file_put_contents($this->getPath() . "level.dat", $buffer);
+		\pocketmine\utils\Utils::atomicWriteFile($this->getPath() . "level.dat", $buffer);
 	}
 
 
