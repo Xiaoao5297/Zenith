@@ -77,6 +77,14 @@ class VillagerTradeOffer{
 		return $this->uses >= $this->maxUses;
 	}
 
+	/**
+	 * 交易是否有效：买卖物品都不能是空气，且卖出物品数量必须大于 0。
+	 */
+	public function isValid() : bool{
+		return $this->buyA->getId() !== Item::AIR and $this->buyA->getCount() > 0
+			and $this->sell->getId() !== Item::AIR and $this->sell->getCount() > 0;
+	}
+
 	public function canExecute(Inventory $inventory) : bool{
 		return $this->getFailureReason($inventory) === self::FAIL_NONE;
 	}
@@ -170,6 +178,10 @@ class VillagerTradeOffer{
 		if($this->buyB !== null and !$this->removeItemCountFromSlots($slots, $this->buyB)){
 			return false;
 		}
+
+		// addItem() 只填充 [0, size - hotbarSize) 槽位，空间判断须与其保持一致
+		$addable = max(0, $inventory->getSize() - $inventory->getHotbarSize());
+		$slots = array_slice($slots, 0, $addable, true);
 
 		return $this->canAddItemToSlots($slots, $this->sell, $inventory->getMaxStackSize());
 	}

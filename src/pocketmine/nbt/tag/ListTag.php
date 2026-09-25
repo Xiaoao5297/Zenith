@@ -166,12 +166,16 @@ class ListTag extends NamedTag implements \ArrayAccess, \Countable{
 					break;
 				case NBT::TAG_List:
 					$tag = new TagEnum("");
+					$nbt->enterDepth();
 					$tag->read($nbt);
+					$nbt->leaveDepth();
 					$this->{$i} = $tag;
 					break;
 				case NBT::TAG_Compound:
 					$tag = new CompoundTag("");
+					$nbt->enterDepth();
 					$tag->read($nbt);
+					$nbt->leaveDepth();
 					$this->{$i} = $tag;
 					break;
 				case NBT::TAG_IntArray:

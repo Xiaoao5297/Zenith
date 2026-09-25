@@ -123,7 +123,7 @@ class BackupManager{
 		@mkdir($this->dataPath . "config" . DIRECTORY_SEPARATOR, 0777, true);
 		$this->configPath = $this->dataPath . "config" . DIRECTORY_SEPARATOR . "backup.yml";
 		$this->loadConfig();
-		@mkdir($this->stateDir, 0777, true);
+		@mkdir($this->stateDir, 0700, true);
 		if($this->enabled){
 			$server->getScheduler()->scheduleRepeatingTask(new CallbackTask([$this, "tick"], []), max(5, $this->tick) * 20);
 		}
@@ -142,7 +142,11 @@ class BackupManager{
 		$tiers = (array) $this->config->get("tiers", []);
 		$this->tiers = [];
 		foreach($tiers as $name => $t){
-			$this->tiers[strval($name)] = [
+			$name = $this->sanitizeTier($name);
+			if($name === ""){
+				continue;
+			}
+			$this->tiers[$name] = [
 				"interval" => (int) (isset($t["interval"]) ? $t["interval"] : 0),
 				"keep" => (int) (isset($t["keep"]) ? $t["keep"] : 1)
 			];
@@ -204,6 +208,13 @@ class BackupManager{
 		return $this->tick;
 	}
 
+	/**
+	 * Sanitizes a tier name so it can be safely used as a path component.
+	 */
+	public function sanitizeTier($tier){
+		return strtolower(preg_replace('/[^A-Za-z0-9_\-]/', '', strval($tier)));
+	}
+
 	public function tick($task = null){
 		if(!$this->enabled or $this->running){
 			return;
@@ -239,7 +250,7 @@ class BackupManager{
 	}
 
 	public function runBackup($tier, $manual = false){
-		$tier = strtolower(preg_replace('/[^A-Za-z0-9_\-]/', '', strval($tier)));
+		$tier = $this->sanitizeTier($tier);
 		if($tier === ""){
 			return false;
 		}
@@ -248,17 +259,17 @@ class BackupManager{
 			return false;
 		}
 		if(!is_dir($this->backupRoot)){
-			@mkdir($this->backupRoot, 0777, true);
+			@mkdir($this->backupRoot, 0700, true);
 		}
 		$free = @disk_free_space($this->backupRoot);
-		if($free !== false and $free < ($this->minFreeMb * 1024 * 1024)){
+		if($free !== false and $free < ($this->minFreeMb * 1048576.0)){
 			$this->lastMessage = "磁盘剩余低于 " . $this->minFreeMb . "MB，跳过备份";
 			$this->server->getLogger()->warning("[Backup] " . $this->lastMessage);
 			return false;
 		}
 		$dir = $this->backupRoot . $tier;
 		if(!is_dir($dir)){
-			@mkdir($dir, 0777, true);
+			@mkdir($dir, 0700, true);
 		}
 		$dest = $dir . DIRECTORY_SEPARATOR . date("Ymd-His");
 		$snaps = $this->listSnapshots($tier);
@@ -272,12 +283,11 @@ class BackupManager{
 	}
 
 	public function onTaskComplete($tier, array $result){
-		$tier = strval($tier);
+		$tier = $this->sanitizeTier($tier);
 		$this->running = false;
 		$this->runningTier = null;
 		@file_put_contents($this->stateDir . $tier . ".last", time());
 		@unlink($this->stateDir . $tier . ".running");
-		$dir = $this->backupRoot . $tier;
 		if(!empty($result["success"])){
 			$removed = $this->prune($tier);
 			$this->lastMessage = sprintf("备份完成 [%s] 文件:%d 链接:%d 复制:%d 清理:%d",
@@ -288,9 +298,9 @@ class BackupManager{
 				$removed);
 			$this->server->getLogger()->info("[Backup] " . $this->lastMessage);
 		}else{
-			$snaps = $this->listSnapshots($tier);
-			if(count($snaps) > 0){
-				$this->removeDir($dir . DIRECTORY_SEPARATOR . $snaps[count($snaps) - 1]);
+			$dest = isset($result["dest"]) ? (string) $result["dest"] : "";
+			if($dest !== "" and is_dir($dest)){
+				$this->removeDir($dest);
 			}
 			$this->lastMessage = "备份失败 [" . $tier . "]: " . (isset($result["message"]) ? $result["message"] : "unknown");
 			$this->server->getLogger()->error("[Backup] " . $this->lastMessage);
@@ -298,6 +308,7 @@ class BackupManager{
 	}
 
 	public function listSnapshots($tier){
+		$tier = $this->sanitizeTier($tier);
 		$d = $this->backupRoot . $tier;
 		$out = [];
 		if(!is_dir($d)){
@@ -316,6 +327,7 @@ class BackupManager{
 	}
 
 	public function tierSize($tier){
+		$tier = $this->sanitizeTier($tier);
 		$dir = $this->backupRoot . $tier;
 		if(!is_dir($dir)){
 			return 0;
@@ -344,10 +356,11 @@ class BackupManager{
 	}
 
 	public function prune($tier){
+		$tier = $this->sanitizeTier($tier);
 		if(!isset($this->tiers[$tier])){
 			return 0;
 		}
-		$keep = $this->tiers[$tier]["keep"];
+		$keep = max(0, (int) $this->tiers[$tier]["keep"]);
 		$snaps = $this->listSnapshots($tier);
 		$removed = 0;
 		while(count($snaps) > $keep){
@@ -367,6 +380,7 @@ class BackupManager{
 	}
 
 	public function removeAllSnapshots($tier){
+		$tier = $this->sanitizeTier($tier);
 		$n = 0;
 		foreach($this->listSnapshots($tier) as $s){
 			$this->removeDir($this->backupRoot . $tier . DIRECTORY_SEPARATOR . $s);

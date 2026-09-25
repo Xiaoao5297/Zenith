@@ -45,7 +45,7 @@ class PlainBiome extends GrassyBiome{
 		$tallGrass = new TallGrass();
 		$tallGrass->setBaseAmount(5);
 		$waterPit = new WaterPit();
-		$waterPit->setBaseAmount(9999);
+		$waterPit->setBaseAmount(1);
 		$lilyPad = new LilyPad();
 		$lilyPad->setBaseAmount(8);
 

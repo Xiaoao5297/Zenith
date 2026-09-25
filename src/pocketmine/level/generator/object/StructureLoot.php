@@ -93,6 +93,10 @@ class StructureLoot{
 			$totalWeight += $entry["weight"];
 		}
 
+		if($totalWeight <= 0 or count($entries) === 0){
+			return ["id" => Item::AIR, "damage" => 0, "minCount" => 0, "maxCount" => 0, "weight" => 0];
+		}
+
 		$weight = $random->nextBoundedInt($totalWeight);
 		$chosen = $entries[0];
 		foreach($entries as $entry){

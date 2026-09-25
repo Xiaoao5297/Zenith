@@ -71,7 +71,7 @@ class NBT{
 
 	/** Hard cap on NBT nesting depth to stop client-supplied deep NBT from crashing the server */
 	const MAX_READ_DEPTH = 64;
-	private static $readDepth = 0;
+	private $readDepth = 0;
 
 	public $buffer;
 	private $offset;
@@ -461,7 +461,7 @@ class NBT{
 	}
 
 	public function read($buffer, $doMultiple = false){
-		self::$readDepth = 0;
+		$this->readDepth = 0;
 		$this->offset = 0;
 		$this->buffer = $buffer;
 		$this->data = $this->readTag();
@@ -507,11 +507,23 @@ class NBT{
 		return false;
 	}
 
-	public function readTag(){
-		if(++self::$readDepth > self::MAX_READ_DEPTH){
-			self::$readDepth = 0;
+	/**
+	 * Increments the read depth, throwing if the nesting cap is exceeded.
+	 * Used by readTag() and by ListTag/CompoundTag element reads that bypass readTag().
+	 */
+	public function enterDepth(){
+		if(++$this->readDepth > self::MAX_READ_DEPTH){
+			$this->readDepth = 0;
 			throw new \RuntimeException("NBT nesting is too deep");
 		}
+	}
+
+	public function leaveDepth(){
+		--$this->readDepth;
+	}
+
+	public function readTag(){
+		$this->enterDepth();
 		switch($this->getByte()){
 			case NBT::TAG_Byte:
 				$tag = new ByteTag($this->getString());
@@ -563,7 +575,7 @@ class NBT{
 				$tag = new EndTag;
 				break;
 		}
-		self::$readDepth--;
+		$this->leaveDepth();
 		return $tag;
 	}
 

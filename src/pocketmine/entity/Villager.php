@@ -159,7 +159,10 @@ class Villager extends Mob implements NPC, Ageable{
 		$offers = [];
 		foreach($nbt->Offers as $tag){
 			if($tag instanceof CompoundTag){
-				$offers[] = VillagerTradeOffer::fromNBT($tag);
+				$offer = VillagerTradeOffer::fromNBT($tag);
+				if($offer->isValid()){
+					$offers[] = $offer;
+				}
 			}
 		}
 

@@ -26,10 +26,10 @@ class BackupTask extends AsyncTask{
 	}
 
 	public function onRun(){
-		$result = ["success" => false, "message" => "", "files" => 0, "linked" => 0, "copied" => 0];
+		$result = ["success" => false, "message" => "", "files" => 0, "linked" => 0, "copied" => 0, "dest" => $this->destDir];
 		try{
 			if(!is_dir($this->destDir)){
-				@mkdir($this->destDir, 0777, true);
+				@mkdir($this->destDir, 0700, true);
 			}
 			$srcRoot = rtrim($this->srcRoot, "/\\") . DIRECTORY_SEPARATOR;
 			$destRoot = rtrim($this->destDir, "/\\") . DIRECTORY_SEPARATOR;
@@ -49,9 +49,12 @@ class BackupTask extends AsyncTask{
 	}
 
 	private function copyTree($src, $dest, $prev, array &$result){
+		if(is_link($src)){
+			return;
+		}
 		if(is_dir($src)){
 			if(!is_dir($dest)){
-				@mkdir($dest, 0777, true);
+				@mkdir($dest, 0700, true);
 			}
 			$dh = @opendir($src);
 			if($dh === false){
@@ -71,14 +74,16 @@ class BackupTask extends AsyncTask{
 		}
 		$parent = dirname($dest);
 		if(!is_dir($parent)){
-			@mkdir($parent, 0777, true);
+			@mkdir($parent, 0700, true);
 		}
 		$linked = false;
 		if($prev !== "" and is_file($prev)){
 			clearstatcache(true, $src);
 			clearstatcache(true, $prev);
 			if(@filesize($src) === @filesize($prev) and @filemtime($src) === @filemtime($prev)){
-				if(@link($prev, $dest)){
+				$hs = @hash_file("sha256", $src);
+				$hp = @hash_file("sha256", $prev);
+				if($hs !== false and $hs === $hp and @link($prev, $dest)){
 					$linked = true;
 					$result["linked"]++;
 				}

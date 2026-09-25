@@ -3605,7 +3605,7 @@ private function lookupAddress($address) {
 
 	private function saveAdvancedConfig() : void{
 		if($this->advancedConfig instanceof Config){
-			$path = $this->dataPath . "genisys.yml";
+			$path = $this->getConfigFile("genisys.yml");
 			$content = file_get_contents($path);
 			if(is_string($content)){
 				file_put_contents($path, $this->writeAdvancedConfigDataPreservingComments($content, $this->advancedConfig->getAll()));

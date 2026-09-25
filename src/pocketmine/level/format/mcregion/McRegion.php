@@ -217,12 +217,18 @@ class McRegion extends BaseLevelProvider{
 			if($region->chunkExists($chunkX - $regionX * 32, $chunkZ - $regionZ * 32)){
 				$this->getServer()->getLogger()->error("检测到损坏的区块数据 [$chunkX, $chunkZ]，原始数据可能已丢失！正在隔离 region 文件用于抢救");
 				$quarantine = $this->level->getServer()->getDataPath() . "corrupt-quarantine/";
-				@mkdir($quarantine, 0777, true);
+				@mkdir($quarantine, 0700, true);
 				$regionFile = $this->level->getPath() . "region/r." . $regionX . "." . $regionZ . ".mcr";
 				if(is_file($regionFile)){
 					$tag = date("Ymd-His") . "_r." . $regionX . "." . $regionZ;
-					@copy($regionFile, $quarantine . $tag . ".mcr");
-					$this->getServer()->getLogger()->error("已隔离: " . $quarantine . $tag . ".mcr");
+					$qpath = $quarantine . $tag . ".mcr";
+					if(@copy($regionFile, $qpath)){
+						$this->getServer()->getLogger()->error("已隔离: " . $qpath);
+					}else{
+						$this->getServer()->getLogger()->error("无法隔离损坏的 region 文件，已拒绝重建该区块以保留原始数据: " . $regionFile);
+						$this->level->timings->syncChunkLoadDataTimer->stopTiming();
+						return false;
+					}
 				}
 			}
 			$chunk = $this->getEmptyChunk($chunkX, $chunkZ);
