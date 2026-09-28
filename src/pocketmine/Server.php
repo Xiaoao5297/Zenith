@@ -365,6 +365,7 @@ class Server{
 	public $expWriteAhead = 200;
 	public $aiConfig = [];
 	public $aiEnabled = false;
+	public $consoleTitle = true;
 	public $inventoryNum = 36;
 	public $hungerTimer = 80;
 	public $maxEntitiesPerChunk = 64;
@@ -1764,6 +1765,7 @@ class Server{
 		$this->interactDistance = (int) $this->getAdvancedProperty("player.interact-distance", 13);
 		$this->spawnProtectionRadius = (int) $this->getAdvancedProperty("player.spawn-protection-radius", 16);
 		$this->aiEnabled = $this->getAdvancedProperty("ai.enable", true);
+		$this->consoleTitle = $this->getAdvancedProperty("server.console-title", true);
 		$this->aiConfig = [
 			"cow" => $this->getAdvancedProperty("ai.cow", true),
 			"chicken" => $this->getAdvancedProperty("ai.chicken", true),
@@ -3313,6 +3315,11 @@ private function lookupAddress($address) {
 
 	private function titleTick(){
 		if(!Terminal::hasFormattingCodes()){
+			return;
+		}
+
+		// genisys.yml 里 server.console-title 控制是否刷新窗口标题
+		if(!$this->consoleTitle){
 			return;
 		}
 

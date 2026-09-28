@@ -1,0 +1,9 @@
+一、严重安全漏洞（需立即修复）
+🔴 S-1: 命令注入 — blockAddress() 中 passthru() 未过滤
+文件: src/pocketmine/network/RakLibInterface.php:143
+风险: 极高 — 任意命令执行
+描述:
+
+passthru('netsh advfirewall firewall add rule name="Scaxe_Block_'.$address.'" dir=in remoteip='.$address.' action=block');
+$address 直接拼接至命令行，攻击者可伪造 IP 执行任意系统命令。
+修复: 对 $address 做严格 IP 格式校验（filter_var($address, FILTER_VALIDATE_IP)），或使用参数化 API

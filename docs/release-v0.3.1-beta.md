@@ -1,0 +1,90 @@
+<!-- GitHub Release 设置建议
+tag:        v0.3.1-beta
+title:      v0.3.1 beta
+prerelease: true
+asset:      Zenith-v0.3.1-beta.phar
+-->
+
+> 0.3.1 是一次兼容性与稳定性更新：移植了完整的协议互操作层（支持 0.11~0.14 客户端）、村民交易、自然结构生成与多世界 gamerule；修复了"玩的时候随机吞区块"以及崩溃导致的区块丢失；同时完成了一轮安全加固、玩家/世界数据原子写入，并将自动备份内置进核心。
+
+---
+
+## 本次更新要点
+
+- **多版本协议互操作（interop）**：新增 `ProtocolCompatibility` / `DataPacketManager` 层，按协议版本路由与转换，支持 0.11 / 0.12 / 0.13 / 0.14 客户端登录、进世界、开背包与合成
+- **新玩法**：村民交易系统、自然结构生成（林地府邸 / 村庄 / 要塞 / 结构战利品）
+- **多世界 gamerule**：新增 `/gamerule` 与按世界生效的规则系统
+- **稳定性**：修复"随机吞区块"与崩溃导致的区块永久丢失
+- **安全与数据**：一批安全加固、关键文件原子写入、核心内置自动备份与 `config/` 配置目录
+
+---
+
+## New
+
+### 协议互操作（interop）
+- 移植 lycore 互操作层：`ProtocolCompatibility`、`DataPacketManager`、`v11` / `v84` 协议包，按 MinecraftWiki 分组协议版本（0.11=21~27，0.12=28~34，0.13=37~39，0.14=41~70）
+- `Network` / `RakLibInterface` 按版本路由（v11 批处理、包前缀、入站转换），缓存包按协议重编码
+- `Player` 出站 / 直发 / 批量包按版本转换，事件包类型放宽，v11 包基类兼容
+- 核心包接入：legacy slot、0.12 entityId、皮肤、StartGame、配方表等
+- 配方列表按协议缓存，0.12 用 `mapCraftingRecipeForProtocol` 物品映射，0.13 保留过滤
+- 补齐缺失物品 / 实体常量
+
+### 村民交易
+- 新增村民交易系统：`Villager`、`VillagerTradeInventory`、`VillagerTradeOffer`、`VillagerTradeFactory`
+
+### 自然结构生成
+- 移植 lycore 自然结构生成系统：`WoodlandMansion`、`VillagePopulator`、`Stronghold`、`StructureLoot`
+- 新增结构数据 `structures.nbt`、`block_palette.nbt`
+
+### 多世界 gamerule
+- 新增 `/gamerule` 命令与按世界生效的规则系统
+
+### 内置自动备份
+- 新增核心内置备份模块 `BackupManager` / `BackupTask` 与 `/backup` 命令（`status` / `list` / `run` / `clean` / `reload` / `config`）
+- 分时段硬链接快照，只保存变化部分；配置位于 `config/backup.yml`（默认 1min / 5min / 30min / 1h / 1day / 1month）
+
+### config 配置目录
+- 核心配置集中到 `config/`，并支持启动时**自动迁移**根目录旧配置（`config/` 优先、根目录回退，无需手动操作）
+
+---
+
+## Fix
+
+### 随机吞区块 / 区块丢失
+- 修复 PopulationTask 异步写回覆盖主线程已修改 / 后加载的真实区块（空区块写回是吞区块主因）
+- `generateChunkCallback` 增加 `skipIfChanged` 保护，玩家在生成期间的改动不再丢失
+- `GenerationTask` / `PopulationTask` 失败时释放生成 / 填充队列锁，避免区块永久卡死
+- mcregion `toBinary` 始终写入方块数据，防止"有地形但标志丢失"的区块存成永久空气
+- 修复崩溃导致区块丢失的根因：玩家属性表被 `close()` 置空后仍被访问（`getAttribute() on null`）触发致命崩溃 —— 补空值保护与 use-after-close 判断
+- `McRegion` 加载损坏区块前先隔离 region 文件并明确报错，不再静默替换为空区块覆盖原始存档
+- `RegionLoader` 不再可能清空非空 region，写后 flush，增加 close 标志；`Level::saveChunks` 校验保存结果
+
+### 安全加固
+- 玩家名 / 世界名增加白名单校验，修复路径穿越（防止写入任意 `.dat` 与越权路径）
+- NBT 解析增加嵌套深度上限，防止栈溢出 / OOM
+- HTTP 工具开启 SSL 证书校验
+- 反序列化限制可实例化类（`allowed_classes=false`）
+- 修复 `netsh` 防火墙封禁的命令注入（IP 校验 + `escapeshellarg`）
+- 批包（BatchPacket）解析增加边界校验
+
+### 数据写入原子化
+- 玩家 `.dat`、插件 `Config`、世界 `level.dat` 改为"临时文件 + rename"原子写：进程被 kill 也不会留下半截损坏文件
+- 登录时玩家数据保存改为同步，消除并发写
+
+### 其它
+- `Arrow` 补 `isTipped` / `toLegacyTippedArrowSurrogate`，修复物品映射未定义方法
+- 修复出生点从世界顶部向下找地表，不再扫到地下矿洞
+- 移除 0.11 系列临时调试日志
+
+---
+
+## Change
+
+- 仓库与服务端更名 **Incore-Pro → Zenith**
+- `start.sh` 支持 php7.4 并识别 `Zenith*.phar`
+- 核心配置文件迁移到 `config/` 目录
+- 内置备份与旧 `backup.sh` 使用同一套 `backups/` 与 `.state`，**升级后请停用 backup.sh**，避免两者同时运行
+
+---
+
+如果您发现了 bug 或有新想法，请在 [Issues](https://github.com/Xiaoao5297/Zenith/issues) 提出建议！

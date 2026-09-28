@@ -17,28 +17,44 @@
  * @link http://www.pocketmine.net/
  *
  *
-*/
+ */
 
 namespace pocketmine\command;
 
 use pocketmine\Thread;
+use pocketmine\utils\ConsoleLineEditor;
 use pocketmine\utils\MainLogger;
 use pocketmine\utils\Utils;
 
 class CommandReader extends Thread{
 	private $readline;
+	/** @var bool */
+	private $useEditor = false;
+	/** @var \Threaded|null 跨线程共享的显示状态，供日志回调重绘 */
+	private $displayState = null;
 	/** @var \Threaded */
 	protected $buffer;
 	private $shutdown = false;
 	private $stdin;
 	/** @var MainLogger */
 	private $logger;
+	private $prompt = "Genisys> ";
 
 	public function __construct($logger){
 		$this->stdin = fopen("php://stdin", "r");
 		$opts = getopt("", ["disable-readline"]);
-		if(extension_loaded("readline") && !isset($opts["disable-readline"]) && (!function_exists("posix_isatty") || posix_isatty($this->stdin))){
+		$isTty = (!function_exists("posix_isatty") or posix_isatty($this->stdin));
+		if(extension_loaded("readline") && !isset($opts["disable-readline"]) && $isTty){
 			$this->readline = true;
+		}elseif($isTty && Utils::getOS() !== "win" && !isset($opts["disable-readline"])){
+			$this->readline = false;
+			$this->useEditor = true;
+			// 子线程不会继承 spl_autoload_register，须在 start() 前预加载，否则 run() 里 new 不到
+			class_exists("pocketmine\\utils\\ConsoleLineEditor");
+			stream_set_blocking($this->stdin, false);
+			$this->displayState = new \Threaded;
+			$this->displayState["line"] = "";
+			$this->displayState["cursor"] = 0;
 		}else{
 			$this->readline = false;
 		}
@@ -58,14 +74,26 @@ class CommandReader extends Thread{
 		}
 	}
 
-	private function readLine(){
-		if(!$this->readline){
+	private function readLine($editor){
+		if($this->readline){
+			readline_callback_read_char();
+		}elseif($editor !== null){
+			$data = fread($this->stdin, 8192);
+			if($data === false or $data === ""){
+				return;
+			}
+			$len = strlen($data);
+			for($i = 0; $i < $len; $i++){
+				$line = $editor->processByte($data{$i});
+				if($line !== null and $line !== ""){
+					$this->buffer[] = $line;
+				}
+			}
+		}else{
 			$line = trim(fgets($this->stdin));
 			if($line !== ""){
 				$this->buffer[] = $line;
 			}
-		}else{
-			readline_callback_read_char();
 		}
 	}
 
@@ -91,9 +119,21 @@ class CommandReader extends Thread{
 	}
 
 	public function run(){
+		$editor = null;
 		if($this->readline){
-			readline_callback_handler_install("Genisys> ", [$this, "readline_callback"]);
+			readline_callback_handler_install($this->prompt, [$this, "readline_callback"]);
 			$this->logger->setConsoleCallback("readline_redisplay");
+		}elseif($this->useEditor){
+			$editor = new ConsoleLineEditor($this->prompt);
+			$editor->setDisplayState($this->displayState);
+			$editor->enableRawMode();
+			$editor->redraw();
+			$state = $this->displayState;
+			$prompt = $this->prompt;
+			$this->logger->setConsoleEditorActive(true);
+			$this->logger->setConsoleCallback(function() use ($state, $prompt){
+				ConsoleLineEditor::redrawLine($prompt, $state["line"], $state["cursor"]);
+			});
 		}
 
 		while(!$this->shutdown){
@@ -112,13 +152,17 @@ class CommandReader extends Thread{
 						break;
 					}
 				}
-				$this->readLine();
+				$this->readLine($editor);
 			}
 		}
 
 		if($this->readline){
 			$this->logger->setConsoleCallback(null);
 			readline_callback_handler_remove();
+		}elseif($editor !== null){
+			$this->logger->setConsoleCallback(null);
+			$this->logger->setConsoleEditorActive(false);
+			$editor->disableRawMode();
 		}
 	}
 

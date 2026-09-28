@@ -2,7 +2,7 @@
 
 #此文件的版本
 config:
- version: 15
+  version: 16
 
 level:
  #设置是否开启天气系统
@@ -97,6 +97,8 @@ server:
  allow-anvilandenchanttable: true
  #选择是否禁用 server.log
  disable-log: false
+ #选择是否刷新控制台窗口标题（某些终端如 Termux 会因此滚动到底部，可设为 false）
+ console-title: true
  #选择是否启用自动反飞行
  anti-fly: true
  #选择是否启用异步区块请求

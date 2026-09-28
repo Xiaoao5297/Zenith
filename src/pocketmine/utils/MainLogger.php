@@ -34,6 +34,9 @@ class MainLogger extends \AttachableThreadedLogger{
 	
 	private $consoleCallback;
 
+	/** @var bool 是否处于自定义行编辑器模式（影响日志清除提示符行、抑制标题刷新） */
+	private $consoleEditorActive = false;
+
 	/** Extra Settings */
 	protected $write = true;
 
@@ -228,6 +231,10 @@ class MainLogger extends \AttachableThreadedLogger{
 		$message = TextFormat::toANSI(TextFormat::GREEN . $timeString . TextFormat::RESET. " " . $color  . $threadName . "/" . TextFormat::BOLD . $prefix . TextFormat::RESET . " §8> " . $color . $message . TextFormat::RESET);
 		$cleanMessage = TextFormat::clean($message);
 
+		if($this->consoleEditorActive){
+			echo "\r\x1b[K";
+		}
+
 		if(!Terminal::hasFormattingCodes()){
 			echo $cleanMessage . PHP_EOL;
 		}else{
@@ -280,6 +287,10 @@ class MainLogger extends \AttachableThreadedLogger{
 	
 	public function setConsoleCallback($callback){
 		$this->consoleCallback = $callback;
+	}
+
+	public function setConsoleEditorActive($active){
+		$this->consoleEditorActive = (bool) $active;
 	}
 	
     public function directSend($message){
