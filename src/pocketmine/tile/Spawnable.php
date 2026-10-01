@@ -9,12 +9,21 @@ use pocketmine\nbt\NBT;
 use pocketmine\nbt\tag\CompoundTag;
 use pocketmine\network\Network;
 use pocketmine\network\protocol\BlockEntityDataPacket;
+use pocketmine\network\protocol\ProtocolCompatibility;
 use pocketmine\Player;
 
 abstract class Spawnable extends Tile{
 
 	public function spawnTo(Player $player){
 		if($this->closed){
+			return false;
+		}
+
+		if(ProtocolCompatibility::isHiddenTileIdForProtocol((int) $player->getProtocol(), $this->getSaveId())){
+			return false;
+		}
+
+		if($player->shouldHoldV84BlockEntities()){
 			return false;
 		}
 

@@ -132,6 +132,11 @@ use pocketmine\nbt\tag\StringTag;
 use pocketmine\network\DataPacketManager;
 use pocketmine\network\Network;
 use pocketmine\network\protocol\ProtocolCompatibility;
+use pocketmine\network\protocol\SetEntityDataPacket;
+use pocketmine\network\protocol\v84\DataPacketV84;
+use pocketmine\network\protocol\v84\InfoV84;
+use pocketmine\network\protocol\v84\UpdateBlockPacketV84;
+use pocketmine\network\protocol\v84\MoveEntityPacketV84;
 use pocketmine\network\protocol\AdventureSettingsPacket;
 use pocketmine\network\protocol\AnimatePacket;
 use pocketmine\network\protocol\BatchPacket;
@@ -237,6 +242,11 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	protected $randomClientId;
 
 	protected $protocol;
+
+	/** @var bool 0.15 客户端是否已完成世界加载 */
+	private $v84WorldReady = false;
+	/** @var DataPacketV84[] 世界加载前延迟发送的 0.15 包 */
+	private $v84DeferredPackets = [];
 
 	protected $lastMovement = 0;
 	/** @var Vector3 */
@@ -845,6 +855,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			}
 
 			$this->usedChunks = [];
+			$this->resetProtocol015WorldReadyState();
 			$pk = new SetTimePacket();
 			$pk->time = $this->level->getTime();
 			$pk->started = $this->level->stopTime == false && !$this->server->isWorldDaylightCycleDisabled($this->level);
@@ -985,6 +996,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		$this->sendSettings();
 		$this->sendPotionEffects($this);
 		$this->sendData($this);
+		$this->sendProtocol015LeashStateReset();
 
 		$pk = new SetTimePacket();
 		$pk->time = $this->level->getTime();
@@ -1145,14 +1157,24 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	 *
 	 * @return bool
 	 */
-	public function batchDataPacket(DataPacket $packet){
+	public function batchDataPacket($packet){
 		if($this->connected === false or $this->hasTransferred){
 			return false;
+		}
+
+		if($this->remapComplexPacketForProtocol($packet, function($mappedPacket){
+			$this->batchDataPacket($mappedPacket);
+		})){
+			return true;
 		}
 
 		$packet = DataPacketManager::parsePacket($this, $packet);
 		if($packet === null){
 			return false;
+		}
+
+		if($this->shouldDeferV84Packet($packet)){
+			return $this->deferV84Packet($packet);
 		}
 
 		$timings = Timings::getSendDataPacketTimings($packet);
@@ -1180,15 +1202,25 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	 *
 	 * @return int|bool
 	 */
-	public function dataPacket(DataPacket $packet, $needACK = false){
+	public function dataPacket($packet, $needACK = false){
 		if(!$this->connected or $this->hasTransferred){
 			return false;
+		}
+
+		if($this->remapComplexPacketForProtocol($packet, function($mappedPacket) use ($needACK){
+			$this->dataPacket($mappedPacket, $needACK);
+		})){
+			return true;
 		}
 
 		// 按玩家协议版本转换出站包(0.11→v11, 0.12/0.13→核心包带钩子, 0.14+不变)
 		$packet = DataPacketManager::parsePacket($this, $packet);
 		if($packet === null){
 			return false;
+		}
+
+		if($this->shouldDeferV84Packet($packet)){
+			return $this->deferV84Packet($packet);
 		}
 
 		$timings = Timings::getSendDataPacketTimings($packet);
@@ -1219,14 +1251,24 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	 *
 	 * @return bool|int
 	 */
-	public function directDataPacket(DataPacket $packet, $needACK = false){
+	public function directDataPacket($packet, $needACK = false){
 		if($this->connected === false or $this->hasTransferred){
 			return false;
+		}
+
+		if($this->remapComplexPacketForProtocol($packet, function($mappedPacket) use ($needACK){
+			$this->directDataPacket($mappedPacket, $needACK);
+		})){
+			return true;
 		}
 
 		$packet = DataPacketManager::parsePacket($this, $packet);
 		if($packet === null){
 			return false;
+		}
+
+		if($this->shouldDeferV84Packet($packet)){
+			return $this->deferV84Packet($packet);
 		}
 
 		$timings = Timings::getSendDataPacketTimings($packet);
@@ -1415,7 +1457,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		}else{
 			$pk = new ContainerSetContentPacket();
 			$pk->windowid = ContainerSetContentPacket::SPECIAL_CREATIVE;
-			$pk->slots = array_merge(Item::getCreativeItems(), $this->personalCreativeItems);
+			$pk->slots = $this->getCreativeInventoryItemsForProtocol((int) $this->protocol);
 			$this->dataPacket($pk);
 		}
 
@@ -2516,7 +2558,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		}else{
 			$pk = new ContainerSetContentPacket();
 			$pk->windowid = ContainerSetContentPacket::SPECIAL_CREATIVE;
-			$pk->slots = array_merge(Item::getCreativeItems(), $this->personalCreativeItems);
+			$pk->slots = $this->getCreativeInventoryItemsForProtocol((int) $this->protocol);
 			$this->dataPacket($pk);
 		}
 		$this->forceMovement = $this->teleportPosition = $this->getPosition();
@@ -2528,6 +2570,241 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 	private function isProtocol011Player() : bool{
 		return ProtocolCompatibility::isProtocol011((int) ($this->protocol ?? 0));
+	}
+
+	private function isProtocol015Player() : bool{
+		return ProtocolCompatibility::isProtocol015((int) ($this->protocol ?? 0));
+	}
+
+	private function getProtocol015Property(string $name, $default){
+		return isset($this->server) && method_exists($this->server, "getProperty") ? $this->server->getProperty($name, $default) : $default;
+	}
+
+	private function sendProtocol015LeashStateReset() : void{
+		if(!ProtocolCompatibility::isProtocol015((int) $this->getProtocol())){
+			return;
+		}
+
+		$pk = new SetEntityDataPacket();
+		$pk->eid = 0;
+		$pk->metadata = [
+			self::DATA_LEAD_HOLDER => [self::DATA_TYPE_LONG, -1],
+		];
+		$this->dataPacket($pk);
+	}
+
+	private function isMinimalProtocol015BootstrapPacket($packet) : bool{
+		if(!$packet instanceof DataPacketV84){
+			return false;
+		}
+
+		if($packet::NETWORK_ID === InfoV84::BATCH_PACKET){
+			return $this->isMinimalProtocol015BootstrapBatch($packet);
+		}
+
+		return $this->isMinimalProtocol015BootstrapPacketId($packet::NETWORK_ID);
+	}
+
+	private function isMinimalProtocol015BootstrapPacketId(int $packetId) : bool{
+		return in_array($packetId, [
+			InfoV84::PLAY_STATUS_PACKET,
+			InfoV84::DISCONNECT_PACKET,
+			InfoV84::SET_TIME_PACKET,
+			InfoV84::START_GAME_PACKET,
+			InfoV84::SET_HEALTH_PACKET,
+			InfoV84::SET_SPAWN_POSITION_PACKET,
+			InfoV84::FULL_CHUNK_DATA_PACKET,
+			InfoV84::SET_DIFFICULTY_PACKET,
+		], true);
+	}
+
+	private function isMinimalProtocol015BootstrapBatch(DataPacketV84 $packet) : bool{
+		if(!property_exists($packet, "payload") or !is_string($packet->payload) or $packet->payload === ""){
+			return false;
+		}
+
+		$str = @zlib_decode($packet->payload, 1024 * 1024 * 64);
+		if(!is_string($str)){
+			return false;
+		}
+
+		$len = strlen($str);
+		$offset = 0;
+		$seenPacket = false;
+		while($offset < $len){
+			if($offset + 4 > $len){
+				return false;
+			}
+
+			$packetLength = Binary::readInt(substr($str, $offset, 4));
+			$offset += 4;
+			if($packetLength <= 0 or $offset + $packetLength > $len){
+				return false;
+			}
+
+			$buffer = substr($str, $offset, $packetLength);
+			$offset += $packetLength;
+			$header = ProtocolCompatibility::readPacketHeader($buffer);
+			if($header === null){
+				return false;
+			}
+
+			[$packetId] = $header;
+			if($packetId === InfoV84::BATCH_PACKET or !$this->isMinimalProtocol015BootstrapPacketId((int) $packetId)){
+				return false;
+			}
+
+			$seenPacket = true;
+		}
+
+		return $seenPacket;
+	}
+
+	private function shouldDeferV84Packet($packet) : bool{
+		return $packet instanceof DataPacketV84
+			&& !$this->v84WorldReady
+			&& $this->isProtocol015Player()
+			&& (bool) $this->getProtocol015Property("protocol-v84.defer-nonessential", true)
+			&& !$this->isMinimalProtocol015BootstrapPacket($packet);
+	}
+
+	private function deferV84Packet(DataPacketV84 $packet) : bool{
+		if(count($this->v84DeferredPackets) >= max(32, (int) $this->getProtocol015Property("protocol-v84.defer-limit", 256))){
+			return true;
+		}
+
+		$this->v84DeferredPackets[] = clone $packet;
+
+		return true;
+	}
+
+	public function shouldHoldV84BlockEntities() : bool{
+		return $this->isProtocol015Player()
+			&& !$this->v84WorldReady
+			&& (bool) $this->getProtocol015Property("protocol-v84.defer-block-entities", true);
+	}
+
+	public function markV84WorldReady(string $source) : void{
+		if(!$this->isProtocol015Player() || $this->v84WorldReady){
+			return;
+		}
+
+		$this->v84WorldReady = true;
+		$deferred = $this->v84DeferredPackets;
+		$this->v84DeferredPackets = [];
+
+		if($this->level instanceof Level && is_array($this->usedChunks)){
+			foreach($this->usedChunks as $index => $_){
+				Level::getXZ($index, $chunkX, $chunkZ);
+				foreach($this->level->getChunkTiles($chunkX, $chunkZ) as $tile){
+					if($tile instanceof Spawnable){
+						$tile->spawnTo($this);
+					}
+				}
+			}
+		}
+
+		foreach($deferred as $packet){
+			$this->dataPacket($packet);
+		}
+
+		$this->sendProtocol015LeashStateReset();
+	}
+
+	private function resetProtocol015WorldReadyState() : void{
+		$this->v84WorldReady = false;
+		$this->v84DeferredPackets = [];
+	}
+
+	private function moveCreativeItemAfter(array $items, int $itemId, int $afterItemId) : array{
+		$movingItem = null;
+		$remaining = [];
+
+		foreach($items as $item){
+			if($item instanceof Item and $item->getId() === $itemId){
+				if($movingItem === null){
+					$movingItem = $item;
+				}
+				continue;
+			}
+
+			$remaining[] = $item;
+		}
+
+		if($movingItem === null){
+			return array_values($remaining);
+		}
+
+		$ordered = [];
+		$inserted = false;
+		foreach($remaining as $item){
+			$ordered[] = $item;
+			if(!$inserted and $item instanceof Item and $item->getId() === $afterItemId){
+				$ordered[] = $movingItem;
+				$inserted = true;
+			}
+		}
+
+		if(!$inserted){
+			$ordered[] = $movingItem;
+		}
+
+		return $ordered;
+	}
+
+	protected function getCreativeInventoryItemsForProtocol(int $protocol) : array{
+		$items = array_merge(Item::getCreativeItems(), $this->personalCreativeItems);
+		if(ProtocolCompatibility::isProtocol015($protocol)){
+			$items = $this->moveCreativeItemAfter($items, Item::CARROT_ON_A_STICK, Item::FISHING_ROD);
+			$items = $this->moveCreativeItemAfter($items, Item::PISTON, Item::DISPENSER);
+			$items = $this->moveCreativeItemAfter($items, Item::STICKY_PISTON, Item::PISTON);
+			$items = $this->moveCreativeItemAfter($items, Item::OBSERVER, Item::STICKY_PISTON);
+		}
+
+		foreach($items as $index => $item){
+			if($item instanceof Item){
+				$items[$index] = ProtocolCompatibility::mapCreativeInventoryItemForProtocol($protocol, $item);
+			}
+		}
+
+		return array_values($items);
+	}
+
+	protected function remapComplexPacketForProtocol($packet, callable $sender){
+		if(!ProtocolCompatibility::isProtocol015((int) $this->protocol)){
+			return false;
+		}
+
+		if($packet instanceof UpdateBlockPacket){
+			foreach($packet->records as $record){
+				$pk = new UpdateBlockPacketV84();
+				$pk->x = $record[0];
+				$pk->z = $record[1];
+				$pk->y = $record[2];
+				$pk->blockId = $record[3];
+				$pk->blockData = $record[4];
+				$pk->flags = $record[5];
+				$sender($pk);
+			}
+			return true;
+		}
+
+		if($packet instanceof MoveEntityPacket){
+			foreach($packet->entities as $entity){
+				$pk = new MoveEntityPacketV84();
+				$pk->eid = $entity[0];
+				$pk->x = $entity[1];
+				$pk->y = $entity[2];
+				$pk->z = $entity[3];
+				$pk->yaw = $entity[4];
+				$pk->headYaw = $entity[5];
+				$pk->pitch = $entity[6];
+				$sender($pk);
+			}
+			return true;
+		}
+
+		return false;
 	}
 
 	public function dataPacketProtocol011(\pocketmine\network\protocol\v11\DataPacket $packet, $needACK = false, $immediate = false){
@@ -2627,6 +2904,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 				break;
 			case ProtocolInfo::REQUEST_CHUNK_RADIUS_PACKET:
+				$this->markV84WorldReady("request_chunk_radius");
 				if($this->spawned){
 					$this->viewDistance = min($this->server->getViewDistance(), $packet->radius);
 				}
@@ -2726,6 +3004,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 				break;
 			case ProtocolInfo::MOVE_PLAYER_PACKET:
+				$this->markV84WorldReady("move_player");
 				++$this->motionPacketCount;
 				if($this->linkedEntity instanceof Entity){
 					$entity = $this->linkedEntity;
@@ -2770,8 +3049,10 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					break;
 				}
 
-				if($packet->slot === 0x28 or $packet->slot === 0 or $packet->slot === 255){ //0 for 0.8.0 compatibility
+				if($packet->slot === 0x28 or ($packet->slot === 0 and !ProtocolCompatibility::isProtocol015((int) $this->protocol)) or $packet->slot === 255){ //0 for 0.8.0 compatibility
 					$packet->slot = -1; //Air
+				}elseif(ProtocolCompatibility::isProtocol015((int) $this->protocol) and $packet->slot >= 0 and $packet->slot < $this->inventory->getHotbarSize()){
+					// 0.15 直接发送热栏真实槽位
 				}else{
 					$packet->slot -= 9; //Get real block slot
 				}
@@ -2834,6 +3115,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				break;
 			case ProtocolInfo::USE_ITEM_PACKET:
 				/** @var UseItemPacket $pk */
+				$this->markV84WorldReady("use_item");
 				$packet->decodeAdditional($this->protocol);
 				if($this->spawned === false or !$this->isAlive() or $this->blocked){
 					break;
@@ -3129,6 +3411,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 				break;
 			case ProtocolInfo::PLAYER_ACTION_PACKET:
+				$this->markV84WorldReady("player_action");
 				//$this->eatFoodInHand();
 				if($this->spawned === false or $this->blocked === true or (!$this->isAlive() and $packet->action !== PlayerActionPacket::ACTION_RESPAWN and $packet->action !== PlayerActionPacket::ACTION_DIMENSION_CHANGE)){
 					break;

@@ -3145,6 +3145,7 @@ private function lookupAddress($address) {
 			"012" => $this->buildRecipeListForProtocol(34, true),
 			"013" => $this->buildRecipeListForProtocol(37, false),
 			"014" => $this->buildRecipeListForProtocol(70, false),
+			"015" => $this->buildRecipeListForProtocol(84, false),
 		];
 	}
 
@@ -3187,6 +3188,8 @@ private function lookupAddress($address) {
 			$pk = $this->recipeLists["012"];
 		}elseif(\pocketmine\network\protocol\ProtocolCompatibility::isProtocol013($protocol)){
 			$pk = $this->recipeLists["013"];
+		}elseif(\pocketmine\network\protocol\ProtocolCompatibility::isProtocol015($protocol)){
+			$pk = $this->recipeLists["015"];
 		}else{
 			$pk = $this->recipeList;
 		}

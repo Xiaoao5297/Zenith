@@ -226,11 +226,11 @@ class Player extends PMPlayer{
 		$this->uuid = $uuid;
 	}
 
-	public function dataPacket(DataPacket $packet, $needACK = false){
+	public function dataPacket($packet, $needACK = false){
 		$this->interface->putPacket($this, $packet, $needACK);
 	}
 
-	public function directDataPacket(DataPacket $packet, $needACK = false){
+	public function directDataPacket($packet, $needACK = false){
 		$this->interface->putPacket($this, $packet, $needACK, true);
 	}
 }
