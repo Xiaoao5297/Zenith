@@ -35,4 +35,9 @@ class Arrow extends Item {
 		return Item::get(Item::ARROW, 0, $this->getCount());
 	}
 
+	// 0.14 基础核心无药水箭, 不存在需要还原的替身物品; 返回 null 表示该物品不是替身。
+	public static function fromLegacyTippedArrowSurrogate(Item $item){
+		return null;
+	}
+
 }

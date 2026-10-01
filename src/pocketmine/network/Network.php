@@ -66,11 +66,11 @@ use pocketmine\network\protocol\PlayerListPacket;
 use pocketmine\network\protocol\PlayerInputPacket;
 use pocketmine\network\protocol\MapInfoRequestPacket;
 use pocketmine\network\protocol\ProtocolCompatibility;
+use pocketmine\network\compat\BatchCodec;
 use pocketmine\network\protocol\v11\BatchPacket as BatchPacketV11;
 use pocketmine\network\protocol\v11\Info as InfoV11;
 use pocketmine\Player;
 use pocketmine\Server;
-use pocketmine\utils\Binary;
 use pocketmine\utils\MainLogger;
 
 class Network {
@@ -238,48 +238,35 @@ class Network {
 			return;
 		}
 
-		$str = zlib_decode($packet->payload, 1024 * 1024 * 64); //Max 64MB
-		$len = strlen($str);
-		$offset = 0;
+		$str = BatchCodec::decompress($packet->payload);
+		if($str === false){
+			return;
+		}
+
 		try {
-			while ($offset < $len) {
-				$pkLen = Binary::readInt(substr($str, $offset, 4));
-				$offset += 4;
-				if($pkLen <= 0 or ($offset + $pkLen) > $len){
-					break;
-				}
-
-				if($pkLen <= 0 or $pkLen > ($len - $offset)){
-					break;
-				}
-
-				$buf = substr($str, $offset, $pkLen);
-
-				$offset += $pkLen;
-
+			BatchCodec::forEachFramed($str, function($buf) use ($p){
 				$header = ProtocolCompatibility::readPacketHeader($buf);
 				if($header === null){
-					continue;
+					return;
 				}
-				list($pid, $packetOffset) = $header;
-				if(($pk = $this->getPacket($pid, (int) $p->getProtocol())) !== null){
-					if($pk::NETWORK_ID === Info::BATCH_PACKET or $pk::NETWORK_ID === protocol\v84\InfoV84::BATCH_PACKET){
-						throw new \InvalidStateException("Invalid BatchPacket inside BatchPacket");
-					}
-
-					$pk->protocol = (int) $p->getProtocol();
-					$pk->setBuffer($buf, $packetOffset);
-
-					$pk->decode();
-					$decodedOffset = $pk->getOffset();
-					$pk = DataPacketManager::toCorePacket($pk);
-					$p->handleDataPacket($pk);
-
-					if($decodedOffset <= 0){
-						return;
-					}
+				[$pid, $packetOffset] = $header;
+				$pk = $this->getPacket($pid, (int) $p->getProtocol());
+				if($pk === null){
+					return;
 				}
-			}
+				if($pk::NETWORK_ID === Info::BATCH_PACKET or $pk::NETWORK_ID === protocol\v84\InfoV84::BATCH_PACKET){
+					throw new \InvalidStateException("Invalid BatchPacket inside BatchPacket");
+				}
+
+				$pk->protocol = (int) $p->getProtocol();
+				$pk->setBuffer($buf, $packetOffset);
+				$pk->decode();
+				$decodedOffset = $pk->getOffset();
+				$pk = DataPacketManager::toCorePacket($pk);
+				$p->handleDataPacket($pk);
+
+				return $decodedOffset <= 0 ? false : null;
+			});
 		} catch (\Throwable $e) {
 			if (\pocketmine\DEBUG > 1) {
 				$logger = $this->server->getLogger();
@@ -296,27 +283,21 @@ class Network {
 			return;
 		}
 
-		$str = zlib_decode($packet->payload, 1024 * 1024 * 64);
+		$str = BatchCodec::decompress($packet->payload);
 		if($str === false){
 			return;
 		}
 
-		$len = strlen($str);
-		$offset = 0;
 		$protocol = ProtocolCompatibility::isProtocol011((int) $p->getProtocol()) ? (int) $p->getProtocol() : InfoV11::CURRENT_PROTOCOL;
 		try{
-			while($offset < $len){
-				$pid = ord($str[$offset++]);
-				if(($pk = $this->getPacket($pid, $protocol)) === null){
-					continue;
+			BatchCodec::forEachV11($str, function($pid, $packetOffset) use ($str, $p, $protocol){
+				$pk = $this->getPacket($pid, $protocol);
+				if($pk === null){
+					return null;
 				}
 
-				$decodedOffset = $this->handleProtocol011BatchPacket($pk, $str, $offset, $p);
-				if($decodedOffset <= $offset){
-					break;
-				}
-				$offset = $decodedOffset;
-			}
+				return $this->handleProtocol011BatchPacket($pk, $str, $packetOffset, $p);
+			});
 		}catch(\Throwable $e){
 			if(\pocketmine\DEBUG > 1){
 				$logger = $this->server->getLogger();
