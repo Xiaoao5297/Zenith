@@ -14,7 +14,7 @@ interface Info{
 	 */
 	const CURRENT_PROTOCOL = ProtocolVersion::CORE;
 	const V014_CURRENT_PROTOCOL = ProtocolVersion::CORE;
-	// 协议版本分组 (MinecraftWiki: 0.11=21~27, 0.12=28~34, 0.13=37~39, 0.14=41~70, 0.15=60~84, 0.16=90~91)
+	// 协议版本分组 (0.11=21~33, 0.12=34, 0.13=37~39, 0.14=41~70, 0.15=81~84)
 	// 单一事实来源见 pocketmine\network\compat\ProtocolVersion
 	const V011_PROTOCOLS = ProtocolVersion::V011;
 	const V012_PROTOCOLS = ProtocolVersion::V012;

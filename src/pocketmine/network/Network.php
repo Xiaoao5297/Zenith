@@ -376,6 +376,11 @@ class Network {
 			$this->registerV11Packet($id, $class);
 		}
 
+		// 0.15 (v84) 包按 v84 包 id 注册进主包池; v84 id (0x01-0x41) 与核心 id (0x8f+) 不冲突
+		foreach(DataPacketManager::getProtocol015PacketMap() as $id => $class){
+			$this->registerPacket($id, $class);
+		}
+
 		$this->registerPacket(ProtocolInfo::LOGIN_PACKET, LoginPacket::class);
 		$this->registerPacket(ProtocolInfo::PLAY_STATUS_PACKET, PlayStatusPacket::class);
 		$this->registerPacket(ProtocolInfo::DISCONNECT_PACKET, DisconnectPacket::class);
