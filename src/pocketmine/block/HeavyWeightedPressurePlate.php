@@ -21,8 +21,9 @@
 
 namespace pocketmine\block;
 
-class HeavyWeightedPressurePlate extends PressurePlate{
+class HeavyWeightedPressurePlate extends WeightedPressurePlate{
 	protected $id = self::HEAVY_WEIGHTED_PRESSURE_PLATE;
+	protected $maxEntities = 150;
 
 	public function getName() : string{
 		return "Heavy Weighted Pressure Plate";

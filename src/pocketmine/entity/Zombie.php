@@ -12,6 +12,8 @@ use pocketmine\event\entity\EntityDamageByEntityEvent;
 use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, AttackEnemyBehavior};
 
 class Zombie extends Monster implements Ageable{
+	use MobEquipmentTrait;
+
 	const NETWORK_ID = 32;
 
 	public $width = 0.6;
@@ -39,6 +41,9 @@ class Zombie extends Monster implements Ageable{
 		$this->addBehavior(new RandomLookAroundBehavior($this));
 		
 		parent::initEntity();
+
+		$equipment = VanillaMobEquipment::generateZombieEquipment($this->server->getDifficulty());
+		$this->setMobEquipment($equipment["armor"], $equipment["weapon"]);
 	}
 	
 	public function getHurt(){
@@ -65,24 +70,37 @@ class Zombie extends Monster implements Ageable{
 		$player->dataPacket($pk);
 
 		parent::spawnTo($player);
+
+		$this->sendMobEquipment($player);
+	}
+
+	protected function handlesLootingDrops() : bool{
+		return true;
 	}
 
 	public function getDrops(){
-		$drops = [];
-		if(mt_rand(0, 99) < 10){
+		$rareDrops = [];
+		$looting = $this->getLastDamageLootingLevel();
+		if(mt_rand(1, 1000) <= VanillaMobEquipment::rareDropChance($looting)){
 			switch(mt_rand(0, 2)){
 				case 0:
-					$drops[] = ItemItem::get(ItemItem::IRON_INGOT, 0, 1);
+					$rareDrops[] = ItemItem::get(ItemItem::IRON_INGOT, 0, 1);
 					break;
 				case 1:
-					$drops[] = ItemItem::get(ItemItem::CARROT, 0, 1);
+					$rareDrops[] = ItemItem::get(ItemItem::CARROT, 0, 1);
 					break;
 				case 2:
-					$drops[] = ItemItem::get(ItemItem::POTATO, 0, 1);
+					$rareDrops[] = ItemItem::get(ItemItem::POTATO, 0, 1);
 					break;
 			}
-		}else{
-			$drops[] = ItemItem::get(ItemItem::ROTTEN_FLESH, 0, 1);
+		}
+		$drops = [ItemItem::get(ItemItem::ROTTEN_FLESH, 0, mt_rand(0, 2))];
+		$drops = VanillaMobEquipment::applyLootingToCommonDrops($drops, $looting);
+		foreach($rareDrops as $drop){
+			$drops[] = $drop;
+		}
+		foreach(VanillaMobEquipment::maybeDropEquipment($this->getArmorContents(), $this->getWeapon(), $looting) as $drop){
+			$drops[] = $drop;
 		}
 		return $drops;
 	}

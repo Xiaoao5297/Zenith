@@ -5,7 +5,7 @@ namespace pocketmine\entity;
 
 use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\Player;
-use pocketmine\entity\ai\behavior\{RandomLookAroundBehavior, AttackEnemyBehavior};
+use pocketmine\entity\ai\behavior\{RandomLookAroundBehavior, ShootPlayerBehavior};
 
 class Ghast extends FlyingAnimal{
 	const NETWORK_ID = 41;
@@ -21,7 +21,7 @@ class Ghast extends FlyingAnimal{
 	public function initEntity(){
 		$this->setMaxHealth(10);
 
-		$this->addBehavior(new AttackEnemyBehavior($this, [20], true));
+		$this->addBehavior(new ShootPlayerBehavior($this, 85));
 		$this->addBehavior(new RandomLookAroundBehavior($this));
 
 		parent::initEntity();

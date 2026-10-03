@@ -79,7 +79,11 @@ class AttackEnemyBehavior extends Behavior{
             $this->entity->getNavigator()->moveTo($this->enemy, $this->speed);
         }elseif($this->attackCooldown <= 0){
             $damage = method_exists($this->entity, 'getHurt') ? $this->entity->getHurt() : 3;
-            $this->enemy->attack($damage, new EntityDamageByEntityEvent($this->entity, $this->enemy, EntityDamageEvent::CAUSE_ENTITY_ATTACK, $damage));
+            $ev = new EntityDamageByEntityEvent($this->entity, $this->enemy, EntityDamageEvent::CAUSE_ENTITY_ATTACK, $damage);
+            $this->enemy->attack($damage, $ev);
+            if(method_exists($this->entity, 'onSuccessfulMeleeAttack')){
+                $this->entity->onSuccessfulMeleeAttack($this->enemy, $ev);
+            }
             $this->attackCooldown = mt_rand(30, 40);
         }
 

@@ -59,6 +59,13 @@ abstract class Projectile extends Entity{
 		$this->namedtag->Age = new ShortTag("Age", $this->age);
 	}
 
+	/**
+	 * 命中实体后的钩子，供火焰弹等子类附加燃烧/爆炸效果
+	 * @param Entity $entityHit
+	 */
+	protected function onHitEntity(Entity $entityHit){
+	}
+
 	public function onUpdate($currentTick){
 		if($this->closed){
 			return false;
@@ -135,6 +142,8 @@ abstract class Projectile extends Entity{
 					if($movingObjectPosition->entityHit->attack($ev->getFinalDamage(), $ev) === true){
 						$ev->useArmors();
 					}
+
+					$this->onHitEntity($movingObjectPosition->entityHit);
 
 					$this->hadCollision = true;
 

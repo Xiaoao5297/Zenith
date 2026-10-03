@@ -11,12 +11,14 @@ use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\event\entity\EntityDeathEvent;
 use pocketmine\event\entity\EntityRegainHealthEvent;
 use pocketmine\event\Timings;
+use pocketmine\item\enchantment\Enchantment;
 use pocketmine\item\Item as ItemItem;
 use pocketmine\math\Vector3;
 use pocketmine\nbt\tag\ShortTag;
 use pocketmine\network\Network;
 use pocketmine\network\protocol\EntityEventPacket;
 
+use pocketmine\Player;
 use pocketmine\Server;
 use pocketmine\utils\BlockIterator;
 
@@ -28,6 +30,9 @@ abstract class Living extends Entity implements Damageable{
 	protected $attackTime = 0;
 	
 	protected $invisible = false;
+
+	/** @var int */
+	private $lastLootingLevel = 0;
 
 	protected function initEntity(){
 		parent::initEntity();
@@ -84,6 +89,23 @@ abstract class Living extends Entity implements Damageable{
 			$lastCause = $this->getLastDamageCause();
 			if($lastCause !== null and $lastCause->getDamage() >= $damage){
                 $source->setCancelled();
+			}
+		}
+
+		$this->captureLootingLevel($source);
+		if(!$source->isCancelled() and !($this instanceof Player) and method_exists($this, "getArmorContents")){
+			switch($source->getCause()){
+				case EntityDamageEvent::CAUSE_CONTACT:
+				case EntityDamageEvent::CAUSE_ENTITY_ATTACK:
+				case EntityDamageEvent::CAUSE_PROJECTILE:
+				case EntityDamageEvent::CAUSE_FIRE:
+				case EntityDamageEvent::CAUSE_LAVA:
+				case EntityDamageEvent::CAUSE_BLOCK_EXPLOSION:
+				case EntityDamageEvent::CAUSE_ENTITY_EXPLOSION:
+				case EntityDamageEvent::CAUSE_LIGHTNING:
+					$source->setDamage(VanillaMobEquipment::applyArmorReduction($source->getDamage(), $this->getArmorContents(), $source->getCause()));
+					$damage = $source->getFinalDamage();
+					break;
 			}
 		}
 
@@ -158,14 +180,59 @@ abstract class Living extends Entity implements Damageable{
 			return;
 		}
 		parent::kill();
-		$this->server->getPluginManager()->callEvent($ev = new EntityDeathEvent($this, $this->getDrops()));
 		$dropDisabled = $this->server->isWorldMobDeathDropsAndExperienceDisabled($this->getLevel());
-		foreach($ev->getDrops() as $item){
-			if($dropDisabled){
+		$drops = $dropDisabled ? [] : ($this->handlesLootingDrops() ? $this->getDrops() : $this->applyLootingDrops($this->getDrops()));
+		$this->server->getPluginManager()->callEvent($ev = new EntityDeathEvent($this, $drops));
+		if(!$dropDisabled){
+			foreach($ev->getDrops() as $item){
+				$this->getLevel()->dropItem($this, $item);
+			}
+		}
+	}
+
+	protected function getLastDamageLootingLevel() : int{
+		return $this->lastLootingLevel;
+	}
+
+	protected function handlesLootingDrops() : bool{
+		return false;
+	}
+
+	private function captureLootingLevel(EntityDamageEvent $source){
+		$this->lastLootingLevel = 0;
+		if($source instanceof EntityDamageByEntityEvent){
+			$damager = $source->getDamager();
+			if($source instanceof EntityDamageByChildEntityEvent){
+				$damager = $source->getChild();
+			}
+
+			if($damager instanceof Player){
+				$this->lastLootingLevel = min(3, $damager->getInventory()->getItemInHand()->getEnchantmentLevel(Enchantment::TYPE_WEAPON_LOOTING));
+			}
+		}
+	}
+
+	private function applyLootingDrops(array $drops){
+		if($this->lastLootingLevel <= 0 || $this instanceof Player){
+			return $drops;
+		}
+
+		foreach($drops as $item){
+			if(!$item instanceof ItemItem || $item->getId() === ItemItem::AIR){
 				continue;
 			}
-			$this->getLevel()->dropItem($this, $item);
+
+			$extra = mt_rand(0, $this->lastLootingLevel);
+			if($extra <= 0){
+				continue;
+			}
+
+			$bonus = clone $item;
+			$bonus->setCount($extra);
+			$drops[] = $bonus;
 		}
+
+		return $drops;
 	}
 
 	public function entityBaseTick($tickDiff = 1){

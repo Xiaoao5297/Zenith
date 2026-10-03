@@ -9,6 +9,8 @@ use pocketmine\item\Item as ItemItem;
 use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, AttackEnemyBehavior};
 
 class PigZombie extends Monster{
+	use MobEquipmentTrait;
+
 	const NETWORK_ID = 36;
 
 	public $width = 0.6;
@@ -34,6 +36,9 @@ class PigZombie extends Monster{
 		$this->addBehavior(new RandomLookAroundBehavior($this));
 
 		parent::initEntity();
+
+		$equipment = VanillaMobEquipment::generatePigZombieEquipment($this->server->getDifficulty());
+		$this->setMobEquipment($equipment["armor"], $equipment["weapon"]);
 	}
 	
 	public function getHurt(){
@@ -60,13 +65,27 @@ class PigZombie extends Monster{
 		$player->dataPacket($pk);
 
 		parent::spawnTo($player);
-		
-		$pk = new MobEquipmentPacket();
-		$pk->eid = $this->getId();
-		$pk->item = new ItemItem(283);
-		$pk->slot = 0;
-		$pk->selectedSlot = 0;
 
-		$player->dataPacket($pk);
+		$this->sendMobEquipment($player);
+	}
+
+	protected function handlesLootingDrops() : bool{
+		return true;
+	}
+
+	public function getDrops(){
+		$looting = $this->getLastDamageLootingLevel();
+		$drops = [
+			ItemItem::get(ItemItem::ROTTEN_FLESH, 0, mt_rand(0, 1)),
+			ItemItem::get(ItemItem::GOLD_NUGGET, 0, mt_rand(0, 1))
+		];
+		$drops = VanillaMobEquipment::applyLootingToCommonDrops($drops, $looting);
+		if(mt_rand(1, 1000) <= VanillaMobEquipment::rareDropChance($looting)){
+			$drops[] = ItemItem::get(ItemItem::GOLD_INGOT, 0, 1);
+		}
+		foreach(VanillaMobEquipment::maybeDropEquipment([], $this->getWeapon(), $looting) as $drop){
+			$drops[] = $drop;
+		}
+		return $drops;
 	}
 }

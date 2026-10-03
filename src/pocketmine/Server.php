@@ -19,6 +19,7 @@ use pocketmine\entity\Effect;
 use pocketmine\entity\Egg;
 use pocketmine\entity\Entity;
 use pocketmine\entity\FallingSand;
+use pocketmine\entity\Fireball;
 use pocketmine\entity\FishingHook;
 use pocketmine\entity\Human;
 use pocketmine\entity\Item as DroppedItem;
@@ -27,9 +28,12 @@ use pocketmine\entity\MinecartHopper;
 use pocketmine\entity\MinecartTNT;
 use pocketmine\entity\PrimedTNT;
 use pocketmine\entity\Rabbit;
+use pocketmine\entity\SmallFireball;
 use pocketmine\entity\Snowball;
 use pocketmine\entity\Squid;
 use pocketmine\entity\Villager;
+use pocketmine\entity\Husk;
+use pocketmine\entity\Stray;
 use pocketmine\entity\Zombie;
 use pocketmine\entity\ZombieVillager;
 use pocketmine\event\HandlerList;
@@ -99,6 +103,7 @@ use pocketmine\scheduler\ServerScheduler;
 use pocketmine\tile\BrewingStand;
 use pocketmine\tile\Cauldron;
 use pocketmine\tile\Chest;
+use pocketmine\tile\Comparator;
 use pocketmine\tile\Dispenser;
 use pocketmine\tile\DLDetector;
 use pocketmine\tile\Dropper;
@@ -140,6 +145,7 @@ use pocketmine\entity\Enderman;
 use pocketmine\entity\Silverfish;
 use pocketmine\entity\CaveSpider;
 use pocketmine\entity\Ghast;
+use pocketmine\entity\Horse;
 use pocketmine\entity\LavaSlime;
 use pocketmine\entity\Bat;
 use pocketmine\entity\Blaze;
@@ -3956,6 +3962,8 @@ private function lookupAddress($address) {
 
 	private function registerEntities(){
 		Entity::registerEntity(Arrow::class);
+		Entity::registerEntity(Fireball::class);
+		Entity::registerEntity(SmallFireball::class);
 		Entity::registerEntity(DroppedItem::class);
 		Entity::registerEntity(FallingSand::class);
 		Entity::registerEntity(PrimedTNT::class);
@@ -3969,6 +3977,7 @@ private function lookupAddress($address) {
 		Entity::registerEntity(Sheep::class);
 		Entity::registerEntity(Wolf::class);
 		Entity::registerEntity(Mooshroom::class);
+		Entity::registerEntity(Horse::class);
 		Entity::registerEntity(Creeper::class);
 		Entity::registerEntity(Skeleton::class);
 		Entity::registerEntity(Spider::class);
@@ -3994,6 +4003,8 @@ private function lookupAddress($address) {
 		Entity::registerEntity(FishingHook::class);
 		Entity::registerEntity(Egg::class);
 		Entity::registerEntity(ZombieVillager::class);
+		Entity::registerEntity(Husk::class);
+		Entity::registerEntity(Stray::class);
 		Entity::registerEntity(Rabbit::class);
 		Entity::registerEntity(MinecartChest::class);
 		Entity::registerEntity(MinecartHopper::class);
@@ -4005,6 +4016,7 @@ private function lookupAddress($address) {
 	private function registerTiles(){
 		Tile::registerTile(BrewingStand::class);
 		Tile::registerTile(Chest::class);
+		Tile::registerTile(Comparator::class);
 		Tile::registerTile(Furnace::class);
 		Tile::registerTile(Sign::class);
 		Tile::registerTile(EnchantTable::class);

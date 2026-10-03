@@ -10,6 +10,8 @@ use pocketmine\item\Item as ItemItem;
 use pocketmine\entity\ai\behavior\{StrollBehavior, ShootPlayerBehavior, RandomLookAroundBehavior};
 
 class Skeleton extends Monster implements ProjectileSource{
+	use MobEquipmentTrait;
+
 	const NETWORK_ID = 34;
 	
 	public $width = 0.6;
@@ -30,6 +32,9 @@ class Skeleton extends Monster implements ProjectileSource{
 		$this->addBehavior(new RandomLookAroundBehavior($this));
 		
 		parent::initEntity();
+
+		$equipment = VanillaMobEquipment::generateSkeletonEquipment($this->server->getDifficulty());
+		$this->setMobEquipment($equipment["armor"], $equipment["weapon"]);
 	}
 
 	public function spawnTo(Player $player){
@@ -48,18 +53,27 @@ class Skeleton extends Monster implements ProjectileSource{
 		$player->dataPacket($pk);
 
 		parent::spawnTo($player);
-		
-		$pk = new MobEquipmentPacket();
-		$pk->eid = $this->getId();
-		$pk->item = new ItemItem(ItemItem::BOW);
-		$pk->slot = 0;
-		$pk->selectedSlot = 0;
 
-		$player->dataPacket($pk);
+		$this->sendMobEquipment($player);
 	}
-	
+
+	protected function handlesLootingDrops() : bool{
+		return true;
+	}
+
 	public function getDrops(){
-		$drops = array(ItemItem::get(ItemItem::BONE, 0, mt_rand(1,2)));
+		$looting = $this->getLastDamageLootingLevel();
+		$drops = [
+			ItemItem::get(ItemItem::BONE, 0, mt_rand(0, 2)),
+			ItemItem::get(ItemItem::ARROW, 0, mt_rand(0, 2))
+		];
+		$drops = VanillaMobEquipment::applyLootingToCommonDrops($drops, $looting);
+		if(mt_rand(1, 1000) <= VanillaMobEquipment::rareDropChance($looting)){
+			$drops[] = ItemItem::get(ItemItem::BOW, mt_rand(250, 384), 1);
+		}
+		foreach(VanillaMobEquipment::maybeDropEquipment($this->getArmorContents(), $this->getWeapon(), $looting) as $drop){
+			$drops[] = $drop;
+		}
 		return $drops;
 	}
 }

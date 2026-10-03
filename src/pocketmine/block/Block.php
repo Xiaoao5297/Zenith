@@ -254,6 +254,8 @@ class Block extends Position implements Metadatable{
 
 	const LIGHT_WEIGHTED_PRESSURE_PLATE = 147;
 	const HEAVY_WEIGHTED_PRESSURE_PLATE = 148;
+	const UNPOWERED_COMPARATOR = 149;
+	const POWERED_COMPARATOR = 150;
 	const DAYLIGHT_SENSOR = 151;
 	const DAYLIGHT_SENSOR_INVERTED = 178;
 	const REDSTONE_BLOCK = 152;
@@ -318,6 +320,7 @@ class Block extends Position implements Metadatable{
 	const STONECUTTER = 245;
 	const GLOWING_OBSIDIAN = 246;
 	const NETHER_REACTOR = 247;
+	const OBSERVER = 251;
 	const CAMERA = 439;
 
 	const NETHER_BRICK_FENCE = 113;
@@ -584,6 +587,9 @@ class Block extends Position implements Metadatable{
 			self::$list[self::DROPPER] = Dropper::class;
 			self::$list[self::POWERED_REPEATER] = PoweredRepeater::class;
 			self::$list[self::UNPOWERED_REPEATER] = UnpoweredRepeater::class;
+			self::$list[self::POWERED_COMPARATOR] = PoweredComparator::class;
+			self::$list[self::UNPOWERED_COMPARATOR] = UnpoweredComparator::class;
+			self::$list[self::OBSERVER] = Observer::class;
 			self::$list[self::CAULDRON_BLOCK] = Cauldron::class;
             self::$list[self::INVISIBLE_BEDROCK] = InvisibleBedrock::class;
             self::$list[self::HOPPER_BLOCK] = Hopper::class;

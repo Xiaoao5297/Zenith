@@ -14,6 +14,9 @@ use pocketmine\nbt\tag\FloatTag;
 use pocketmine\nbt\tag\ShortTag;
 use pocketmine\entity\ThrownPotion;
 use pocketmine\entity\Arrow;
+use pocketmine\entity\Fireball;
+use pocketmine\entity\Projectile;
+use pocketmine\entity\SmallFireball;
 
 class ShootPlayerBehavior extends Behavior{
 
@@ -133,6 +136,31 @@ $this->shootCooldown = 40;
 				$Arrow = new Arrow($entity->chunk, $nbt, $entity);
 				$Arrow->setMotion($Arrow->getMotion()->multiply($f));
 				$Arrow->spawnToAll();
+				$this->shootCooldown = 40;
+			}elseif($this->NetworkID == 85 || $this->NetworkID == 94){
+				$pitch = $this->bowAimPitch($this->player, 0.04);
+				$nbt = new CompoundTag("", [
+					"Pos" => new ListTag("Pos", [
+						new DoubleTag("", $entity->x),
+						new DoubleTag("", $entity->y + 1.62),
+						new DoubleTag("", $entity->z)
+					]),
+					"Motion" => new ListTag("Motion", [
+						new DoubleTag("", -sin($entity->yaw / 180 * M_PI) * cos($pitch / 180 * M_PI)),
+						new DoubleTag("", -sin(($pitch) / 180 * M_PI)),
+						new DoubleTag("", cos($entity->yaw / 180 * M_PI) * cos($pitch / 180 * M_PI))
+					]),
+					"Rotation" => new ListTag("Rotation", [
+						new FloatTag("", $entity->yaw),
+						new FloatTag("", $pitch)
+					])
+				]);
+				$f = 1.1;
+				$fireballClass = $this->NetworkID == 85 ? Fireball::class : SmallFireball::class;
+				/** @var Projectile $fireball */
+				$fireball = new $fireballClass($entity->chunk, $nbt, $entity);
+				$fireball->setMotion($fireball->getMotion()->multiply($f));
+				$fireball->spawnToAll();
 				$this->shootCooldown = 40;
 			}else{
 				$this->shootCooldown = 40;

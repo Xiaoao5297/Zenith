@@ -34,6 +34,7 @@ use pocketmine\entity\Boat;
 use pocketmine\entity\Effect;
 use pocketmine\entity\Entity;
 use pocketmine\entity\FishingHook;
+use pocketmine\entity\Horse;
 use pocketmine\entity\Human;
 use pocketmine\entity\Item as DroppedItem;
 use pocketmine\entity\Living;
@@ -3706,6 +3707,15 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 				){
 					$cancelled = true;
+				}
+
+				if($target instanceof Horse){
+					if($packet->action === InteractPacket::ACTION_RIGHT_CLICK){
+						$target->onInteract($this, $this->getInventory()->getItemInHand());
+					}elseif($packet->action === InteractPacket::ACTION_LEAVE_VEHICLE){
+						$target->dismountPlayer($this);
+					}
+					return;
 				}
 
 				if($target instanceof Boat or ($target instanceof Minecart and $target->getType() == Minecart::TYPE_NORMAL) or ($target instanceof MinecartChest) or ($target instanceof MinecartHopper) or ($target instanceof MinecartTNT)){
