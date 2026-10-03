@@ -33,6 +33,11 @@ class Temple extends PopulatorObject{
     const DIRECTION_MINX = 1;
     const DIRECTION_PLUSZ = 2;
     const DIRECTION_MINZ = 3;
+
+    // 移植自 lycore：箱子标记，供 Level 的延迟战利品填充消费
+    const CHEST_MARKER = 0x4454;
+    const CHEST_MARKER_ID = 0x54;
+    const CHEST_MARKER_DATA = 0x44;
     const THREE_DIAGS = [
         [3, 0],
         [0, 3],
@@ -169,11 +174,11 @@ class Temple extends PopulatorObject{
                 $this->placeBlock($xx, $y - 13, $zz, Block::TNT);
         $this->placeBlock($x, $y - 11, $z, Block::STONE_PRESSURE_PLATE);
 
-        //TODO TILES
-        $this->placeBlock($x, $y - 11, $z + 2, Block::CHEST, 4);
-        $this->placeBlock($x, $y - 11, $z - 2, Block::CHEST, 2);
-        $this->placeBlock($x + 2, $y - 11, $z, Block::CHEST, 5);
-        $this->placeBlock($x - 2, $y - 11, $z, Block::CHEST, 3);
+        // 移植自 lycore：箱子写入标记，落地后由 Level 填充战利品
+        $this->placeChest($x, $y - 11, $z + 2, 4);
+        $this->placeChest($x, $y - 11, $z - 2, 2);
+        $this->placeChest($x + 2, $y - 11, $z, 5);
+        $this->placeChest($x - 2, $y - 11, $z, 3);
         $this->placeBlock($x, $y - 10, $z + 2, Block::AIR);
         $this->placeBlock($x, $y - 10, $z - 2, Block::AIR);
         $this->placeBlock($x + 2, $y - 10, $z, Block::AIR);
@@ -355,6 +360,26 @@ class Temple extends PopulatorObject{
     protected function placeBlock($x, $y, $z, $id = Block::SANDSTONE, $meta = 0){
         $this->level->setBlockIdAt($x, $y, $z, $id);
         $this->level->setBlockDataAt($x, $y, $z, $meta);
+    }
+
+    /**
+     * 移植自 lycore：放置箱子并写入战利品标记。
+     */
+    private function placeChest($x, $y, $z, $meta){
+        $this->placeBlock($x, $y, $z, Block::CHEST, $meta);
+        $this->markChest($x, $y, $z);
+    }
+
+    private function markChest($x, $y, $z){
+        if(method_exists($this->level, "setBlockExtraDataAt")){
+            $this->level->setBlockExtraDataAt($x, $y, $z, self::CHEST_MARKER_ID, self::CHEST_MARKER_DATA);
+            return;
+        }
+
+        $chunk = $this->level->getChunk($x >> 4, $z >> 4);
+        if($chunk !== null){
+            $chunk->setBlockExtraData($x & 0x0f, $y & 0x7f, $z & 0x0f, self::CHEST_MARKER);
+        }
     }
 
 

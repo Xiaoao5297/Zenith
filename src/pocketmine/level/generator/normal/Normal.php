@@ -22,8 +22,10 @@ use pocketmine\level\generator\normal\biome\NormalBiome;
 use pocketmine\level\generator\object\OreType;
 use pocketmine\level\generator\populator\GroundCover;
 use pocketmine\level\generator\populator\Cave;
+use pocketmine\level\generator\populator\Dungeon;
 use pocketmine\level\generator\populator\Mineshaft;
 use pocketmine\level\generator\populator\Ore;
+use pocketmine\level\generator\populator\Pond;
 use pocketmine\level\generator\populator\Populator;
 use pocketmine\level\generator\populator\TallGrass;
 use pocketmine\level\generator\populator\Tree;
@@ -287,6 +289,8 @@ class Normal extends Generator{
 		$this->populators[] = $Mineshaft;
 
 		$this->populators[] = new Stronghold();
+		$this->populators[] = new Dungeon();
+		$this->populators[] = new Pond();
 		$this->populators[] = new DesertStructures();
 		$this->populators[] = new JungleTemple();
 		$this->populators[] = new PillagerOutpost();

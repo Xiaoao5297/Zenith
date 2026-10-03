@@ -105,7 +105,32 @@ use pocketmine\plugin\Plugin;
 
 use pocketmine\Server;
 use pocketmine\tile\Chest;
+use pocketmine\tile\Dispenser as DispenserTile;
+use pocketmine\tile\MobSpawner as MobSpawnerTile;
 use pocketmine\tile\Tile;
+use pocketmine\entity\Blaze;
+use pocketmine\entity\CaveSpider;
+use pocketmine\entity\Creeper;
+use pocketmine\entity\MinecartChest;
+use pocketmine\entity\Silverfish;
+use pocketmine\entity\Skeleton;
+use pocketmine\entity\Spider;
+use pocketmine\entity\Zombie;
+use pocketmine\level\generator\hell\object\NetherFortressLoot;
+use pocketmine\level\generator\hell\populator\NetherFortressPopulator;
+use pocketmine\level\generator\normal\object\DesertTempleLoot;
+use pocketmine\level\generator\normal\object\JungleTempleLoot;
+use pocketmine\level\generator\normal\object\MineshaftLoot;
+use pocketmine\level\generator\normal\object\PillagerOutpostLoot;
+use pocketmine\level\generator\normal\object\RuinedPortalLoot;
+use pocketmine\level\generator\normal\object\Stronghold as StrongholdObject;
+use pocketmine\level\generator\normal\object\StrongholdLoot;
+use pocketmine\level\generator\normal\object\Temple as DesertTempleObject;
+use pocketmine\level\generator\normal\object\VillageSmithyChestLoot;
+use pocketmine\level\generator\normal\object\WoodlandMansion as WoodlandMansionObject;
+use pocketmine\level\generator\normal\object\WoodlandMansionLoot;
+use pocketmine\level\generator\populator\Dungeon as DungeonPopulator;
+use pocketmine\level\generator\populator\Mineshaft as MineshaftPopulator;
 use pocketmine\utils\LevelException;
 use pocketmine\utils\MainLogger;
 use pocketmine\utils\Random;
@@ -2509,6 +2534,9 @@ class Level implements ChunkManager, Metadatable{
 			}
 		}
 
+		// 移植自 lycore：消费结构延迟标记（刷怪笼实体 / 箱子战利品）
+		$this->processDeferredStructureContainers($chunk);
+
 		unset($this->chunkCache[$index]);
 		$chunk->setChanged();
 
@@ -2519,6 +2547,290 @@ class Level implements ChunkManager, Metadatable{
 				$loader->onChunkChanged($chunk);
 			}
 		}
+	}
+
+	/**
+	 * 移植自 lycore：消费结构写入的延迟标记。
+	 * - 刷怪笼 marker 存于方块 data：创建/设置 MobSpawner tile 的 EntityId
+	 * - 箱子/发射器 marker 存于 block extra data：创建容器 tile 并填充战利品
+	 * - 废弃矿井箱子矿车 marker：生成 MinecartChest
+	 */
+	public function processDeferredStructureContainers(FullChunk $chunk){
+		$this->processDeferredSpawnerMarkers($chunk);
+		$this->processDeferredStructureChests($chunk);
+		$this->processDeferredMineshaftMinecarts($chunk);
+	}
+
+	private function processDeferredSpawnerMarkers(FullChunk $chunk){
+		for($x = 0; $x < 16; ++$x){
+			for($z = 0; $z < 16; ++$z){
+				for($y = 0; $y < 128; ++$y){
+					if($chunk->getBlockId($x, $y, $z) !== Block::MONSTER_SPAWNER){
+						continue;
+					}
+
+					$marker = $chunk->getBlockData($x, $y, $z);
+					$entityId = $this->getDeferredSpawnerEntityId($marker);
+					if($entityId === 0 && $this->isDeferredSpawnerMarker($marker)){
+						$chunk->setBlockData($x, $y, $z, 0);
+						continue;
+					}
+					if($entityId === 0){
+						continue;
+					}
+
+					$worldX = ($chunk->getX() << 4) + $x;
+					$worldZ = ($chunk->getZ() << 4) + $z;
+					$tile = $chunk->getTile($x, $y, $z);
+
+					if($tile instanceof MobSpawnerTile && !$tile->closed){
+						$tile->setEntityId($entityId);
+					}else{
+						Tile::createTile(Tile::MOB_SPAWNER, $chunk, new CompoundTag("", [
+							new StringTag("id", Tile::MOB_SPAWNER),
+							new IntTag("x", $worldX),
+							new IntTag("y", $y),
+							new IntTag("z", $worldZ),
+							new IntTag("EntityId", $entityId)
+						]));
+					}
+
+					$chunk->setBlockData($x, $y, $z, 0);
+				}
+			}
+		}
+	}
+
+	private function isDeferredSpawnerMarker(int $marker) : bool{
+		switch($marker){
+			case DungeonPopulator::SPAWNER_MARKER_ZOMBIE:
+			case DungeonPopulator::SPAWNER_MARKER_SKELETON:
+			case DungeonPopulator::SPAWNER_MARKER_CREEPER:
+			case NetherFortressPopulator::SPAWNER_MARKER_BLAZE:
+			case StrongholdObject::SPAWNER_MARKER_SILVERFISH:
+			case MineshaftPopulator::SPAWNER_MARKER_CAVE_SPIDER:
+			case WoodlandMansionObject::SPAWNER_MARKER_SPIDER:
+				return true;
+			default:
+				return false;
+		}
+	}
+
+	private function getDeferredSpawnerEntityId(int $marker) : int{
+		$overworld = $this->getDimension() === self::DIMENSION_NORMAL;
+		$nether = $this->getDimension() === self::DIMENSION_NETHER;
+
+		switch($marker){
+			case DungeonPopulator::SPAWNER_MARKER_ZOMBIE:
+				return $overworld ? Zombie::NETWORK_ID : 0;
+			case DungeonPopulator::SPAWNER_MARKER_SKELETON:
+				return $overworld ? Skeleton::NETWORK_ID : 0;
+			case DungeonPopulator::SPAWNER_MARKER_CREEPER:
+				return $overworld ? Creeper::NETWORK_ID : 0;
+			case NetherFortressPopulator::SPAWNER_MARKER_BLAZE:
+				return $nether ? Blaze::NETWORK_ID : 0;
+			case StrongholdObject::SPAWNER_MARKER_SILVERFISH:
+				return $overworld ? Silverfish::NETWORK_ID : 0;
+			case MineshaftPopulator::SPAWNER_MARKER_CAVE_SPIDER:
+				return $overworld ? CaveSpider::NETWORK_ID : 0;
+			case WoodlandMansionObject::SPAWNER_MARKER_SPIDER:
+				return $overworld ? Spider::NETWORK_ID : 0;
+			default:
+				return 0;
+		}
+	}
+
+	private function processDeferredStructureChests(FullChunk $chunk){
+		foreach($chunk->getBlockExtraDataArray() as $index => $value){
+			if(!$this->isDeferredStructureChestMarker($value)){
+				continue;
+			}
+
+			$this->getChunkExtraDataXYZ($index, $x, $y, $z);
+			if(!$this->isDeferredStructureChestMarkerAllowedForDimension($value)){
+				$chunk->setBlockExtraData($x, $y, $z, 0);
+				continue;
+			}
+
+			$expectedBlock = $value === JungleTempleLoot::DISPENSER_MARKER ? Block::DISPENSER : Block::CHEST;
+			if($chunk->getBlockId($x, $y, $z) !== $expectedBlock){
+				$chunk->setBlockExtraData($x, $y, $z, 0);
+				continue;
+			}
+
+			$worldX = ($chunk->getX() << 4) + $x;
+			$worldZ = ($chunk->getZ() << 4) + $z;
+			$tile = $this->getTile($this->temporalVector->setComponents($worldX, $y, $worldZ));
+
+			if($value === JungleTempleLoot::DISPENSER_MARKER){
+				$items = new ListTag("Items", JungleTempleLoot::createDispenserItems($worldX, $y, $worldZ, $this->getSeed()));
+				$items->setTagType(NBT::TAG_Compound);
+				if($tile instanceof DispenserTile && !$tile->closed){
+					$this->populateDeferredDispenser($tile, $items);
+				}else{
+					Tile::createTile(Tile::DISPENSER, $chunk, new CompoundTag("", [
+						new StringTag("id", Tile::DISPENSER),
+						new IntTag("x", $worldX),
+						new IntTag("y", $y),
+						new IntTag("z", $worldZ),
+						$items
+					]));
+				}
+				$chunk->setBlockExtraData($x, $y, $z, 0);
+				continue;
+			}
+
+			if(!($tile instanceof Chest)){
+				$items = new ListTag("Items", $this->createDeferredStructureChestItems($value, $worldX, $y, $worldZ));
+				$items->setTagType(NBT::TAG_Compound);
+				Tile::createTile(Tile::CHEST, $chunk, new CompoundTag("", [
+					new StringTag("id", Tile::CHEST),
+					new IntTag("x", $worldX),
+					new IntTag("y", $y),
+					new IntTag("z", $worldZ),
+					$items
+				]));
+			}
+
+			$chunk->setBlockExtraData($x, $y, $z, 0);
+		}
+	}
+
+	private function populateDeferredDispenser(DispenserTile $tile, ListTag $items){
+		if(!$this->isDispenserTileEmpty($tile)){
+			return;
+		}
+
+		foreach($items as $tag){
+			if(!($tag instanceof CompoundTag) || !isset($tag->Slot)){
+				continue;
+			}
+			$slot = (int) $tag["Slot"];
+			if($slot < 0 || $slot >= $tile->getSize()){
+				continue;
+			}
+			$tile->getInventory()->setItem($slot, NBT::getItemHelper($tag));
+		}
+	}
+
+	private function isDispenserTileEmpty(DispenserTile $tile) : bool{
+		for($slot = 0; $slot < $tile->getSize(); ++$slot){
+			$item = $tile->getInventory()->getItem($slot);
+			if($item->getId() !== Item::AIR && $item->getCount() > 0){
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private function isDeferredStructureChestMarker(int $marker) : bool{
+		return $marker === DesertTempleObject::CHEST_MARKER ||
+			VillageSmithyChestLoot::isChestMarker($marker) ||
+			$marker === PillagerOutpostLoot::CHEST_MARKER ||
+			$marker === RuinedPortalLoot::CHEST_MARKER ||
+			$marker === JungleTempleLoot::CHEST_MARKER ||
+			$marker === JungleTempleLoot::DISPENSER_MARKER ||
+			$marker === StrongholdLoot::CORRIDOR_CHEST_MARKER ||
+			$marker === StrongholdLoot::CROSSING_CHEST_MARKER ||
+			$marker === StrongholdLoot::LIBRARY_CHEST_MARKER ||
+			$marker === NetherFortressLoot::CHEST_MARKER ||
+			$marker === WoodlandMansionLoot::CHEST_MARKER;
+	}
+
+	private function isDeferredStructureChestMarkerAllowedForDimension(int $marker) : bool{
+		if($marker === NetherFortressLoot::CHEST_MARKER){
+			return $this->getDimension() === self::DIMENSION_NETHER;
+		}
+
+		return $this->getDimension() === self::DIMENSION_NORMAL;
+	}
+
+	private function createDeferredStructureChestItems(int $marker, int $worldX, int $y, int $worldZ) : array{
+		if(VillageSmithyChestLoot::isChestMarker($marker)){
+			return VillageSmithyChestLoot::createItemsForMarker($marker, $worldX, $y, $worldZ, $this->getSeed());
+		}
+
+		switch($marker){
+			case PillagerOutpostLoot::CHEST_MARKER:
+				return PillagerOutpostLoot::createItems($worldX, $y, $worldZ, $this->getSeed());
+			case RuinedPortalLoot::CHEST_MARKER:
+				return RuinedPortalLoot::createItems($worldX, $y, $worldZ, $this->getSeed());
+			case JungleTempleLoot::CHEST_MARKER:
+				return JungleTempleLoot::createChestItems($worldX, $y, $worldZ, $this->getSeed());
+			case StrongholdLoot::CORRIDOR_CHEST_MARKER:
+				return StrongholdLoot::createCorridorItems($worldX, $y, $worldZ, $this->getSeed());
+			case StrongholdLoot::CROSSING_CHEST_MARKER:
+				return StrongholdLoot::createCrossingItems($worldX, $y, $worldZ, $this->getSeed());
+			case StrongholdLoot::LIBRARY_CHEST_MARKER:
+				return StrongholdLoot::createLibraryItems($worldX, $y, $worldZ, $this->getSeed());
+			case NetherFortressLoot::CHEST_MARKER:
+				return NetherFortressLoot::createItems($worldX, $y, $worldZ, $this->getSeed());
+			case WoodlandMansionLoot::CHEST_MARKER:
+				return WoodlandMansionLoot::createItems($worldX, $y, $worldZ, $this->getSeed());
+			case DesertTempleObject::CHEST_MARKER:
+			default:
+				return DesertTempleLoot::createItems($worldX, $y, $worldZ, $this->getSeed());
+		}
+	}
+
+	private function processDeferredMineshaftMinecarts(FullChunk $chunk){
+		if($this->getDimension() !== self::DIMENSION_NORMAL){
+			return;
+		}
+
+		foreach($chunk->getBlockExtraDataArray() as $index => $value){
+			if($value !== MineshaftLoot::CHEST_MINECART_MARKER){
+				continue;
+			}
+
+			$this->getChunkExtraDataXYZ($index, $x, $y, $z);
+			if($chunk->getBlockId($x, $y, $z) !== Block::RAIL){
+				$chunk->setBlockExtraData($x, $y, $z, 0);
+				continue;
+			}
+
+			$worldX = ($chunk->getX() << 4) + $x;
+			$worldZ = ($chunk->getZ() << 4) + $z;
+			$items = new ListTag("Items", MineshaftLoot::createItems($worldX, $y, $worldZ, $this->getSeed()));
+			$items->setTagType(NBT::TAG_Compound);
+			$entity = Entity::createEntity(
+				MinecartChest::NETWORK_ID,
+				$chunk,
+				$this->createDeferredMineshaftChestMinecartNBT($worldX + 0.5, $y + 0.0625, $worldZ + 0.5, $items)
+			);
+			if($entity !== null){
+				$entity->spawnToAll();
+			}
+
+			$chunk->setBlockExtraData($x, $y, $z, 0);
+		}
+	}
+
+	private function createDeferredMineshaftChestMinecartNBT(float $x, float $y, float $z, ListTag $items) : CompoundTag{
+		return new CompoundTag("", [
+			new ListTag("Pos", [
+				new DoubleTag("", $x),
+				new DoubleTag("", $y),
+				new DoubleTag("", $z)
+			]),
+			new ListTag("Motion", [
+				new DoubleTag("", 0),
+				new DoubleTag("", 0),
+				new DoubleTag("", 0)
+			]),
+			new ListTag("Rotation", [
+				new FloatTag("", 0),
+				new FloatTag("", 0)
+			]),
+			$items
+		]);
+	}
+
+	private function getChunkExtraDataXYZ(int $hash, &$x, &$y, &$z){
+		$x = ($hash >> 11) & 0x0f;
+		$z = ($hash >> 7) & 0x0f;
+		$y = $hash & 0x7f;
 	}
 
 	/**

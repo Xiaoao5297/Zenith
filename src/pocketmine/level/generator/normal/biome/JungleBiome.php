@@ -21,6 +21,7 @@
 namespace pocketmine\level\generator\normal\biome;
 
 use pocketmine\level\generator\populator\Grass;
+use pocketmine\level\generator\populator\JungleBush;
 use pocketmine\level\generator\populator\Tree;
 use pocketmine\level\generator\populator\Melon;
 use pocketmine\block\Block;
@@ -36,8 +37,11 @@ class JungleBiome extends GrassyBiome{
 		$Grass->setBaseAmount(20);
 		$Melon = new Melon();
 		$Melon->setBaseAmount(1);
+		$bush = new JungleBush();
+		$bush->setBaseAmount(3);
 		$this->addPopulator($Melon);
 		$this->addPopulator($tree);
+		$this->addPopulator($bush);
 		$this->addPopulator($Grass);
 
 		$this->setElevation(63, 65);
