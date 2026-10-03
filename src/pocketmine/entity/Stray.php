@@ -22,16 +22,22 @@
 
 /*
  * 移植自 lycore\entity\Stray，命名空间改为 pocketmine\entity。
- * 当前核心 0.14 无药水箭（Arrow 无 getArrowMetaFromPotionMeta），
- * 故暂不实现迟缓之箭，仅保留实体变种。
  */
 
 namespace pocketmine\entity;
+
+use pocketmine\item\Arrow as ItemArrow;
+use pocketmine\item\Item as ItemItem;
+use pocketmine\item\Potion;
 
 class Stray extends Skeleton{
 	const NETWORK_ID = 46;
 
 	public function getName() : string{
 		return "Stray";
+	}
+
+	public function getProjectileArrowItem(){
+		return ItemItem::get(ItemItem::ARROW, ItemArrow::getArrowMetaFromPotionMeta(Potion::SLOWNESS), 1);
 	}
 }

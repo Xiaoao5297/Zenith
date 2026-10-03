@@ -134,6 +134,9 @@ $this->shootCooldown = 40;
 				]);
 				$f = 1.1;
 				$Arrow = new Arrow($entity->chunk, $nbt, $entity);
+				if(method_exists($entity, "getProjectileArrowItem")){
+					$Arrow->setArrowItem($entity->getProjectileArrowItem());
+				}
 				$Arrow->setMotion($Arrow->getMotion()->multiply($f));
 				$Arrow->spawnToAll();
 				$this->shootCooldown = 40;

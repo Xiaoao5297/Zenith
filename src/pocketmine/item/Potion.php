@@ -249,5 +249,90 @@ class Potion extends Item{
 				return "Potion";
 		}
 	}
-	
+
+	public static function getEffectsByMeta(int $meta) : array{
+		switch($meta){
+			case self::NIGHT_VISION:
+				return [Effect::getEffect(Effect::NIGHT_VISION)->setAmplifier(0)->setDuration(3 * 60 * 20)];
+			case self::NIGHT_VISION_T:
+				return [Effect::getEffect(Effect::NIGHT_VISION)->setAmplifier(0)->setDuration(6 * 60 * 20)];
+			case self::INVISIBILITY:
+				return [Effect::getEffect(Effect::INVISIBILITY)->setAmplifier(0)->setDuration(3 * 60 * 20)];
+			case self::INVISIBILITY_T:
+				return [Effect::getEffect(Effect::INVISIBILITY)->setAmplifier(0)->setDuration(6 * 60 * 20)];
+			case self::LEAPING:
+				return [Effect::getEffect(Effect::JUMP)->setAmplifier(0)->setDuration(3 * 60 * 20)];
+			case self::LEAPING_T:
+				return [Effect::getEffect(Effect::JUMP)->setAmplifier(0)->setDuration(6 * 60 * 20)];
+			case self::LEAPING_TWO:
+				return [Effect::getEffect(Effect::JUMP)->setAmplifier(1)->setDuration(1.5 * 60 * 20)];
+			case self::FIRE_RESISTANCE:
+				return [Effect::getEffect(Effect::FIRE_RESISTANCE)->setAmplifier(0)->setDuration(3 * 60 * 20)];
+			case self::FIRE_RESISTANCE_T:
+				return [Effect::getEffect(Effect::FIRE_RESISTANCE)->setAmplifier(0)->setDuration(6 * 60 * 20)];
+			case self::SPEED:
+				return [Effect::getEffect(Effect::SPEED)->setAmplifier(0)->setDuration(3 * 60 * 20)];
+			case self::SPEED_T:
+				return [Effect::getEffect(Effect::SPEED)->setAmplifier(0)->setDuration(6 * 60 * 20)];
+			case self::SPEED_TWO:
+				return [Effect::getEffect(Effect::SPEED)->setAmplifier(1)->setDuration(1.5 * 60 * 20)];
+			case self::SLOWNESS:
+				return [Effect::getEffect(Effect::SLOWNESS)->setAmplifier(0)->setDuration(1 * 60 * 20)];
+			case self::SLOWNESS_T:
+				return [Effect::getEffect(Effect::SLOWNESS)->setAmplifier(0)->setDuration(4 * 60 * 20)];
+			case self::WATER_BREATHING:
+				return [Effect::getEffect(Effect::WATER_BREATHING)->setAmplifier(0)->setDuration(3 * 60 * 20)];
+			case self::WATER_BREATHING_T:
+				return [Effect::getEffect(Effect::WATER_BREATHING)->setAmplifier(0)->setDuration(6 * 60 * 20)];
+			case self::POISON:
+				return [Effect::getEffect(Effect::POISON)->setAmplifier(0)->setDuration(45 * 20)];
+			case self::POISON_T:
+				return [Effect::getEffect(Effect::POISON)->setAmplifier(0)->setDuration(2 * 60 * 20)];
+			case self::POISON_TWO:
+				return [Effect::getEffect(Effect::POISON)->setAmplifier(0)->setDuration(22 * 20)];
+			case self::REGENERATION:
+				return [Effect::getEffect(Effect::REGENERATION)->setAmplifier(0)->setDuration(45 * 20)];
+			case self::REGENERATION_T:
+				return [Effect::getEffect(Effect::REGENERATION)->setAmplifier(0)->setDuration(2 * 60 * 20)];
+			case self::REGENERATION_TWO:
+				return [Effect::getEffect(Effect::REGENERATION)->setAmplifier(1)->setDuration(22 * 20)];
+			case self::STRENGTH:
+				return [Effect::getEffect(Effect::STRENGTH)->setAmplifier(0)->setDuration(3 * 60 * 20)];
+			case self::STRENGTH_T:
+				return [Effect::getEffect(Effect::STRENGTH)->setAmplifier(0)->setDuration(6 * 60 * 20)];
+			case self::STRENGTH_TWO:
+				return [Effect::getEffect(Effect::STRENGTH)->setAmplifier(1)->setDuration(1.5 * 60 * 20)];
+			case self::WEAKNESS:
+				return [Effect::getEffect(Effect::WEAKNESS)->setAmplifier(0)->setDuration(1.5 * 60 * 20)];
+			case self::WEAKNESS_T:
+				return [Effect::getEffect(Effect::WEAKNESS)->setAmplifier(0)->setDuration(4 * 60 * 20)];
+			case self::HEALING:
+				return [Effect::getEffect(Effect::HEALING)->setAmplifier(0)->setDuration(1)];
+			case self::HEALING_TWO:
+				return [Effect::getEffect(Effect::HEALING)->setAmplifier(1)->setDuration(1)];
+			case self::HARMING:
+				return [Effect::getEffect(Effect::HARMING)->setAmplifier(0)->setDuration(1)];
+			case self::HARMING_TWO:
+				return [Effect::getEffect(Effect::HARMING)->setAmplifier(1)->setDuration(1)];
+		}
+
+		return [];
+	}
+
+	public static function getArrowEffectsByMeta(int $meta) : array{
+		$effects = [];
+		foreach(self::getEffectsByMeta($meta) as $effect){
+			if(!($effect instanceof Effect)){
+				continue;
+			}
+
+			$id = $effect->getId();
+			if($id !== Effect::HEALING and $id !== Effect::HARMING){
+				$effect->setDuration(max(1, (int) floor($effect->getDuration() / 8)));
+			}
+			$effects[] = $effect;
+		}
+
+		return $effects;
+	}
 }

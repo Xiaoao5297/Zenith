@@ -2919,6 +2919,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				$this->dataPacket($pk);
 				break;
 			case ProtocolInfo::PLAYER_INPUT_PACKET:
+				if($this->linkedEntity instanceof Horse){
+					$this->linkedEntity->handleRiderInput($this, (float) $packet->motX, (float) $packet->motY, (bool) $packet->jumping, (bool) $packet->sneaking);
+				}
 				break;
 			case ProtocolInfo::LOGIN_PACKET:
 				if($this->loggedIn){

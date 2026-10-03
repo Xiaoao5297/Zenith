@@ -22,9 +22,8 @@
 
 /*
  * 移植自 lycore\entity\Horse，命名空间改为 pocketmine\entity。
- * 当前核心没有 lycore 的 PM1E 骑乘 AI / 骑手输入管线，
- * 故骑乘使用核心既有的 Entity 链接机制（SetEntityLinkPacket）实现，
- * 保留外观、马鞍/马铠、掉落与 NBT 持久化。
+ * 骑手输入沿用 lycore 方案：Player::PLAYER_INPUT_PACKET -> handleRiderInput，
+ * 运动逻辑按核心 Mob/Creature 更新流程改写（不再依赖 lycore 的 PM1E AI）。
  */
 
 namespace pocketmine\entity;
@@ -33,12 +32,14 @@ use pocketmine\inventory\HorseInventory;
 use pocketmine\inventory\InventoryHolder;
 use pocketmine\item\Item as ItemItem;
 use pocketmine\level\format\FullChunk;
+use pocketmine\math\Vector3;
 use pocketmine\nbt\NBT;
 use pocketmine\nbt\tag\ByteTag;
 use pocketmine\nbt\tag\CompoundTag;
 use pocketmine\nbt\tag\IntTag;
 use pocketmine\nbt\tag\ListTag;
 use pocketmine\network\protocol\AddEntityPacket;
+use pocketmine\network\protocol\MovePlayerPacket;
 use pocketmine\Player;
 
 class Horse extends Animal implements InventoryHolder, Rideable{
@@ -58,6 +59,10 @@ class Horse extends Animal implements InventoryHolder, Rideable{
 	const MARK_WHITE_DOTS = 3;
 	const MARK_BLACK_DOTS = 4;
 
+	const RIDER_INPUT_DEADZONE = 0.08;
+	const RIDER_BRAKE_PER_TICK = 0.45;
+	const RIDER_JUMP_INPUT_STRENGTH = 90.0;
+
 	const DATA_HORSE_TYPE = 19;
 	const DATA_HORSE_VARIANT = 20;
 	const DATA_FLAG_SADDLED = 4;
@@ -71,6 +76,13 @@ class Horse extends Animal implements InventoryHolder, Rideable{
 	protected $inventory;
 	protected $variant = self::VARIANT_WHITE;
 	protected $markVariant = self::MARK_NONE;
+
+	protected $riderInputX = 0.0;
+	protected $riderInputY = 0.0;
+	protected $riderJumping = false;
+	protected $riderSneaking = false;
+	protected $jumpPower = 0.0;
+	protected $horseJumping = false;
 
 	public function __construct(FullChunk $chunk, CompoundTag $nbt){
 		parent::__construct($chunk, $nbt);
@@ -213,8 +225,17 @@ class Horse extends Animal implements InventoryHolder, Rideable{
 		}
 
 		$this->setBehaviorsEnabled(false);
+		$this->getNavigator()->clearPath();
+		$this->riderInputX = 0.0;
+		$this->riderInputY = 0.0;
+		$this->riderJumping = false;
+		$this->riderSneaking = false;
+		$this->jumpPower = 0.0;
+		$this->horseJumping = false;
+
 		$player->linkEntity($this);
 		$player->setDataFlag(self::DATA_FLAGS, self::DATA_FLAG_RIDING, true);
+		$this->syncRiderSeatPosition($player, MovePlayerPacket::MODE_RESET);
 		return true;
 	}
 
@@ -225,8 +246,178 @@ class Horse extends Animal implements InventoryHolder, Rideable{
 
 		$player->setLinked(0, $this);
 		$player->setDataFlag(self::DATA_FLAGS, self::DATA_FLAG_RIDING, false);
+
+		$this->riderInputX = 0.0;
+		$this->riderInputY = 0.0;
+		$this->riderJumping = false;
+		$this->riderSneaking = false;
+		$this->jumpPower = 0.0;
+		$this->horseJumping = false;
 		$this->setBehaviorsEnabled(true);
 		return true;
+	}
+
+	public function handleRiderInput(Player $player, float $motX, float $motY, bool $jumping = false, bool $sneaking = false){
+		if($this->getLinkedEntity() !== $player){
+			return false;
+		}
+
+		if($sneaking){
+			return $this->dismountPlayer($player);
+		}
+
+		$pressedJump = $jumping && !$this->riderJumping;
+		$this->riderInputX = max(-1.0, min(1.0, $motX));
+		$this->riderInputY = max(-1.0, min(1.0, $motY));
+		if($pressedJump){
+			$this->handleRiderJump($player);
+		}
+		$this->riderJumping = $jumping;
+		$this->riderSneaking = $sneaking;
+		return true;
+	}
+
+	public function handleRiderJump(Player $player) : bool{
+		if($this->getLinkedEntity() !== $player){
+			return false;
+		}
+
+		$this->queueRiderJump(self::RIDER_JUMP_INPUT_STRENGTH);
+		return true;
+	}
+
+	protected function queueRiderJump(float $jumpPowerIn){
+		$this->jumpPower = $this->normalizeRiderJumpPower($jumpPowerIn);
+	}
+
+	protected function normalizeRiderJumpPower(float $jumpPowerIn) : float{
+		if($jumpPowerIn < 0){
+			return 0.0;
+		}
+
+		return $jumpPowerIn >= self::RIDER_JUMP_INPUT_STRENGTH ? 1.0 : 0.4 + (0.4 * $jumpPowerIn / self::RIDER_JUMP_INPUT_STRENGTH);
+	}
+
+	public function setJumpPower(float $jumpPowerIn){
+		if(!$this->isSaddled() or $jumpPowerIn < 0){
+			$this->jumpPower = 0.0;
+			return;
+		}
+
+		$this->jumpPower = $this->normalizeRiderJumpPower($jumpPowerIn);
+	}
+
+	public function getJumpPower() : float{
+		return $this->jumpPower;
+	}
+
+	public function isHorseJumping() : bool{
+		return $this->horseJumping;
+	}
+
+	public function setHorseJumping(bool $jumping){
+		$this->horseJumping = $jumping;
+	}
+
+	public function onUpdate($currentTick){
+		$rider = $this->getLinkedEntity();
+		if($rider instanceof Player and $this->canBeControlledBy($rider)){
+			$this->applyRiderMovement($rider);
+			$hasUpdate = parent::onUpdate($currentTick);
+			$this->syncRiderSeatPosition($rider, MovePlayerPacket::MODE_NORMAL);
+			return $hasUpdate;
+		}
+
+		return parent::onUpdate($currentTick);
+	}
+
+	protected function applyRiderMovement(Player $rider){
+		$inputX = $this->riderInputX;
+		$inputY = $this->riderInputY;
+		$adjustedInputY = $inputY < 0 ? $inputY * 0.5 : $inputY;
+		$inputLength = sqrt(($inputX * $inputX) + ($adjustedInputY * $adjustedInputY));
+
+		if($inputLength <= self::RIDER_INPUT_DEADZONE){
+			$this->motionX *= 1.0 - self::RIDER_BRAKE_PER_TICK;
+			$this->motionZ *= 1.0 - self::RIDER_BRAKE_PER_TICK;
+			if(($this->motionX * $this->motionX) + ($this->motionZ * $this->motionZ) < 0.000025){
+				$this->motionX = 0.0;
+				$this->motionZ = 0.0;
+			}
+		}else{
+			$yaw = deg2rad($rider->yaw);
+			$dirX = $inputX / $inputLength;
+			$dirY = $adjustedInputY / $inputLength;
+			$wishX = (-sin($yaw) * $dirY) + (cos($yaw) * $dirX);
+			$wishZ = (cos($yaw) * $dirY) + (sin($yaw) * $dirX);
+			$strength = min(1.0, $inputLength);
+			$strength = max(0.0, ($strength - self::RIDER_INPUT_DEADZONE) / (1.0 - self::RIDER_INPUT_DEADZONE));
+			$strength = pow($strength, 1.6);
+
+			$speed = $this->getHorseRidingSpeed();
+			$this->motionX = $wishX * $speed * $strength;
+			$this->motionZ = $wishZ * $speed * $strength;
+		}
+
+		$this->yaw = $rider->yaw;
+
+		if($this->onGround and $this->jumpPower > 0 and !$this->horseJumping){
+			$jumpPower = $this->jumpPower;
+			$this->motionY = $this->getPm1eJumpStrength() * $jumpPower;
+			$this->horseJumping = true;
+			$this->onGround = false;
+
+			if($inputY > 0){
+				$yaw = deg2rad($this->yaw);
+				$this->motionX += -sin($yaw) * 0.4 * $jumpPower;
+				$this->motionZ += cos($yaw) * 0.4 * $jumpPower;
+			}
+			$this->jumpPower = 0.0;
+		}elseif($this->onGround){
+			$this->horseJumping = false;
+		}
+	}
+
+	protected function getHorseRidingSpeed() : float{
+		return 0.3375;
+	}
+
+	protected function getPm1eJumpStrength() : float{
+		return 0.6;
+	}
+
+	protected function syncRiderSeatPosition(Player $rider, int $mode = MovePlayerPacket::MODE_NORMAL){
+		$rider->x = $this->getRiderSeatX();
+		$rider->y = $this->getRiderSeatY();
+		$rider->z = $this->getRiderSeatZ();
+
+		if($rider->getId() === null){
+			return;
+		}
+
+		$pk = new MovePlayerPacket();
+		$pk->eid = 0;
+		$pk->x = $rider->x;
+		$pk->y = $rider->y + $rider->getEyeHeight();
+		$pk->z = $rider->z;
+		$pk->yaw = $rider->yaw;
+		$pk->bodyYaw = $rider->yaw;
+		$pk->pitch = $rider->pitch;
+		$pk->mode = $mode;
+		$pk->onGround = $this->onGround;
+		$rider->dataPacket($pk);
+	}
+
+	protected function getRiderSeatY() : float{
+		return $this->y + 1.1;
+	}
+
+	protected function getRiderSeatX() : float{
+		return $this->x - (sin(deg2rad($this->yaw)) * -0.2);
+	}
+
+	protected function getRiderSeatZ() : float{
+		return $this->z + (cos(deg2rad($this->yaw)) * -0.2);
 	}
 
 	public function spawnTo(Player $player){
