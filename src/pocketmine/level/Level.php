@@ -160,6 +160,8 @@ class Level implements ChunkManager, Metadatable{
 	const BLOCK_UPDATE_SCHEDULED = 3;
 	const BLOCK_UPDATE_WEAK = 4;
 	const BLOCK_UPDATE_TOUCH = 5;
+	const BLOCK_UPDATE_REDSTONE = 6;
+	const BLOCK_UPDATE_MOVED = 7;
 
 	const TIME_DAY = 0;
 	const TIME_SUNSET = 12000;
@@ -235,6 +237,9 @@ class Level implements ChunkManager, Metadatable{
 	/** @var ReversePriorityQueue */
 	private $updateQueue;
 	private $updateQueueIndex = [];
+	private $redstoneUpdateDepth = 0;
+	private $currentRedstoneUpdate = [];
+	private $redstoneFrequencyGuard = [];
 
 	/** @var Player[][] */
 	private $chunkSendQueue = [];
@@ -1207,6 +1212,91 @@ class Level implements ChunkManager, Metadatable{
 		}
 		$this->updateQueueIndex[$index] = $delay;
 		$this->updateQueue->insert(new Vector3((int) $pos->x, (int) $pos->y, (int) $pos->z), (int) $delay + $this->server->getTick());
+	}
+
+	/**
+	 * 移植自 lycore\level\Level，用于红石查询引擎。
+	 */
+	public function isBlockTickPending(Vector3 $pos, Block $block = null){
+		return isset($this->updateQueueIndex[Level::blockHash($pos->x, $pos->y, $pos->z)]);
+	}
+
+	public function getRedstonePower(Vector3 $pos, $face){
+		$block = $this->getBlock($pos);
+		if($block->isPowerSource()){
+			return $block->getWeakPower($face);
+		}
+
+		return $block->isNormalBlock() ? $this->getStrongPower($pos) : $block->getWeakPower($face);
+	}
+
+	public function isSidePowered(Vector3 $pos, $face) : bool{
+		return $this->getRedstonePower($pos, $face) > 0;
+	}
+
+	public function getStrongPower(Vector3 $pos, $direction = null){
+		if($direction !== null){
+			return $this->getBlock($pos)->getStrongPower($direction);
+		}
+
+		$power = 0;
+		foreach(Block::BLOCK_SIDES as $side){
+			$sidePower = $this->getBlock($pos->getSide($side))->getStrongPower($side);
+			if($sidePower >= 15){
+				return 15;
+			}
+			if($sidePower > $power){
+				$power = $sidePower;
+			}
+		}
+
+		return $power;
+	}
+
+	public function isBlockPowered(Vector3 $pos){
+		foreach(Block::BLOCK_SIDES as $side){
+			if($this->getRedstonePower($pos->getSide($side), $side) > 0){
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public function updateAroundRedstone(Vector3 $pos, $ignoredFace = null){
+		$ignoredFaces = $ignoredFace === null ? [] : (is_array($ignoredFace) ? $ignoredFace : [$ignoredFace]);
+		$isRootUpdate = $this->redstoneUpdateDepth === 0;
+		++$this->redstoneUpdateDepth;
+
+		try{
+			foreach(Block::BLOCK_SIDES as $side){
+				if(in_array($side, $ignoredFaces, true)){
+					continue;
+				}
+				$sidePos = $pos->getSide($side);
+				$hash = self::blockHash($sidePos->x, $sidePos->y, $sidePos->z);
+				$count = isset($this->currentRedstoneUpdate[$hash]) ? $this->currentRedstoneUpdate[$hash] + 1 : 1;
+				if($count >= 64){
+					continue;
+				}
+				$this->currentRedstoneUpdate[$hash] = $count;
+				$block = $this->getBlock($sidePos);
+				if(method_exists($block, "onNeighborChange")){
+					$block->onNeighborChange(Vector3::getOppositeSide($side));
+				}
+				$block->onUpdate(self::BLOCK_UPDATE_REDSTONE);
+			}
+		}finally{
+			--$this->redstoneUpdateDepth;
+			if($isRootUpdate){
+				$this->currentRedstoneUpdate = [];
+				$this->redstoneUpdateDepth = 0;
+			}
+		}
+	}
+
+	public function checkAndHandleHighFrequencyRedstoneTransition(Vector3 $pos, string $stateKey) : bool{
+		return false;
 	}
 
 	/**

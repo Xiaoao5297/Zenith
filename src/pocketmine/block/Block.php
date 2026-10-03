@@ -327,6 +327,15 @@ class Block extends Position implements Metadatable{
 
 	const RAIL = 66;
 
+	const BLOCK_SIDES = [
+		Vector3::SIDE_DOWN,
+		Vector3::SIDE_UP,
+		Vector3::SIDE_NORTH,
+		Vector3::SIDE_SOUTH,
+		Vector3::SIDE_WEST,
+		Vector3::SIDE_EAST
+	];
+
 	/** @var \SplFixedArray */
 	public static $list = null;
 	/** @var \SplFixedArray */
@@ -844,6 +853,33 @@ class Block extends Position implements Metadatable{
 
 	public function isSolid(){
 		return true;
+	}
+
+	public function isNormalBlock(){
+		return $this->isSolid() and !$this->isTransparent();
+	}
+
+	public function isPowerSource(){
+		return false;
+	}
+
+	public function getWeakPower($side){
+		return 0;
+	}
+
+	public function getStrongPower($side){
+		return 0;
+	}
+
+	public function hasComparatorInputOverride(){
+		return false;
+	}
+
+	public function getComparatorInputOverride(){
+		return 0;
+	}
+
+	public function onNeighborChange($side){
 	}
 
 	/**

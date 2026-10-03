@@ -42,6 +42,18 @@ class RedstoneSource extends Flowable{
 		return $this->maxStrength;
 	}
 
+	public function isPowerSource(){
+		return true;
+	}
+
+	public function getWeakPower($side){
+		return $this->getStrength();
+	}
+
+	public function getStrongPower($side){
+		return $this->getWeakPower($side);
+	}
+
 	public function isActivated(Block $from = null){
 		return $this->activated;
 	}

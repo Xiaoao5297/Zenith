@@ -21,20 +21,19 @@
 */
 
 /*
- * 移植自 lycore\block\PoweredComparator，命名空间改为 pocketmine\block。
+ * 移植自 lycore\event\redstone\RedstoneUpdateEvent，命名空间改为 pocketmine\event\redstone。
  */
 
-namespace pocketmine\block;
+namespace pocketmine\event\redstone;
 
-class PoweredComparator extends RedstoneComparator{
-	protected $id = self::POWERED_COMPARATOR;
-	protected $isPowered = true;
+use pocketmine\block\Block;
+use pocketmine\event\block\BlockEvent;
+use pocketmine\event\Cancellable;
 
-	public function getName() : string{
-		return "Powered Comparator";
-	}
+class RedstoneUpdateEvent extends BlockEvent implements Cancellable{
+	public static $handlerList = null;
 
-	protected function getPowered(){
-		return Block::get(self::POWERED_COMPARATOR, $this->meta);
+	public function __construct(Block $block){
+		parent::__construct($block);
 	}
 }

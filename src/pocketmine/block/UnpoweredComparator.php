@@ -28,8 +28,13 @@ namespace pocketmine\block;
 
 class UnpoweredComparator extends RedstoneComparator{
 	protected $id = self::UNPOWERED_COMPARATOR;
+	protected $isPowered = false;
 
 	public function getName() : string{
 		return "Unpowered Comparator";
+	}
+
+	protected function getUnpowered(){
+		return Block::get(self::UNPOWERED_COMPARATOR, $this->meta);
 	}
 }

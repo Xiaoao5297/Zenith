@@ -22,16 +22,12 @@
 
 /*
  * 移植自 lycore\block\RedstoneComparator，命名空间改为 pocketmine\block。
- * 当前核心没有 lycore 的红石查询引擎（getRedstonePower/strongPower 等），
- * 故输入强度改由邻居 RedstoneSource::getStrength() 读取，并按核心
- * activate/deactivate 传播模型驱动输出。
  */
 
 namespace pocketmine\block;
 
 use pocketmine\item\Item;
 use pocketmine\level\Level;
-use pocketmine\math\Vector3;
 use pocketmine\nbt\tag\CompoundTag;
 use pocketmine\nbt\tag\IntTag;
 use pocketmine\nbt\tag\StringTag;
@@ -39,100 +35,28 @@ use pocketmine\Player;
 use pocketmine\tile\Comparator as ComparatorTile;
 use pocketmine\tile\Tile;
 
-abstract class RedstoneComparator extends RedstoneSource{
+abstract class RedstoneComparator extends RedstoneDiode{
 	const MODE_COMPARE = 0;
 	const MODE_SUBTRACT = 1;
 
-	const META_FACING_MASK = 0x03;
-	const META_SUBTRACT = 0x04;
-	const META_POWERED = 0x08;
-
-	public function __construct($meta = 0){
-		$this->meta = $meta;
-	}
-
-	public function isSolid(){
-		return true;
-	}
-
-	public function getHardness(){
-		return 0.0;
+	protected function getDelay(){
+		return 2;
 	}
 
 	public function getMode(){
-		return ($this->meta & self::META_SUBTRACT) > 0 ? self::MODE_SUBTRACT : self::MODE_COMPARE;
+		return ($this->meta & 0x04) > 0 ? self::MODE_SUBTRACT : self::MODE_COMPARE;
 	}
 
-	public function getFacing(){
-		switch($this->meta & self::META_FACING_MASK){
-			case 0:
-				return Vector3::SIDE_SOUTH;
-			case 1:
-				return Vector3::SIDE_WEST;
-			case 2:
-				return Vector3::SIDE_NORTH;
-			default:
-				return Vector3::SIDE_EAST;
-		}
+	protected function getPowered(){
+		return Block::get(self::POWERED_COMPARATOR, $this->meta);
 	}
 
-	public function getDirection() : int{
-		return $this->getFacing();
+	protected function getUnpowered(){
+		return Block::get(self::UNPOWERED_COMPARATOR, $this->meta);
 	}
 
-	public function getOppositeDirection() : int{
-		return Vector3::getOppositeSide($this->getFacing());
-	}
-
-	protected function getLeftSide(){
-		switch($this->getFacing()){
-			case Vector3::SIDE_NORTH:
-				return Vector3::SIDE_WEST;
-			case Vector3::SIDE_SOUTH:
-				return Vector3::SIDE_EAST;
-			case Vector3::SIDE_EAST:
-				return Vector3::SIDE_NORTH;
-			default:
-				return Vector3::SIDE_SOUTH;
-		}
-	}
-
-	protected function getRightSide(){
-		return Vector3::getOppositeSide($this->getLeftSide());
-	}
-
-	public function isActivated(Block $from = null){
-		return ($this->meta & self::META_POWERED) > 0;
-	}
-
-	protected function getInputStrength(){
-		$source = $this->getSide($this->getOppositeDirection());
-		if($source instanceof RedstoneSource){
-			return $source->getStrength();
-		}
-		if($source->getId() === self::REDSTONE_WIRE){
-			return $source->getDamage();
-		}
-
-		return 0;
-	}
-
-	protected function getSideStrength(){
-		$left = $this->getSide($this->getLeftSide());
-		$right = $this->getSide($this->getRightSide());
-		$leftStrength = $left instanceof RedstoneSource ? $left->getStrength() : 0;
-		$rightStrength = $right instanceof RedstoneSource ? $right->getStrength() : 0;
-
-		return max($leftStrength, $rightStrength);
-	}
-
-	protected function calculateOutput(){
-		$input = $this->getInputStrength();
-		if($this->getMode() === self::MODE_SUBTRACT){
-			return max($input - $this->getSideStrength(), 0);
-		}
-
-		return $input;
+	public function isPowered(){
+		return $this->isPowered or ($this->meta & 0x08) > 0;
 	}
 
 	protected function getComparatorTile(){
@@ -150,66 +74,103 @@ abstract class RedstoneComparator extends RedstoneSource{
 		]));
 	}
 
-	public function updateState(){
-		$output = $this->calculateOutput();
-		$shouldBePowered = $output > 0;
-		$isPowered = $this->isActivated();
-
+	protected function getRedstoneSignal(){
 		$tile = $this->getComparatorTile();
+		return $tile instanceof ComparatorTile ? $tile->getOutputSignal() : 0;
+	}
+
+	protected function calculateInputStrength(){
+		$power = parent::calculateInputStrength();
+		$inputSide = $this->getInputSide();
+		$block = $this->getSide($inputSide);
+
+		if($block->hasComparatorInputOverride()){
+			$power = $block->getComparatorInputOverride();
+		}elseif($power < 15 and $block->isNormalBlock()){
+			$block = $block->getSide($inputSide);
+			if($block->hasComparatorInputOverride()){
+				$power = $block->getComparatorInputOverride();
+			}
+		}
+
+		return $power;
+	}
+
+	protected function calculateOutput(){
+		$input = $this->calculateInputStrength();
+		return $this->getMode() === self::MODE_SUBTRACT ? max($input - $this->getPowerOnSides(), 0) : $input;
+	}
+
+	public function shouldBePowered(){
+		$input = $this->calculateInputStrength();
+		if($input >= 15){
+			return true;
+		}
+		if($input === 0){
+			return false;
+		}
+
+		$sidePower = $this->getPowerOnSides();
+		return $sidePower === 0 or $input >= $sidePower;
+	}
+
+	public function onActivate(Item $item, Player $player = null){
+		$this->meta = $this->getMode() === self::MODE_SUBTRACT ? $this->meta - 4 : $this->meta + 4;
+		$this->level->setBlock($this, $this, true, true);
+		$this->onChange();
+		return true;
+	}
+
+	protected function onChange(){
+		$output = $this->calculateOutput();
+		$tile = $this->getComparatorTile();
+		$currentOutput = 0;
 		if($tile instanceof ComparatorTile){
+			$currentOutput = $tile->getOutputSignal();
 			$tile->setOutputSignal($output);
 		}
 
-		if($isPowered !== $shouldBePowered){
-			$this->maxStrength = max(1, $output);
-			$this->id = $shouldBePowered ? self::POWERED_COMPARATOR : self::UNPOWERED_COMPARATOR;
-			if($shouldBePowered){
-				$this->meta |= self::META_POWERED;
-			}else{
-				$this->meta &= ~self::META_POWERED;
+		if($currentOutput !== $output or $this->getMode() === self::MODE_COMPARE){
+			$shouldBePowered = $this->shouldBePowered();
+			if($this->isPowered() and !$shouldBePowered){
+				$this->level->setBlock($this, $this->getUnpowered(), true, true);
+			}elseif(!$this->isPowered() and $shouldBePowered){
+				$this->level->setBlock($this, $this->getPowered(), true, true);
 			}
-			$this->getLevel()->setBlock($this, $this, true, false);
-			if($shouldBePowered){
-				$this->activate();
-			}else{
-				$this->deactivate();
-			}
+
+			$this->level->updateAroundRedstone($this, null);
 		}
 	}
 
 	public function onUpdate($type){
-		if($type === Level::BLOCK_UPDATE_NORMAL or $type === Level::BLOCK_UPDATE_REDSTONE or $type === Level::BLOCK_UPDATE_SCHEDULED){
-			$this->updateState();
-			return $type;
+		if($type === Level::BLOCK_UPDATE_SCHEDULED){
+			$this->onChange();
+			return Level::BLOCK_UPDATE_SCHEDULED;
+		}
+
+		return parent::onUpdate($type);
+	}
+
+	public function place(Item $item, Block $block, Block $target, $face, $fx, $fy, $fz, Player $player = null){
+		if(parent::place($item, $block, $target, $face, $fx, $fy, $fz, $player)){
+			$this->getComparatorTile();
+			$this->onUpdate(Level::BLOCK_UPDATE_REDSTONE);
+			return true;
 		}
 
 		return false;
 	}
 
-	public function onActivate(Item $item, Player $player = null){
-		$this->meta ^= self::META_SUBTRACT;
-		$this->getLevel()->setBlock($this, $this, true, true);
-		$this->updateState();
-		return true;
-	}
-
-	public function place(Item $item, Block $block, Block $target, $face, $fx, $fy, $fz, Player $player = null){
-		if($player instanceof Player){
-			$this->meta = ($this->meta & (self::META_SUBTRACT | self::META_POWERED)) | self::getMetaFromYaw($player->yaw);
-		}
-		$this->getLevel()->setBlock($block, $this, true, true);
-		$this->getComparatorTile();
-		$this->updateState();
-		return true;
-	}
-
-	protected static function getMetaFromYaw($yaw){
-		$yaw = fmod($yaw, 360);
-		if($yaw < 0){
-			$yaw += 360;
+	public function updateState(){
+		if($this->level->isBlockTickPending($this, $this)){
+			return;
 		}
 
-		return (((int) floor(($yaw * 4 / 360) + 0.5)) + 2) & 0x03;
+		$tile = $this->getComparatorTile();
+		$power = $tile instanceof ComparatorTile ? $tile->getOutputSignal() : 0;
+		if($this->calculateOutput() !== $power or $this->isPowered() !== $this->shouldBePowered()){
+			$this->level->scheduleUpdate($this, $this->getPulseTickDelay());
+		}
 	}
 
 	public function getDrops(Item $item) : array{
