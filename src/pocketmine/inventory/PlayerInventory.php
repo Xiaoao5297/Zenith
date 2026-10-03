@@ -104,6 +104,11 @@ class PlayerInventory extends BaseInventory{
 					$this->sendContents($this->getHolder());
 					return;
 				}
+
+				// 反作弊：手持物品检测
+				if(($ac = Server::getInstance()->getAntiCheat()) !== null){
+					$ac->onItemHeld($this->getHolder(), $item);
+				}
 			}
 
 			$this->setHotbarSlotIndex($itemIndex, $slot);

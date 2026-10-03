@@ -45,6 +45,7 @@ class ConsoleLineEditor{
 
 	/** ANSI 转义序列解析状态：0=普通 1=收到ESC 2=收到ESC[ 3=收到ESC[3 4=收到ESCO */
 	private $escState = 0;
+	private $escStartedAt = 0.0;
 	/** 尚未拼完的多字节 UTF-8 字符 */
 	private $pendingUtf8 = "";
 	private $pendingUtf8Len = 0;
@@ -55,7 +56,7 @@ class ConsoleLineEditor{
 	/** @var \Threaded|null 跨线程共享的显示状态（供日志回调重绘） */
 	private $displayState = null;
 
-	public function __construct($prompt = "Genisys> "){
+	public function __construct($prompt = "Zenith> "){
 		$this->prompt = $prompt;
 	}
 
@@ -68,14 +69,21 @@ class ConsoleLineEditor{
 	}
 
 	public function enableRawMode(){
-		if(Utils::getOS() === "win"){
-			return;
+		if(Utils::getOS() === "win" or !function_exists("shell_exec") or !function_exists("system")){
+			return false;
 		}
 		$saved = @shell_exec("stty -g 2>/dev/null");
-		if(is_string($saved) and trim($saved) !== ""){
-			$this->savedTty = trim($saved);
+		if(!is_string($saved) or trim($saved) === ""){
+			return false;
 		}
-		@system("stty -icanon -echo -ixon 2>/dev/null");
+		$this->savedTty = trim($saved);
+		// Do not inherit ignored carriage returns or disabled interrupt keys.
+		@system("stty -icanon -echo -ixon -igncr -inlcr icrnl isig intr '^C' min 1 time 0 2>/dev/null", $status);
+		if($status !== 0){
+			$this->disableRawMode();
+			return false;
+		}
+		return true;
 	}
 
 	public function disableRawMode(){
@@ -84,8 +92,7 @@ class ConsoleLineEditor{
 		}
 		if($this->savedTty !== null){
 			@system("stty " . escapeshellarg($this->savedTty) . " 2>/dev/null");
-		}else{
-			@system("stty sane 2>/dev/null");
+			$this->savedTty = null;
 		}
 	}
 
@@ -95,14 +102,19 @@ class ConsoleLineEditor{
 	public function processByte($byte){
 		$o = ord($byte);
 
+		// Incomplete escape sequences must not consume Enter or editing controls.
+		if($o < 0x20 or $o === 0x7f or microtime(true) - $this->escStartedAt > 0.25){
+			$this->escState = 0;
+		}
 		if($this->escState === 1){
 			$this->escState = 0;
 			if($byte === "["){
 				$this->escState = 2;
+				return null;
 			}elseif($byte === "O"){
 				$this->escState = 4;
+				return null;
 			}
-			return null;
 		}
 		if($this->escState === 2){
 			$this->escState = 0;
@@ -153,6 +165,7 @@ class ConsoleLineEditor{
 
 		if($o === 0x1b){
 			$this->escState = 1;
+			$this->escStartedAt = microtime(true);
 			return null;
 		}
 		if($o === 0x0a or $o === 0x0d){

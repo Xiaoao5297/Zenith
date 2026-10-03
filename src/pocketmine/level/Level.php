@@ -1646,6 +1646,11 @@ class Level implements ChunkManager, Metadatable{
 				return false;
 			}
 
+			// 反作弊：方块破坏检测（距离 / 透视）
+			if(($ac = $this->server->getAntiCheat()) !== null){
+				$ac->onBlockBreak($player, $target);
+			}
+
 			/*
 			$breakTime = $target->getBreakTime($item);
 
@@ -1928,6 +1933,11 @@ class Level implements ChunkManager, Metadatable{
 			$this->server->getPluginManager()->callEvent($ev);
 			if($ev->isCancelled()){
 				return false;
+			}
+
+			// 反作弊：方块放置距离检测
+			if(($ac = $this->server->getAntiCheat()) !== null){
+				$ac->onBlockPlace($player, $target);
 			}
 		}
 

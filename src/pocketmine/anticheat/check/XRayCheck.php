@@ -22,161 +22,128 @@
 
 namespace pocketmine\anticheat\check;
 
-use pocketmine\anticheat\AntiCheat;
 use pocketmine\Player;
 use pocketmine\block\Block;
 use pocketmine\math\Vector3;
 
+/**
+ * 透视（X-Ray）检测：按挖掘方块统计矿石发现率。
+ *
+ * 修复了旧版配置键名/单位不匹配（thresholds 为百分比，代码按比例读取）的问题；
+ * 命中进入统一缓冲。
+ */
 class XRayCheck extends Check{
 
-	/** @var array */
-	private $violations = [];
-
-	/** @var array */
-	private $oreDiscoveryCount = [];
-
-	/** @var array */
-	private $totalBlocksMined = [];
-
-	/** @var array */
-	private $lastResetTime = [];
-
-	/** @var array */
+	/** @var int[] */
 	private static $NORMAL_ORES = [
 		Block::COAL_ORE,
-		Block::IRON_ORE
+		Block::IRON_ORE,
 	];
 
-	/** @var array */
+	/** @var int[] */
 	private static $RARE_ORES = [
 		Block::GOLD_ORE,
 		Block::LAPIS_ORE,
 		Block::REDSTONE_ORE,
-		Block::GLOWING_REDSTONE_ORE
+		Block::GLOWING_REDSTONE_ORE,
 	];
 
-	/** @var array */
+	/** @var int[] */
 	private static $PRECIOUS_ORES = [
 		Block::DIAMOND_ORE,
-		Block::EMERALD_ORE
+		Block::EMERALD_ORE,
 	];
 
-	/** @var array|null */
-	private static $ALL_ORES = null;
-
-	public function __construct(AntiCheat $antiCheat, array $config){
-		parent::__construct($antiCheat, $config);
-		self::$ALL_ORES = array_merge(self::$NORMAL_ORES, self::$RARE_ORES, self::$PRECIOUS_ORES);
+	public function getDisplayName() : string{
+		return "XRay";
 	}
 
 	public function clearPlayerData(string $playerName){
-		unset($this->violations[$playerName]);
-		unset($this->oreDiscoveryCount[$playerName]);
-		unset($this->totalBlocksMined[$playerName]);
-		unset($this->lastResetTime[$playerName]);
 	}
 
 	public function check(Player $player, Block $block){
-		$name = $player->getName();
-
 		if(!$this->enabled) return;
 
-		if(!in_array($block->getId(), self::$ALL_ORES)){
+		$blockId = $block->getId();
+		if(!in_array($blockId, array_merge(self::$NORMAL_ORES, self::$RARE_ORES, self::$PRECIOUS_ORES), true)){
 			return;
 		}
 
+		$data = $this->getPlayerData($player);
+
 		$currentTime = round(microtime(true) * 1000);
-		$lastReset = isset($this->lastResetTime[$name]) ? $this->lastResetTime[$name] : $currentTime;
-		$resetInterval = (int) ($this->getConfig()["reset-interval"] ?? 300000);
+		$resetInterval = (int) ($this->config["reset-interval"] ?? 180000);
+		$lastReset = (int) $data->getState("xray.lastReset", $currentTime);
 
 		if($currentTime - $lastReset > $resetInterval){
-			unset($this->oreDiscoveryCount[$name]);
-			unset($this->totalBlocksMined[$name]);
-			$this->lastResetTime[$name] = $currentTime;
+			$data->setState("xray.ores", []);
+			$data->setState("xray.total", 0);
+			$data->setState("xray.lastReset", $currentTime);
 		}
 
-		if(!isset($this->oreDiscoveryCount[$name])){
-			$this->oreDiscoveryCount[$name] = [];
-		}
-		$playerOres = &$this->oreDiscoveryCount[$name];
+		$ores = $data->getState("xray.ores", []);
+		$ores[$blockId] = ($ores[$blockId] ?? 0) + 1;
+		$data->setState("xray.ores", $ores);
 
-		$blockId = $block->getId();
-		$playerOres[$blockId] = isset($playerOres[$blockId]) ? $playerOres[$blockId] + 1 : 1;
+		$total = (int) $data->getState("xray.total", 0) + 1;
+		$data->setState("xray.total", $total);
 
-		$total = isset($this->totalBlocksMined[$name]) ? $this->totalBlocksMined[$name] + 1 : 1;
-		$this->totalBlocksMined[$name] = $total;
-
-		$minBlocks = (int) ($this->getConfig()["min-blocks-before-check"] ?? 50);
+		$minBlocks = (int) ($this->config["min-blocks-before-check"] ?? 30);
 		if($total < $minBlocks){
 			return;
 		}
 
-		$normalThreshold = (float) ($this->getConfig()["normal-ore-threshold"] ?? 0.15);
-		$rareThreshold = (float) ($this->getConfig()["rare-ore-threshold"] ?? 0.05);
-		$preciousThreshold = (float) ($this->getConfig()["precious-ore-threshold"] ?? 0.02);
+		$thresholds = $this->config["thresholds"] ?? [];
+		$normalThreshold = ((float) ($thresholds["common"] ?? 15)) / 100.0;
+		$rareThreshold = ((float) ($thresholds["rare"] ?? 5)) / 100.0;
+		$preciousThreshold = ((float) ($thresholds["precious"] ?? 2)) / 100.0;
 
 		$suspicious = false;
 		$oreType = "";
-		$ratio = 0;
+		$ratio = 0.0;
 
-		$normalCount = $this->countOres($playerOres, self::$NORMAL_ORES);
-		$rareCount = $this->countOres($playerOres, self::$RARE_ORES);
-		$preciousCount = $this->countOres($playerOres, self::$PRECIOUS_ORES);
+		$normalCount = $this->countOres($ores, self::$NORMAL_ORES);
+		$rareCount = $this->countOres($ores, self::$RARE_ORES);
+		$preciousCount = $this->countOres($ores, self::$PRECIOUS_ORES);
 
-		if($normalCount > 0){
-			$ratio = (double) $normalCount / $total;
-			if($ratio > $normalThreshold){
-				$suspicious = true;
-				$oreType = "普通矿石";
-			}
+		if($normalCount > 0 and ($ratio = $normalCount / $total) > $normalThreshold){
+			$suspicious = true;
+			$oreType = "普通矿石";
+		}elseif($rareCount > 0 and ($ratio = $rareCount / $total) > $rareThreshold){
+			$suspicious = true;
+			$oreType = "稀有矿石";
+		}elseif($preciousCount > 0 and ($ratio = $preciousCount / $total) > $preciousThreshold){
+			$suspicious = true;
+			$oreType = "珍贵矿石";
 		}
 
-		if(!$suspicious && $rareCount > 0){
-			$ratio = (double) $rareCount / $total;
-			if($ratio > $rareThreshold){
-				$suspicious = true;
-				$oreType = "稀有矿石";
-			}
+		if(!$suspicious){
+			$this->decay($player, 0.5);
+			return;
 		}
 
-		if(!$suspicious && $preciousCount > 0){
-			$ratio = (double) $preciousCount / $total;
-			if($ratio > $preciousThreshold){
-				$suspicious = true;
-				$oreType = "珍贵矿石";
-			}
+		if((bool) ($this->config["check-exposed"] ?? true) and $this->isOreExposed($block)){
+			return;
 		}
 
-		if($suspicious){
-			if($this->getConfig()["check-exposed"] ?? true){
-				if($this->isOreExposed($block)){
-					return;
-				}
-			}
-
-			$violation = isset($this->violations[$name]) ? $this->violations[$name] + 1 : 1;
-			$this->violations[$name] = $violation;
-
-			$detail = sprintf("%s发现率异常: %.2f%% (总挖掘: %d)", $oreType, $ratio * 100, $total);
-			$this->antiCheat->logCheat($player->getName(), "XRayCheck", $detail);
-
-			$maxViolations = (int) ($this->getConfig()["max-violations"] ?? 5);
-			if($violation >= $maxViolations){
-				$this->antiCheat->punish($player, "XRayCheck", $violation);
-			}
-		}
+		$detail = sprintf("%s发现率 %.2f%% (总挖掘 %d)", $oreType, $ratio * 100, $total);
+		$this->flag($player, $detail, 1.0);
 	}
 
-	private function countOres($playerOres, $oreTypes){
+	private function countOres(array $ores, array $oreTypes) : int{
 		$count = 0;
 		foreach($oreTypes as $oreId){
-			$count += isset($playerOres[$oreId]) ? $playerOres[$oreId] : 0;
+			$count += $ores[$oreId] ?? 0;
 		}
 		return $count;
 	}
 
-	private function isOreExposed(Block $block){
+	private function isOreExposed(Block $block) : bool{
 		$level = $block->getLevel();
+		if($level === null){
+			return false;
+		}
+
 		$x = $block->getFloorX();
 		$y = $block->getFloorY();
 		$z = $block->getFloorZ();
@@ -184,42 +151,16 @@ class XRayCheck extends Check{
 		$directions = [
 			[1, 0, 0], [-1, 0, 0],
 			[0, 1, 0], [0, -1, 0],
-			[0, 0, 1], [0, 0, -1]
+			[0, 0, 1], [0, 0, -1],
 		];
 
 		foreach($directions as $dir){
 			$neighbor = $level->getBlock(new Vector3($x + $dir[0], $y + $dir[1], $z + $dir[2]));
-			if($neighbor->getId() === Block::AIR || $neighbor->getId() === Block::WATER || $neighbor->getId() === Block::STILL_WATER){
+			if($neighbor->getId() === Block::AIR or $neighbor->getId() === Block::WATER or $neighbor->getId() === Block::STILL_WATER){
 				return true;
 			}
 		}
 
 		return false;
-	}
-
-	public function getStats(Player $player){
-		$name = $player->getName();
-		$stats = [];
-
-		$ores = isset($this->oreDiscoveryCount[$name]) ? $this->oreDiscoveryCount[$name] : [];
-
-		$normalCount = $this->countOres($ores, self::$NORMAL_ORES);
-		$rareCount = $this->countOres($ores, self::$RARE_ORES);
-		$preciousCount = $this->countOres($ores, self::$PRECIOUS_ORES);
-		$total = isset($this->totalBlocksMined[$name]) ? $this->totalBlocksMined[$name] : 0;
-
-		$stats["normal_ores"] = $normalCount;
-		$stats["rare_ores"] = $rareCount;
-		$stats["precious_ores"] = $preciousCount;
-		$stats["total_blocks"] = $total;
-		$stats["violations"] = isset($this->violations[$name]) ? $this->violations[$name] : 0;
-
-		if($total > 0){
-			$stats["normal_ratio"] = (double) $normalCount / $total;
-			$stats["rare_ratio"] = (double) $rareCount / $total;
-			$stats["precious_ratio"] = (double) $preciousCount / $total;
-		}
-
-		return $stats;
 	}
 }

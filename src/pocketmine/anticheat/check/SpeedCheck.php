@@ -22,118 +22,78 @@
 
 namespace pocketmine\anticheat\check;
 
-use pocketmine\anticheat\AntiCheat;
 use pocketmine\Player;
-use pocketmine\block\Block;
-use pocketmine\math\Vector3;
 use pocketmine\entity\Effect;
+use pocketmine\anticheat\MovementSnapshot;
 
-class SpeedCheck extends Check{
+/**
+ * 移动速度检测（tick 驱动）。
+ *
+ * 不再使用墙钟时间，速度按服务器 tick 折算；并考虑药水、方块、载具等上下文，
+ * 命中只累积缓冲，由 ViolationManager 决定是否告警/惩罚。
+ */
+class SpeedCheck extends MovementCheck{
 
-	const BUFFER_SIZE = 3;
+	const TICKS_PER_SECOND = 20;
 
-	/** @var array */
-	private $playerData = [];
-
-	public function __construct(AntiCheat $antiCheat, array $config){
-		parent::__construct($antiCheat, $config);
+	public function getDisplayName() : string{
+		return "Speed";
 	}
 
 	public function clearPlayerData(string $playerName){
-		$lower = strtolower($playerName);
-		unset($this->playerData[$lower]);
 	}
 
-	public function check(Player $player, Vector3 $from, Vector3 $to, float $elapsed){
+	public function checkMovement(Player $player, MovementSnapshot $snapshot){
 		if(!$this->enabled) return;
-
 		if($player->hasPermission("fpacheat.bypass")) return;
 		if($player->isCreative() or $player->isSpectator()) return;
+		if($player->getAllowFlight()) return;
+		if($snapshot->isInVehicle()) return;
+		if($snapshot->isExempt()) return;
 
-		$name = $player->getName();
-		$lower = strtolower($name);
-
-		// 跨世界/跨维度移动跳过
-		if($player->getLevel() === null) return;
-
-		$dx = $to->x - $from->x;
-		$dz = $to->z - $from->z;
-		$dist = sqrt($dx * $dx + $dz * $dz);
+		$dist = $snapshot->getHorizontalDistance();
 
 		// 极小移动忽略
 		if($dist < 0.001) return;
 
-		// 时间异常过滤
-		if($elapsed < 0.04 || $elapsed > 0.2) return;
-
-		// 单次大移动视为传送
-		if($dist > 2.0){
-			$this->playerData[$lower] = [];
+		// 单次大位移视为传送，清空缓冲而不是判定
+		if($dist > 4.0){
+			$this->decay($player, 10.0);
 			return;
 		}
 
-		$speed = $dist / $elapsed;
+		$tickDelta = $snapshot->getTickDelta();
+		$speedPerSecond = ($dist / $tickDelta) * self::TICKS_PER_SECOND;
 
-		// 平滑缓冲区
-		if(!isset($this->playerData[$lower])){
-			$this->playerData[$lower] = [];
-		}
-		$this->playerData[$lower][] = $speed;
-		if(count($this->playerData[$lower]) > self::BUFFER_SIZE){
-			array_shift($this->playerData[$lower]);
-		}
+		$limit = $this->calcSpeedLimit($player, $snapshot);
 
-		$avgSpeed = array_sum($this->playerData[$lower]) / count($this->playerData[$lower]);
-
-		$limit = $this->calcSpeedLimit($player);
-
-		if($avgSpeed > $limit){
-			if(!isset($this->playerData[$lower . "_violations"])){
-				$this->playerData[$lower . "_violations"] = 0;
-			}
-			$this->playerData[$lower . "_violations"]++;
-
-			$detail = number_format($avgSpeed, 1) . " (限制: " . number_format($limit, 1) . ")";
-			$this->antiCheat->logCheat($name, "Speed", $detail);
-
-			if($this->playerData[$lower . "_violations"] >= $this->maxViolations){
-				if($this->getConfig()["rollback"] ?? true){
-					$player->teleport($from);
-				}
-				$this->antiCheat->punish($player, "Speed", $this->playerData[$lower . "_violations"]);
-				$this->playerData[$lower . "_violations"] = 0;
-				return;
-			}
+		if($speedPerSecond > $limit){
+			$detail = sprintf("速度 %.2f b/s, 限制 %.2f b/s", $speedPerSecond, $limit);
+			$this->flag($player, $detail, 1.0);
+		}else{
+			$this->decay($player, 1.0);
 		}
 	}
 
-	private function calcSpeedLimit(Player $player) : float{
-		$base = 7.0; // walk
-		if($player->isSprinting()) $base = (float) ($this->getConfig()["max-sprint-speed"] ?? 9.0);
-		if($player->getAllowFlight()) $base = (float) ($this->getConfig()["max-fly-speed"] ?? 15.0);
+	private function calcSpeedLimit(Player $player, MovementSnapshot $snapshot) : float{
+		if($player->isSprinting()){
+			$base = (float) ($this->config["max-sprint-speed"] ?? 8.0);
+		}else{
+			$base = (float) ($this->config["max-walk-speed"] ?? 6.0);
+		}
 
-		// 速度效果加成
 		if($player->hasEffect(Effect::SPEED)){
-			$eff = $player->getEffect(Effect::SPEED);
-			$base *= 1.15 + ($eff->getAmplifier() * 0.15);
+			$amplifier = $player->getEffect(Effect::SPEED)->getAmplifier();
+			$base *= 1.2 + ($amplifier * 0.2);
 		}
 
-		// 下落/跳跃时放宽
-		if($player->motionY > 0.1 || $player->motionY < -0.1){
+		if($snapshot->isInWater()) $base *= 1.4;
+		if($snapshot->isOnLadder()) $base *= 1.6;
+		if($snapshot->isOnIce()) $base *= 2.0;
+		if($snapshot->isOnSlime()) $base *= 1.6;
+
+		if($player->motionY > 0.1 or $player->motionY < -0.1){
 			$base *= 1.2;
-		}
-
-		// 梯子/藤蔓上放宽
-		if($player->getLevel() !== null){
-			$blockId = $player->getLevel()->getBlockIdAt((int) $player->x, (int) $player->y, (int) $player->z);
-			if($blockId === Block::LADDER or $blockId === Block::VINE){
-				$base *= 1.5;
-			}
-		}
-
-		// 水中放宽
-		if($player->isInsideOfWater()){
-			$base *= 1.3;
 		}
 
 		return $base;

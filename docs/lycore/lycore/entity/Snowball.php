@@ -1,0 +1,120 @@
+<?php
+
+/*
+ * ██╗   ██╗    ██████╗ ██████╗ ██████╗ ███████╗
+ * ██║   ██║   ██╔════╝██╔═══██╗██╔══██╗██╔════╝
+ * ██║   ██║   ██║     ██║   ██║██████╔╝█████╗
+ * ██║   ██║   ██║     ██║   ██║██╔══██╗██╔══╝
+ * ╚██████╔╝██╗╚██████╗╚██████╔╝██║  ██║███████╗
+ *  ╚═════╝ ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * @Author: U core
+ *
+ * @Links:
+ *  > LY Core
+ *  > LY Core Project
+*/
+
+namespace lycore\entity;
+
+
+use lycore\level\format\FullChunk;
+use lycore\level\sound\EndermanTeleportSound;
+use lycore\nbt\tag\CompoundTag;
+use lycore\network\Network;
+use lycore\network\protocol\AddEntityPacket;
+use lycore\math\Vector3;
+use lycore\Player;
+
+class Snowball extends Projectile{
+	const NETWORK_ID = 81;
+
+	public $width = 0.25;
+	public $length = 0.25;
+	public $height = 0.25;
+
+	protected $gravity = 0.03;
+	protected $drag = 0.01;
+
+	public function __construct(FullChunk $chunk, CompoundTag $nbt, Entity $shootingEntity = null){
+		parent::__construct($chunk, $nbt, $shootingEntity);
+	}
+
+	public function isEnderPearlSnowball() : bool{
+		return isset($this->namedtag->EnderPearlSnowball) and (int) $this->namedtag["EnderPearlSnowball"] === 1;
+	}
+
+	public function isPVPBotDirectAmbushVisualPearl() : bool{
+		return isset($this->namedtag->PVPBotDirectAmbush) and (int) $this->namedtag["PVPBotDirectAmbush"] === 1;
+	}
+
+	public function onUpdate($currentTick){
+		if($this->closed){
+			return false;
+		}
+
+		$this->timings->startTiming();
+
+		$hasUpdate = parent::onUpdate($currentTick);
+
+		if($this->age > 1200 or $this->isCollided){
+			if($this->isCollided and $this->isEnderPearlSnowball() and !$this->isPVPBotDirectAmbushVisualPearl()){
+				$this->teleportShooter();
+			}
+			$this->kill();
+			$hasUpdate = true;
+		}
+
+		$this->timings->stopTiming();
+
+		return $hasUpdate;
+	}
+
+	protected function onHitEntity(Entity $entityHit){
+		if($this->isEnderPearlSnowball()){
+			if(!$this->isPVPBotDirectAmbushVisualPearl()){
+				$this->teleportShooter();
+			}
+			$this->kill();
+			return true;
+		}
+
+		return false;
+	}
+
+	protected function teleportShooter() : bool{
+		if(!$this->shootingEntity instanceof Entity or $this->shootingEntity->closed or !$this->shootingEntity->isAlive()){
+			return false;
+		}
+
+		$from = new Vector3($this->shootingEntity->x, $this->shootingEntity->y, $this->shootingEntity->z);
+		if($this->shootingEntity->teleport($this)){
+			$this->getLevel()->addSound(new EndermanTeleportSound($from));
+			$this->getLevel()->addSound(new EndermanTeleportSound($this));
+			return true;
+		}
+
+		return false;
+	}
+
+	public function spawnTo(Player $player){
+		$pk = new AddEntityPacket();
+		$pk->type = Snowball::NETWORK_ID;
+		$pk->eid = $this->getId();
+		$pk->x = $this->x;
+		$pk->y = $this->y;
+		$pk->z = $this->z;
+		$pk->speedX = $this->motionX;
+		$pk->speedY = $this->motionY;
+		$pk->speedZ = $this->motionZ;
+		$pk->metadata = $this->dataProperties;
+		$player->dataPacket($pk);
+
+		parent::spawnTo($player);
+	}
+}

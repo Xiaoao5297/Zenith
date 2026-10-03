@@ -22,80 +22,56 @@
 
 namespace pocketmine\anticheat\check;
 
-use pocketmine\anticheat\AntiCheat;
 use pocketmine\Player;
+use pocketmine\anticheat\MovementSnapshot;
 
-class TimerCheck extends Check{
+/**
+ * 游戏加速（Timer）检测（tick 驱动）。
+ *
+ * 旧实现用墙钟 40ms 阈值，移动包抖动必然误判。现改为统计一个 tick 窗口内
+ * 产生的有效移动采样数：正常客户端每 tick 至多一次，超量才进入缓冲。
+ */
+class TimerCheck extends MovementCheck{
 
-	/** @var array */
-	private $lastMoveTime = [];
-
-	/** @var array */
-	private $violations = [];
-
-	/** @var array */
-	private $fastMoveCount = [];
-
-	public function __construct(AntiCheat $antiCheat, array $config){
-		parent::__construct($antiCheat, $config);
+	public function getDisplayName() : string{
+		return "Timer";
 	}
 
 	public function clearPlayerData(string $playerName){
-		unset($this->lastMoveTime[$playerName]);
-		unset($this->violations[$playerName]);
-		unset($this->fastMoveCount[$playerName]);
 	}
 
-	public function check(Player $player, $from, $to, float $elapsed){
+	public function checkMovement(Player $player, MovementSnapshot $snapshot){
 		if(!$this->enabled) return;
-
 		if($player->hasPermission("fpacheat.bypass")) return;
-		if($player->isCreative() || $player->isSpectator()) return;
+		if($player->isCreative() or $player->isSpectator()) return;
+		if($snapshot->isExempt()) return;
 
-		$name = $player->getName();
-
-		if($player->getLevel() === null){
-			$this->lastMoveTime[$name] = round(microtime(true) * 1000);
+		// 只有真正的位移才计入，忽略纯视角/极小抖动
+		if($snapshot->getDistance() < 0.05){
 			return;
 		}
 
-		$distance = $from->distance($to);
-		if($distance < 0.01){
-			return;
-		}
+		$data = $this->getPlayerData($player);
+		$tick = $snapshot->getTick();
 
-		$currentTime = round(microtime(true) * 1000);
-		$lastTime = isset($this->lastMoveTime[$name]) ? $this->lastMoveTime[$name] : null;
+		$window = (int) ($this->config["window-ticks"] ?? 20);
+		$maxSamples = (int) ($this->config["max-samples"] ?? 30);
 
-		if($lastTime === null){
-			$this->lastMoveTime[$name] = $currentTime;
-			return;
-		}
+		$samples = $data->getState("timer.samples", []);
+		$samples[] = $tick;
 
-		$timeDiff = $currentTime - $lastTime;
-		$this->lastMoveTime[$name] = $currentTime;
+		$cutoff = $tick - $window;
+		$samples = array_values(array_filter($samples, function($t) use ($cutoff){
+			return $t > $cutoff;
+		}));
+		$data->setState("timer.samples", $samples);
 
-		if($timeDiff < 40){
-			$fastMoves = isset($this->fastMoveCount[$name]) ? $this->fastMoveCount[$name] + 1 : 1;
-			$this->fastMoveCount[$name] = $fastMoves;
-
-			if($fastMoves > 5){
-				$violation = isset($this->violations[$name]) ? $this->violations[$name] + 1 : 1;
-				$this->violations[$name] = $violation;
-
-				$detail = sprintf("移动间隔过短: %d ms, 连续次数: %d", $timeDiff, $fastMoves);
-				$this->antiCheat->logCheat($name, "TimerCheck", $detail);
-
-				if($violation >= $this->maxViolations){
-					$this->antiCheat->punish($player, "TimerCheck", $violation);
-				}
-			}
+		if(count($samples) > $maxSamples){
+			$detail = sprintf("%d tick 内 %d 次移动采样 (限制 %d)", $window, count($samples), $maxSamples);
+			$this->flag($player, $detail, 1.0);
+			$data->setState("timer.samples", []);
 		}else{
-			$this->fastMoveCount[$name] = 0;
-			$current = isset($this->violations[$name]) ? $this->violations[$name] : 0;
-			if($current > 0){
-				$this->violations[$name] = $current - 1;
-			}
+			$this->decay($player, 0.5);
 		}
 	}
 }

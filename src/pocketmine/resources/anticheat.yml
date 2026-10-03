@@ -8,6 +8,13 @@ settings:
   # Enable/disable the anti-cheat system / 是否启用反作弊系统
   enabled: true
 
+  # Mode: alert = only log/notify (recommended) | punish = execute rollback/kick/ban
+  # 模式：alert 仅告警（推荐）| punish 执行回退/踢出/封禁
+  mode: alert
+
+  # Verbose buffer logging for tuning / 调试：输出缓冲明细（调参用）
+  debug: false
+
   # Broadcast cheat alerts to operators / 向 OP 广播作弊通知
   broadcast-to-ops: true
 
@@ -24,51 +31,50 @@ punishments:
 
 # ---- Detection Modules / 检测模块 ----
 checks:
-  # === Movement Speed / 移动速度检测 ===
+  # === Movement Speed / 移动速度检测（tick 驱动，自动豁免药水/冰/水/梯子/载具） ===
   speed:
     enabled: true
-    max-walk-speed: 7.0        # Max walking speed (blocks/sec) / 行走最大速度（方块/秒）
-    max-sprint-speed: 9.0      # Max sprinting speed / 冲刺最大速度
-    max-fly-speed: 15.0        # Max flying speed / 飞行最大速度
-    rollback: true             # Rollback position on violation / 违规时回滚位置
-    max-violations: 5          # Violation threshold for punishment / 触发封禁的违规次数
+    max-walk-speed: 6.0        # Max walking speed (blocks/sec) / 行走最大速度（方块/秒）
+    max-sprint-speed: 8.0      # Max sprinting speed / 冲刺最大速度
+    max-fly-speed: 20.0        # Max flying speed / 飞行最大速度
+    max-violations: 8          # Buffer needed before a full violation / 记一次违规所需缓冲
 
-  # === Attack / 攻击检测 ===
+  # === Attack / 攻击检测（tick 窗口，伤害期望含锋利附魔与力量效果） ===
   attack:
     enabled: true
     max-attacks-per-second: 10      # Max attacks per second / 每秒最大攻击次数
-    max-damage-multiplier: 1.5      # Max damage multiplier / 伤害倍数上限
+    max-damage-multiplier: 2.0      # Max damage multiplier / 伤害倍数上限
     max-rotation-per-tick: 90.0     # KillAura rotation check / KillAura 旋转角度检测
-    max-violations: 1
+    max-violations: 4
 
-  # === Reach / 距离检测 ===
+  # === Reach / 距离检测（实体距离按碰撞箱半宽修正） ===
   reach:
     enabled: true
-    max-attack-reach: 4.5        # Max entity attack reach / 最大攻击距离
-    max-block-reach: 5.5         # Max block interaction reach / 最大方块交互距离
-    max-interact-reach: 5.5      # Max interaction reach / 最大交互距离
-    max-container-reach: 5.5     # Max container access reach / 最大容器访问距离
-    cooldown: 300
-    max-violations: 4
+    max-attack-reach: 6.0        # Max entity attack reach / 最大攻击距离
+    max-block-reach: 6.0         # Max block interaction reach / 最大方块交互距离
+    max-interact-reach: 6.0      # Max interaction reach / 最大交互距离
+    max-container-reach: 6.0     # Max container access reach / 最大容器访问距离
+    max-violations: 6
 
   # === Hitbox / 命中框检测 ===
   hitbox:
     enabled: true
-    max-horizontal-range: 0.3
-    max-violations: 4
+    max-attack-reach: 6.0        # Max reach before flag / 触发距离
+    max-horizontal-range: 0.5    # Extra tolerance / 额外容差
+    max-violations: 6
 
-  # === Teleport / 异常传送检测 ===
+  # === Teleport / 异常传送检测（传送/切世界/加入/受伤自动豁免） ===
   teleport:
     enabled: true
-    max-distance: 10.0           # Max movement distance per tick / 每 tick 最大移动距离
-    max-violations: 4
+    max-blocks-per-tick: 10.0    # Max displacement per tick / 每 tick 最大位移
+    max-violations: 6
 
-  # === Knockback / 防击退检测 ===
+  # === Knockback / 防击退检测（tick 窗口） ===
   knockback:
     enabled: true
     min-knockback-distance: 0.3  # Min expected knockback distance / 预期最小击退距离
     required-count: 3            # Consecutive failures before action / 连续违规次数
-    max-violations: 1
+    max-violations: 3
 
   # === Item / 物品检测 ===
   item:
@@ -78,9 +84,9 @@ checks:
     check-enchantments: true     # Check illegal enchantments / 检测非法附魔
     check-nbt: true              # Check abnormal NBT data / 检测异常 NBT 数据
     banned-items: []             # Banned item ID list / 禁用物品 ID 列表
-    max-violations: 1
+    max-violations: 3
 
-  # === X-Ray / 透视检测 ===
+  # === X-Ray / 透视检测（阈值单位为百分比） ===
   xray:
     enabled: true
     min-blocks-before-check: 30         # Min blocks mined before check starts / 开始检测前最少挖掘方块数
@@ -90,28 +96,32 @@ checks:
       precious: 2                       # Precious ores (diamond/emerald) ratio % / 珍贵矿石比例阈值 %
     check-exposed: true                 # Exclude exposed ores / 排除裸露在空气中的矿石
     reset-interval: 180000              # Stat reset interval (ms) / 统计数据重置间隔（毫秒）
-    max-violations: 2
+    max-violations: 4
 
-  # === Flight / 飞行检测 ===
+  # === Flight / 飞行检测（tick 驱动，豁免跳跃提升/水/梯子/黏液块/载具） ===
   fly:
     enabled: true
-    max-air-ticks: 30          # Max air ticks before flagging / 空中滞留最大 tick 数
-    max-hover-height: 2.5      # Max hover height above ground / 悬浮最大高度
-    max-violations: 5
+    max-air-ticks: 40          # Max air ticks before flagging / 空中滞留最大 tick 数
+    max-hover-height: 3.0      # Max hover height above ground / 悬浮最大高度
+    max-violations: 6
 
-  # === NoFall / 摔落检测 ===
+  # === NoFall / 摔落检测（按 tick 累计下落距离） ===
   nofall:
     enabled: true
-    max-violations: 3
+    min-fall-damage: 4.0       # Expected damage needed to flag / 触发检测所需预期摔落伤害
+    max-violations: 5
 
   # === AutoClicker / 自动连点检测 ===
   autoclicker:
     enabled: true
-    max-cps: 15                # Max clicks per second / 每秒最大点击次数
-    consistency-threshold: 8.0 # Click interval std-dev threshold / 点击间隔标准差阈值
-    max-violations: 1
+    max-cps: 18                       # Max clicks per second / 每秒最大点击次数
+    consistency-threshold: 2.5        # Click interval std-dev threshold (ms) / 点击间隔标准差阈值
+    consistency-min-samples: 20       # Samples required before consistency check / 一致性检测所需样本数
+    max-violations: 3
 
-  # === Timer / 游戏加速检测 ===
+  # === Timer / 游戏加速检测（tick 窗口内移动采样数） ===
   timer:
     enabled: true
-    max-violations: 5
+    window-ticks: 20           # Sliding window size / 滑动窗口 tick 数
+    max-samples: 30            # Max move samples within window / 窗口内最大移动采样数
+    max-violations: 6

@@ -22,87 +22,82 @@
 
 namespace pocketmine\anticheat\check;
 
-use pocketmine\anticheat\AntiCheat;
+use pocketmine\Player;
 use pocketmine\entity\Entity;
 use pocketmine\entity\Effect;
 use pocketmine\item\Item;
-use pocketmine\item\TieredTool;
-use pocketmine\item\Weapon;
-use pocketmine\Player;
+use pocketmine\item\enchantment\Enchantment;
 
+/**
+ * 攻击检测：频率、伤害异常、KillAura 旋转、MultiAura。
+ *
+ * 频率/旋转/多目标窗口全部改为服务器 tick；伤害期望值纳入锋利附魔与力量/虚弱效果，
+ * 避免附魔剑、药水导致的误判。
+ */
 class AttackCheck extends Check{
 
-	/** @var array */
-	private $playerData = [];
+	const WINDOW_TICKS = 20;
 
-	public function __construct(AntiCheat $antiCheat, array $config){
-		parent::__construct($antiCheat, $config);
+	public function getDisplayName() : string{
+		return "Attack";
 	}
 
 	public function clearPlayerData(string $playerName){
-		$lower = strtolower($playerName);
-		unset($this->playerData[$lower]);
-		unset($this->playerData[$lower . "_hit_times"]);
-		unset($this->playerData[$lower . "_targets"]);
-		unset($this->playerData[$lower . "_yaw_pitch"]);
 	}
 
-	/**
-	 * @param Entity $damager
-	 * @param Entity $target
-	 * @param float  $damage
-	 */
 	public function checkAttack($damager, $target, $damage){
 		if(!$this->enabled) return;
 		if(!($damager instanceof Player)) return;
 		if($damager->hasPermission("fpacheat.bypass")) return;
 		if($damager->isCreative() or $damager->isSpectator()) return;
 
-		$name = $damager->getName();
-		$lower = strtolower($name);
-		$now = microtime(true);
-
-		$this->checkAttackFrequency($damager, $lower, $now);
-		$this->checkDamageAnomaly($damager, $target, $damage, $lower);
-		$this->checkKillAura($damager, $target, $lower, $now);
-		$this->checkMultiAura($damager, $target, $lower, $now);
+		$this->checkAttackFrequency($damager);
+		$this->checkDamageAnomaly($damager, $damage);
+		$this->checkRotation($damager);
+		$this->checkMultiTarget($damager, $target);
 	}
 
-	private function checkAttackFrequency(Player $player, string $lower, float $now){
-		if(!isset($this->playerData[$lower . "_hit_times"])){
-			$this->playerData[$lower . "_hit_times"] = [];
-		}
+	private function checkAttackFrequency(Player $player){
+		$data = $this->getPlayerData($player);
+		$tick = $this->antiCheat->getServer()->getTick();
 
-		$this->playerData[$lower . "_hit_times"][] = $now;
-		// 只保留最近 2 秒
-		$this->playerData[$lower . "_hit_times"] = array_filter($this->playerData[$lower . "_hit_times"], function($t) use ($now){
-			return ($now - $t) <= 2.0;
-		});
+		$hits = $data->getState("attack.hits", []);
+		$hits[] = $tick;
+		$cutoff = $tick - self::WINDOW_TICKS;
+		$hits = array_values(array_filter($hits, function($t) use ($cutoff){
+			return $t > $cutoff;
+		}));
+		$data->setState("attack.hits", $hits);
 
-		$maxAPS = (int) ($this->getConfig()["max-attacks-per-second"] ?? 10);
-		$recentHits = count($this->playerData[$lower . "_hit_times"]);
+		$maxAPS = (int) ($this->config["max-attacks-per-second"] ?? 10);
+		$allowed = (int) ceil($maxAPS * 1.5);
 
-		if($recentHits > $maxAPS * 2){
-			$this->antiCheat->logCheat($player->getName(), "Attack", "攻击频率异常: " . $recentHits . "次/2秒");
-			$this->violate($player, $lower);
+		if(count($hits) > $allowed){
+			$detail = sprintf("%d tick 内 %d 次攻击 (限制 %d)", self::WINDOW_TICKS, count($hits), $allowed);
+			$this->flag($player, $detail, 1.0);
+			$data->setState("attack.hits", []);
 		}
 	}
 
-	private function checkDamageAnomaly(Player $player, Entity $target, float $damage, string $lower){
+	private function checkDamageAnomaly(Player $player, float $damage){
 		$item = $player->getInventory()->getItemInHand();
 		$expectedMax = $this->getExpectedMaxDamage($item);
 
-		// 力量效果加成
 		if($player->hasEffect(Effect::STRENGTH)){
-			$eff = $player->getEffect(Effect::STRENGTH);
-			$expectedMax *= 1.3 * ($eff->getAmplifier() + 1);
+			$amplifier = $player->getEffect(Effect::STRENGTH)->getAmplifier();
+			$expectedMax *= 1.3 * ($amplifier + 1);
+		}
+		if($player->hasEffect(Effect::WEAKNESS)){
+			$expectedMax *= 0.8;
 		}
 
-		$maxMultiplier = (float) ($this->getConfig()["max-damage-multiplier"] ?? 1.5);
+		$maxMultiplier = (float) ($this->config["max-damage-multiplier"] ?? 2.0);
 
-		if($damage > $expectedMax * $maxMultiplier && $damage > 8){
-			$this->antiCheat->logCheat($player->getName(), "Attack", "伤害异常: " . number_format($damage, 1) . " (预期上限: " . number_format($expectedMax * $maxMultiplier, 1) . ")");
-			$this->violate($player, $lower);
+		if($damage > $expectedMax * $maxMultiplier and $damage > 10){
+			$detail = sprintf("伤害 %.1f 超过预期 %.1f", $damage, $expectedMax * $maxMultiplier);
+			$this->flag($player, $detail, 1.0);
+		}else{
+			$this->decay($player, 0.5);
 		}
 	}
 
@@ -116,82 +111,70 @@ class AttackCheck extends Check{
 			Item::DIAMOND_AXE => 6.0,
 			Item::IRON_AXE => 5.0,
 			Item::STONE_AXE => 4.0,
+			Item::GOLD_AXE => 4.0,
+			Item::WOODEN_AXE => 3.0,
+			Item::DIAMOND_PICKAXE => 5.0,
+			Item::IRON_PICKAXE => 4.0,
+			Item::STONE_PICKAXE => 3.0,
 		];
-		return $damages[$item->getId()] ?? 2.0;
+
+		$base = $damages[$item->getId()] ?? 2.0;
+
+		$sharpness = $item->getEnchantmentLevel(Enchantment::TYPE_WEAPON_SHARPNESS);
+		if($sharpness > 0){
+			$base += 1.25 * $sharpness;
+		}
+
+		return $base;
 	}
 
-	private function checkKillAura(Player $player, Entity $target, string $lower, float $now){
-		if(!isset($this->playerData[$lower . "_targets"])){
-			$this->playerData[$lower . "_targets"] = [];
-			$this->playerData[$lower . "_yaw_pitch"] = [];
+	private function checkRotation(Player $player){
+		$data = $this->getPlayerData($player);
+		$tick = $this->antiCheat->getServer()->getTick();
+
+		$last = $data->getState("attack.rot");
+		$lastTick = $data->getState("attack.rotTick");
+
+		$maxRotation = (float) ($this->config["max-rotation-per-tick"] ?? 90.0);
+
+		if($last !== null and $lastTick !== null and ($tick - $lastTick) <= 10){
+			$yawDiff = abs($player->yaw - $last[0]);
+			$pitchDiff = abs($player->pitch - $last[1]);
+			if($yawDiff > 180){
+				$yawDiff = 360 - $yawDiff;
+			}
+
+			if($yawDiff > $maxRotation or $pitchDiff > $maxRotation){
+				$detail = sprintf("旋转异常 yaw %.1f pitch %.1f (限制 %.1f)", $yawDiff, $pitchDiff, $maxRotation);
+				$this->flag($player, $detail, 1.0);
+			}
 		}
 
-		$pYaw = $player->yaw;
-		$pPitch = $player->pitch;
-		$dX = $target->x - $player->x;
-		$dZ = $target->z - $player->z;
-		$targetYaw = atan2($dZ, $dX) * 180 / M_PI - 90;
-		if($targetYaw < 0) $targetYaw += 360;
-
-		$maxRotation = (float) ($this->getConfig()["max-rotation-per-tick"] ?? 90.0);
-		$lastYaw = $this->playerData[$lower . "_yaw_pitch"][0] ?? $pYaw;
-		$lastPitch = $this->playerData[$lower . "_yaw_pitch"][1] ?? $pPitch;
-
-		$yawDiff = abs($pYaw - $lastYaw);
-		$pitchDiff = abs($pPitch - $lastPitch);
-
-		if(($yawDiff > $maxRotation || $pitchDiff > $maxRotation) && ($now - ($this->playerData[$lower . "_lastCheckTime"] ?? 0)) < 0.5){
-			$this->antiCheat->logCheat($player->getName(), "Attack", "KillAura 旋转异常: yaw=" . round($yawDiff, 1) . " pitch=" . round($pitchDiff, 1));
-			$this->violate($player, $lower);
-		}
-
-		$this->playerData[$lower . "_yaw_pitch"] = [$pYaw, $pPitch];
-		$this->playerData[$lower . "_lastCheckTime"] = $now;
+		$data->setState("attack.rot", [$player->yaw, $player->pitch]);
+		$data->setState("attack.rotTick", $tick);
 	}
 
-	private function checkMultiAura(Player $player, Entity $target, string $lower, float $now){
-		if(!isset($this->playerData[$lower . "_targets"])){
-			$this->playerData[$lower . "_targets"] = [];
-			$this->playerData[$lower . "_target_switch_time"] = 0;
-			$this->playerData[$lower . "_switch_count"] = 0;
+	private function checkMultiTarget(Player $player, Entity $target){
+		$data = $this->getPlayerData($player);
+		$tick = $this->antiCheat->getServer()->getTick();
+
+		$recent = $data->getState("attack.targets", []);
+		$recent[] = [$tick, $target->getId()];
+		$cutoff = $tick - self::WINDOW_TICKS;
+		$recent = array_values(array_filter($recent, function($entry) use ($cutoff){
+			return $entry[0] > $cutoff;
+		}));
+		$data->setState("attack.targets", $recent);
+
+		$ids = [];
+		foreach($recent as $entry){
+			$ids[$entry[1]] = true;
 		}
 
-		$targetId = $target->getId();
-		$recentTargets =& $this->playerData[$lower . "_targets"];
-
-		if(!empty($recentTargets) && end($recentTargets) !== $targetId){
-			if(!isset($this->playerData[$lower . "_target_switch_time"])){
-				$this->playerData[$lower . "_target_switch_time"] = 0;
-			}
-			if(!isset($this->playerData[$lower . "_switch_count"])){
-				$this->playerData[$lower . "_switch_count"] = 0;
-			}
-			if((microtime(true) - $this->playerData[$lower . "_target_switch_time"]) < 1.0){
-				$this->playerData[$lower . "_switch_count"]++;
-			}else{
-				$this->playerData[$lower . "_switch_count"] = 1;
-			}
-			$this->playerData[$lower . "_target_switch_time"] = microtime(true);
-		}
-
-		$recentTargets[] = $targetId;
-		if(count($recentTargets) > 10) array_shift($recentTargets);
-
-		if($this->playerData[$lower . "_switch_count"] >= 5){
-			$this->antiCheat->logCheat($player->getName(), "Attack", "MultiAura 目标切换频繁");
-			$this->violate($player, $lower);
-			$this->playerData[$lower . "_switch_count"] = 0;
-		}
-	}
-
-	private function violate(Player $player, string $lower){
-		if(!isset($this->playerData[$lower . "_violations"])){
-			$this->playerData[$lower . "_violations"] = 0;
-		}
-		$this->playerData[$lower . "_violations"]++;
-		if($this->playerData[$lower . "_violations"] >= $this->maxViolations){
-			$this->antiCheat->punish($player, "Attack", $this->playerData[$lower . "_violations"]);
-			$this->playerData[$lower . "_violations"] = 0;
+		if(count($ids) >= 5){
+			$detail = sprintf("%d tick 内攻击 %d 个不同目标", self::WINDOW_TICKS, count($ids));
+			$this->flag($player, $detail, 1.0);
+			$data->setState("attack.targets", []);
 		}
 	}
 }

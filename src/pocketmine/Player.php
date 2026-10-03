@@ -849,6 +849,11 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	protected function switchLevel(Level $targetLevel){
 		$oldLevel = $this->level;
 		if(parent::switchLevel($targetLevel)){
+			// 反作弊：切换世界进入豁免窗口
+			if(($ac = $this->server->getAntiCheat()) !== null){
+				$ac->onWorldChange($this);
+			}
+
 			foreach($this->usedChunks as $index => $d){
 				Level::getXZ($index, $X, $Z);
 				$this->unloadChunk($X, $Z, $oldLevel);
@@ -5164,6 +5169,12 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			$this->resetFallDistance();
 			$this->nextChunkOrderRun = 0;
 			$this->newPosition = null;
+
+			// 反作弊：传送进入豁免窗口
+			if(($ac = $this->server->getAntiCheat()) !== null){
+				$ac->onTeleport($this);
+			}
+
 			return true;
 		}
 		return false;
@@ -5195,6 +5206,11 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			$this->orderChunks();
 			$this->nextChunkOrderRun = 0;
 			$this->newPosition = null;
+
+			// 反作弊：传送进入豁免窗口
+			if(($ac = $this->server->getAntiCheat()) !== null){
+				$ac->onTeleport($this);
+			}
 		}
 	}
 

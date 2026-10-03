@@ -1,0 +1,182 @@
+﻿#LY Core 高級配置文件
+
+#此文件的版本
+config:
+ version: 3
+
+level:
+ #設定是否開啟天氣系統
+ weather: true
+ #天氣隨機持續時間
+ weather-random-duration-min: 6000
+ weather-random-duration-max: 12000
+ #隨機閃電間隔，預設為10秒，0 = 停用
+ lightning-time: 120000
+ #設定閃電是否帶火
+ lightning-fire: false
+ #設定是否啟用火焰蔓延
+ fire-spread: false
+ 
+player:
+ #飢餓系統開關
+ hunger: true
+ #玩家因飢餓受到傷害時的最低生命值
+ hunger-health: 10
+ #飢餓計時器，預設: 3000
+ hunger-timer: 3500
+ #選擇是否開啟經驗系統
+ experience: true
+ #選擇玩家死亡時是否保留物品欄
+ keep-inventory: true
+ #物品欄空間大小
+ inventory-num: 36
+ #遊戲模式切換為創造模式時自動清空物品欄
+ auto-clear-inventory : false
+ #選擇玩家死亡時是否保留經驗
+ keep-experience: true
+ #如果玩家加入時崩潰，請將此值設定為10以下。停用=-1
+ chunk-radius: -1
+
+nether:
+ #選擇是否允許下界，下界維度會自動生成
+ allow-nether: true
+ #下界維度的名稱
+ level-name: "nether"
+ 
+ender:
+ #選擇是否允許終界，終界維度會自動生成
+ allow-ender: true
+ #終界維度的名稱
+ level-name: "ender"
+ 
+skyworld:
+ #選擇是否允許天域，天域維度會自動生成
+ allow-skyworld: false
+ #天域維度的名稱
+ level-name: "skyworld"
+
+server:
+ #預先生成經驗資料，0=停用
+ experience-cache: 65535
+ #選擇是否允許生成鐵傀儡
+ allow-iron-golem: true
+ #選擇是否允許生成雪傀儡
+ allow-snow-golem: true
+ #選擇是否允許使用鐵砧
+ allow-anvil: true
+ #選擇是否允許使用附魔台
+ allow-enchanting-table: true
+ #選擇是否允許開啟附魔台書架計算
+ enable-enchanting-bookshelf-check: true
+ #Whether player collision is enabled
+ enable-player-collide: true
+ #選擇是否開啟TNT爆炸
+ allow-tnt-explosion: true
+ #選擇是否停用 server.log
+ disable-log: false
+ #選擇是否啟用非同步區塊請求
+ async-chunk-request: true
+ #選擇玩家加入時的提醒方式
+ #0 = 訊息, 1 = 提示, 2 = 彈出視窗
+ player-msg-type: 0
+ login-msg: "§3@player joined the game"
+ logout-msg: "§3@player left the game"
+ #選擇是否從 JSON 文件讀取合成配方
+ recipes-from-json: false
+ #選擇是否從 JSON 文件讀取創造模式物品
+ creative-items-from-json: false
+ #選擇礦車移動方式：自由移動、跟隨軌道或停用
+ #-1=停用, 0=自由移動, 1=跟隨軌道, 2=自動
+ minecart-moving-type: 1
+ #選擇是否啟用移動檢查（不再拉回玩家）
+ check-movement: true
+ #設定是否啟用受限創造模式（不能丟棄物品，不能與箱子等互動）
+ limited-creative: false
+ #設定是否新增方塊破壞粒子效果
+ destroy-block-particle: true
+ #設定是否啟用飛濺藥水
+ allow-splash-potion: true
+ #設定是否啟用進階命令選擇器
+ advanced-command-selector: true
+
+bot:
+ ##########################################
+ ###選擇是否啟用 Bot 系統###
+ ##########################################
+ #如果為 false，Bot 系統將不會運作
+ #啟用後會自動建立 Bot 類型資料夾，方便進行設定
+ #停用後不會建立 /bot 指令，且所有已存在的 Bot 都會被隱藏
+ #AI Bot 系統演算法較為複雜，可能會消耗較多 CPU 資源
+ #請依照實際情況決定是否啟用
+ ##########################################
+ enable: true
+
+redstone:
+ ##########################################
+ ###選擇是否允許紅石系統###
+ ##########################################
+ #如果為 false，紅石將不會運作#
+ ##########################################
+ enable: true
+ #選擇是否允許頻率脈衝
+ allow-frequency-pulse: true
+ #設定脈衝頻率(秒, 支援小數), 預設: 0.4秒
+ pulse-frequency: 0.4
+ #高頻紅石全服公告模板, 可用變數: {world}, {x}, {y}, {z}, {players}, {block}
+ high-frequency-broadcast-message: "§e警告: {players} 在 {world} {x},{y},{z} 触发高频红石，已移除方块: {block}"
+
+synapse:
+ #如果你想使用 Synapse API 或連線到 Synapse 伺服器，請啟用此選項
+ enabled: false
+ server-ip: 127.0.0.1
+ server-port: 10305
+ is-main-server: true
+ server-password: 32bitlongkey
+ description: "A Synapse client"
+
+dserver:
+ #所有多伺服器統一計數的開關
+ enable: false
+ #查詢自動更新
+ query-auto-update: false
+ #查詢定期更新
+ query-tick-update: true
+ #Motd 中顯示的最大玩家數
+ motd-max-players: 0
+ #查詢中顯示的最大玩家數，0=預設
+ query-max-players: 0
+ #在 Motd 中顯示所有伺服器的玩家總數
+ motd-all-players: false
+ #在 Query 中顯示所有伺服器的玩家總數
+ query-all-players: false
+ #在 Motd 中顯示線上玩家數
+ motd-players: false
+ #在 Query 中顯示線上玩家數
+ query-players: false
+ #更新頻率, 20=1秒
+ time: 40
+ #失敗時自動重試次數
+ retry-times: 3
+ #伺服器列表，使用 ';' 分隔，例如: 1.example.com:19132;2.example.com:19133
+ server-list: ""
+ 
+ai:
+ #AI 總開關
+ enable: true
+ #苦力怕爆炸時是否破壞方塊
+ creeper-explode-destroy-block: true
+ #選擇是否允許生物自動生成
+ mobgenerate: true
+ 
+world:
+ # 世界配置列表（/gamerule）
+ no-natural-mob-spawn: []
+ no-mob-death-drops-and-experience: []
+ no-creeper-block-damage: []
+ no-tnt-block-damage: []
+ no-hunger-health-regeneration: []
+ no-crop-growth: []
+ no-non-living-entity-drops: []
+ keep-inventory: []
+ do-daylight-cycle: []
+ gamerules: []

@@ -1,0 +1,182 @@
+﻿#LY Core advanced configuration file
+
+#Version of this file
+config:
+ version: 3
+
+level:
+ #Enable the weather system
+ weather: true
+ #Random weather duration
+ weather-random-duration-min: 6000
+ weather-random-duration-max: 12000
+ #Random lightning interval. Default is 10 seconds. 0 = disabled
+ lightning-time: 120000
+ #Whether lightning starts fires
+ lightning-fire: false
+ #Whether fire spread is enabled
+ fire-spread: false
+ 
+player:
+ #Toggle the hunger system
+ hunger: true
+ #Minimum health when a player is damaged by hunger
+ hunger-health: 10
+ #Hunger timer. Default: 3000
+ hunger-timer: 3500
+ #Whether the experience system is enabled
+ experience: true
+ #Whether players keep inventory after death
+ keep-inventory: true
+ #Inventory size
+ inventory-num: 36
+ #Automatically clear inventory when switching to creative mode
+ auto-clear-inventory : false
+ #Whether players keep experience after death
+ keep-experience: true
+ #If players crash when joining, set this below 10. Disable = -1
+ chunk-radius: -1
+
+nether:
+ #Whether the Nether is allowed. The Nether dimension will be generated automatically
+ allow-nether: true
+ #Name of the Nether dimension
+ level-name: "nether"
+ 
+ender:
+ #Whether the End is allowed. The End dimension will be generated automatically
+ allow-ender: true
+ #Name of the End dimension
+ level-name: "ender"
+ 
+skyworld:
+ #Whether SkyWorld is allowed. The SkyWorld dimension will be generated automatically
+ allow-skyworld: false
+ #Name of the SkyWorld dimension
+ level-name: "skyworld"
+
+server:
+ #Pre-generate experience data. 0 = disabled
+ experience-cache: 65535
+ #Whether iron golems may spawn
+ allow-iron-golem: true
+ #Whether snow golems may spawn
+ allow-snow-golem: true
+ #Whether anvils may be used
+ allow-anvil: true
+ #Whether enchanting tables may be used
+ allow-enchanting-table: true
+ #Whether enchanting table bookshelf checks are enabled
+ enable-enchanting-bookshelf-check: true
+ #Whether player collision is enabled
+ enable-player-collide: true
+ #Whether TNT explosions are enabled
+ allow-tnt-explosion: true
+ #Whether server.log is disabled
+ disable-log: false
+ #Whether asynchronous chunk requests are enabled
+ async-chunk-request: true
+ #How join messages are shown to players
+ #0 = message, 1 = tip, 2 = popup
+ player-msg-type: 0
+ login-msg: "§3@player joined the game"
+ logout-msg: "§3@player left the game"
+ #Whether crafting recipes are loaded from JSON files
+ recipes-from-json: false
+ #Whether creative-mode items are loaded from JSON files
+ creative-items-from-json: false
+ #Minecart movement mode: free movement, follow rails, or disabled
+ #-1=disabled, 0=free movement, 1=follow rails, 2=automatic
+ minecart-moving-type: 1
+ #Whether movement checks are enabled. Players are no longer pulled back
+ check-movement: true
+ #Whether limited creative mode is enabled. Players cannot drop items or interact with chests
+ limited-creative: false
+ #Whether block break particles are shown
+ destroy-block-particle: true
+ #Whether splash potions are enabled
+ allow-splash-potion: true
+ #Whether advanced command selectors are enabled
+ advanced-command-selector: true
+
+bot:
+ ##########################################
+ ###Whether to enable the Bot system###
+ ##########################################
+ #If false, the Bot system will not work
+ #When enabled, the Bot type directory is created automatically for configuration
+ #When disabled, the /bot command is unavailable and saved Bots are hidden
+ #The AI Bot system is complex and may require more CPU resources
+ #Enable it according to the server's actual capacity
+ ##########################################
+ enable: true
+
+redstone:
+ ##########################################
+ ###Whether the redstone system is allowed###
+ ##########################################
+ #If false, redstone will not work#
+ ##########################################
+ enable: true
+ #Whether frequency pulses are allowed
+ allow-frequency-pulse: true
+ #Pulse frequency in seconds. Decimals are supported. Default: 0.4 seconds
+ pulse-frequency: 0.4
+ #High-frequency redstone broadcast template. Variables: {world}, {x}, {y}, {z}, {players}, {block}
+ high-frequency-broadcast-message: "§e警告: {players} 在 {world} {x},{y},{z} 触发高频红石，已移除方块: {block}"
+
+synapse:
+ #Enable this if you want to use the Synapse API or connect to a Synapse server
+ enabled: false
+ server-ip: 127.0.0.1
+ server-port: 10305
+ is-main-server: true
+ server-password: 32bitlongkey
+ description: "A Synapse client"
+
+dserver:
+ #Toggle unified player counting across multiple servers
+ enable: false
+ #Automatically update query data
+ query-auto-update: false
+ #Update query data on a timer
+ query-tick-update: true
+ #Maximum players shown in MOTD
+ motd-max-players: 0
+ #Maximum players shown in query. 0 = default
+ query-max-players: 0
+ #Show total players from all servers in MOTD
+ motd-all-players: false
+ #Show total players from all servers in query
+ query-all-players: false
+ #Show online player count in MOTD
+ motd-players: false
+ #Show online player count in query
+ query-players: false
+ #Update frequency. 20 = 1 second
+ time: 40
+ #Number of automatic retries after failure
+ retry-times: 3
+ #Server list separated by semicolons, for example: 1.example.com:19132;2.example.com:19133
+ server-list: ""
+ 
+ai:
+ #Main AI toggle
+ enable: true
+ #Whether creeper explosions destroy blocks
+ creeper-explode-destroy-block: true
+ #Whether mobs may spawn automatically
+ mobgenerate: true
+ 
+world:
+ # World configuration list (/gamerule)
+ no-natural-mob-spawn: []
+ no-mob-death-drops-and-experience: []
+ no-creeper-block-damage: []
+ no-tnt-block-damage: []
+ no-hunger-health-regeneration: []
+ no-crop-growth: []
+ no-non-living-entity-drops: []
+ keep-inventory: []
+ do-daylight-cycle: []
+ gamerules: []

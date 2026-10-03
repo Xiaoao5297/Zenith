@@ -1,0 +1,182 @@
+﻿#Tep cau hinh nang cao LY Core
+
+#Phien ban cua tep nay
+config:
+ version: 3
+
+level:
+ #Bat he thong thoi tiet
+ weather: true
+ #Thoi luong thoi tiet ngau nhien
+ weather-random-duration-min: 6000
+ weather-random-duration-max: 12000
+ #Khoang cach set ngau nhien. Mac dinh la 10 giay. 0 = tat
+ lightning-time: 120000
+ #Set co tao lua hay khong
+ lightning-fire: false
+ #Bat lan truyen lua
+ fire-spread: false
+ 
+player:
+ #Cong tac he thong doi
+ hunger: true
+ #Mau toi thieu khi nguoi choi bi sat thuong boi doi
+ hunger-health: 10
+ #Bo dem doi. Mac dinh: 3000
+ hunger-timer: 3500
+ #Bat he thong kinh nghiem
+ experience: true
+ #Giu hanh trang khi nguoi choi chet
+ keep-inventory: true
+ #Kich thuoc hanh trang
+ inventory-num: 36
+ #Tu dong xoa hanh trang khi chuyen sang che do sang tao
+ auto-clear-inventory : false
+ #Giu kinh nghiem khi nguoi choi chet
+ keep-experience: true
+ #Neu nguoi choi bi loi khi vao may chu, dat gia tri nay nho hon 10. Tat = -1
+ chunk-radius: -1
+
+nether:
+ #Cho phep Nether. Chieu Nether se duoc tao tu dong
+ allow-nether: true
+ #Ten cua chieu Nether
+ level-name: "nether"
+ 
+ender:
+ #Cho phep The End. Chieu The End se duoc tao tu dong
+ allow-ender: true
+ #Ten cua chieu The End
+ level-name: "ender"
+ 
+skyworld:
+ #Cho phep SkyWorld. Chieu SkyWorld se duoc tao tu dong
+ allow-skyworld: false
+ #Ten cua chieu SkyWorld
+ level-name: "skyworld"
+
+server:
+ #Tao truoc du lieu kinh nghiem. 0 = tat
+ experience-cache: 65535
+ #Cho phep sinh Iron Golem
+ allow-iron-golem: true
+ #Cho phep sinh Snow Golem
+ allow-snow-golem: true
+ #Cho phep dung de
+ allow-anvil: true
+ #Cho phep dung ban phu phep
+ allow-enchanting-table: true
+ #Bat kiem tra ke sach cho ban phu phep
+ enable-enchanting-bookshelf-check: true
+ #Bat va cham giua nguoi choi
+ enable-player-collide: true
+ #Bat no TNT
+ allow-tnt-explosion: true
+ #Tat server.log
+ disable-log: false
+ #Bat yeu cau chunk bat dong bo
+ async-chunk-request: true
+ #Cach hien thi thong bao khi nguoi choi vao
+ #0 = tin nhan, 1 = tip, 2 = cua so popup
+ player-msg-type: 0
+ login-msg: "§3@player joined the game"
+ logout-msg: "§3@player left the game"
+ #Doc cong thuc che tao tu tep JSON
+ recipes-from-json: false
+ #Doc vat pham che do sang tao tu tep JSON
+ creative-items-from-json: false
+ #Che do di chuyen cua xe moong: tu do, theo duong ray, hoac tat
+ #-1=tat, 0=tu do, 1=theo duong ray, 2=tu dong
+ minecart-moving-type: 1
+ #Bat kiem tra di chuyen. Nguoi choi se khong bi keo lai
+ check-movement: true
+ #Bat che do sang tao gioi han. Khong the vut vat pham hoac tuong tac voi ruong
+ limited-creative: false
+ #Hien hat hieu ung khi pha khoi
+ destroy-block-particle: true
+ #Bat thuoc nem
+ allow-splash-potion: true
+ #Bat bo chon lenh nang cao
+ advanced-command-selector: true
+
+bot:
+ ##########################################
+ ###Bat he thong Bot###
+ ##########################################
+ #Neu dat false, he thong Bot se khong hoat dong
+ #Khi bat, thu muc loai Bot se tu dong duoc tao de cau hinh
+ #Khi tat, lenh /bot khong duoc tao va cac Bot da luu se bi an
+ #He thong AI Bot phuc tap va co the can nhieu tai nguyen CPU
+ #Hay bat theo kha nang thuc te cua may chu
+ ##########################################
+ enable: true
+
+redstone:
+ ##########################################
+ ###Cho phep he thong redstone###
+ ##########################################
+ #Neu la false, redstone se khong hoat dong#
+ ##########################################
+ enable: true
+ #Cho phep xung tan so
+ allow-frequency-pulse: true
+ #Tan so xung tinh bang giay. Ho tro so thap phan. Mac dinh: 0.4 giay
+ pulse-frequency: 0.4
+ #Mau thong bao toan may chu cho redstone tan so cao. Bien: {world}, {x}, {y}, {z}, {players}, {block}
+ high-frequency-broadcast-message: "§e警告: {players} 在 {world} {x},{y},{z} 触发高频红石，已移除方块: {block}"
+
+synapse:
+ #Bat tuy chon nay neu ban muon dung Synapse API hoac ket noi toi may chu Synapse
+ enabled: false
+ server-ip: 127.0.0.1
+ server-port: 10305
+ is-main-server: true
+ server-password: 32bitlongkey
+ description: "A Synapse client"
+
+dserver:
+ #Cong tac dem nguoi choi thong nhat tren nhieu may chu
+ enable: false
+ #Tu dong cap nhat query
+ query-auto-update: false
+ #Cap nhat query theo dinh ky
+ query-tick-update: true
+ #So nguoi choi toi da hien trong MOTD
+ motd-max-players: 0
+ #So nguoi choi toi da hien trong query. 0 = mac dinh
+ query-max-players: 0
+ #Hien tong nguoi choi cua tat ca may chu trong MOTD
+ motd-all-players: false
+ #Hien tong nguoi choi cua tat ca may chu trong query
+ query-all-players: false
+ #Hien so nguoi choi online trong MOTD
+ motd-players: false
+ #Hien so nguoi choi online trong query
+ query-players: false
+ #Tan suat cap nhat. 20 = 1 giay
+ time: 40
+ #So lan tu dong thu lai khi that bai
+ retry-times: 3
+ #Danh sach may chu, ngan cach bang dau ';', vi du: 1.example.com:19132;2.example.com:19133
+ server-list: ""
+ 
+ai:
+ #Cong tac AI chinh
+ enable: true
+ #Creeper no co pha khoi hay khong
+ creeper-explode-destroy-block: true
+ #Cho phep sinh vat tu dong sinh ra
+ mobgenerate: true
+ 
+world:
+ # Danh sach cau hinh the gioi (/gamerule)
+ no-natural-mob-spawn: []
+ no-mob-death-drops-and-experience: []
+ no-creeper-block-damage: []
+ no-tnt-block-damage: []
+ no-hunger-health-regeneration: []
+ no-crop-growth: []
+ no-non-living-entity-drops: []
+ keep-inventory: []
+ do-daylight-cycle: []
+ gamerules: []

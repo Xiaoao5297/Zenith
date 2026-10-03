@@ -22,138 +22,79 @@
 
 namespace pocketmine\anticheat\check;
 
-use pocketmine\anticheat\AntiCheat;
 use pocketmine\Player;
-use pocketmine\block\Block;
-use pocketmine\level\Location;
-use pocketmine\math\Vector3;
+use pocketmine\anticheat\MovementSnapshot;
 
-class NoFallCheck extends Check{
+/**
+ * 摔落伤害规避检测（tick 驱动）。
+ *
+ * 服务端按 tick 累积下落距离，落地时与本次实际受到的摔落伤害对比；
+ * 明显应受伤害却几乎未受伤时进入缓冲。水中/梯子/黏液块等合法缓冲会重置累计。
+ */
+class NoFallCheck extends MovementCheck{
 
-	/** @var array */
-	private $violations = [];
+	const SAFE_FALL_DISTANCE = 3.0;
 
-	/** @var array */
-	private $wasOnGround = [];
-
-	/** @var array */
-	private $airTicks = [];
-
-	/** @var array */
-	private $lastFallDistance = [];
-
-	public function __construct(AntiCheat $antiCheat, array $config){
-		parent::__construct($antiCheat, $config);
+	public function getDisplayName() : string{
+		return "NoFall";
 	}
 
 	public function clearPlayerData(string $playerName){
-		$lower = strtolower($playerName);
-		unset($this->violations[$lower]);
-		unset($this->wasOnGround[$lower]);
-		unset($this->airTicks[$lower]);
-		unset($this->lastFallDistance[$lower]);
 	}
 
-	/**
-	 * @param Player   $player
-	 * @param Location $from
-	 * @param Location $to
-	 */
-	public function check(Player $player, $from, $to){
+	public function sampledPerTick() : bool{
+		return true;
+	}
+
+	public function checkMovement(Player $player, MovementSnapshot $snapshot){
 		if(!$this->enabled) return;
-
 		if($player->hasPermission("fpacheat.bypass")) return;
-		if($player->isCreative() || $player->isSpectator()) return;
+		if($player->isCreative() or $player->isSpectator()) return;
+		if($snapshot->isInVehicle()) return;
+		if($snapshot->isExempt()) return;
 
-		if($player->hasEffect(8)) return;
+		$data = $this->getPlayerData($player);
 
-		$name = $player->getName();
-		$lower = strtolower($name);
-
-		$onGround = $this->isOnGround($player);
-		$wasGrounded = isset($this->wasOnGround[$lower]) ? $this->wasOnGround[$lower] : true;
-
-		$this->wasOnGround[$lower] = $onGround;
-
-		if(!$onGround){
-			$currentAirTicks = isset($this->airTicks[$lower]) ? $this->airTicks[$lower] + 1 : 1;
-			$this->airTicks[$lower] = $currentAirTicks;
+		// 合法缓冲环境：重置累计
+		if($snapshot->isInWater() or $snapshot->isOnLadder() or $snapshot->isOnSlime()){
+			$data->setState("nofall.fallDistance", 0.0);
+			$data->setState("nofall.fallTicks", 0);
+			$data->setState("nofall.lastDamage", 0.0);
 			return;
 		}
 
-		if($wasGrounded){
-			$this->airTicks[$lower] = 0;
-			return;
-		}
-
-		$airTicksValue = isset($this->airTicks[$lower]) ? $this->airTicks[$lower] : 0;
-		if($airTicksValue < 3){
-			$this->airTicks[$lower] = 0;
-			return;
-		}
-
-		$expectedDamage = $this->calculateFallDamage($airTicksValue);
-		$actualDamage = isset($this->lastFallDistance[$lower]) ? $this->lastFallDistance[$lower] : 0.0;
-
-		if($expectedDamage > 2.0 && $actualDamage < $expectedDamage * 0.5){
-			$violation = isset($this->violations[$lower]) ? $this->violations[$lower] + 1 : 1;
-			$this->violations[$lower] = $violation;
-
-			$detail = sprintf("预期跌落伤害: %.2f, 实际: %.2f", $expectedDamage, $actualDamage);
-			$this->antiCheat->logCheat($name, "NoFallCheck", $detail);
-
-			$maxViolations = (int) ($this->getConfig()["max-violations"] ?? 5);
-			if($violation >= $maxViolations){
-				$this->antiCheat->punish($player, "NoFallCheck", $violation);
+		if(!$snapshot->isOnGround()){
+			$dy = $snapshot->getDy();
+			if($dy < 0){
+				$fallDistance = (float) $data->getState("nofall.fallDistance", 0.0) - $dy;
+				$data->setState("nofall.fallDistance", $fallDistance);
 			}
+			$data->setState("nofall.fallTicks", (int) $data->getState("nofall.fallTicks", 0) + $snapshot->getTickDelta());
+			return;
 		}
 
-		$this->airTicks[$lower] = 0;
+		// 落地结算
+		$fallDistance = (float) $data->getState("nofall.fallDistance", 0.0);
+		$actualDamage = (float) $data->getState("nofall.lastDamage", 0.0);
+		$data->setState("nofall.fallDistance", 0.0);
+		$data->setState("nofall.fallTicks", 0);
+		$data->setState("nofall.lastDamage", 0.0);
+
+		$expected = $fallDistance - self::SAFE_FALL_DISTANCE;
+		$minFallDamage = (float) ($this->config["min-fall-damage"] ?? 4.0);
+
+		if($expected >= $minFallDamage and $actualDamage < $expected * 0.25){
+			$detail = sprintf("预期摔落伤害 %.2f, 实际 %.2f (下落 %.2f 格)", $expected, $actualDamage, $fallDistance);
+			$this->flag($player, $detail, 1.0);
+		}else{
+			$this->decay($player, 1.0);
+		}
 	}
 
 	/**
-	 * @param Player $player
-	 * @param float  $damage
+	 * 由 EntityDamageEvent(CAUSE_FALL) 调用，记录本次实际摔落伤害。
 	 */
 	public function checkFallDamage(Player $player, $damage){
-		$lower = strtolower($player->getName());
-		$this->lastFallDistance[$lower] = (double) $damage;
-	}
-
-	/**
-	 * @param Player $player
-	 * @return bool
-	 */
-	private function isOnGround(Player $player){
-		$loc = $player->getLocation();
-		$blockBelow = $player->getLevel()->getBlock(new Vector3($loc->getFloorX(), $loc->getFloorY() - 1, $loc->getFloorZ()));
-
-		if($blockBelow->getId() !== Block::AIR){
-			return true;
-		}
-
-		for($x = -1; $x <= 1; $x++){
-			for($z = -1; $z <= 1; $z++){
-				$block = $player->getLevel()->getBlock(new Vector3($loc->getFloorX() + $x, $loc->getFloorY() - 1, $loc->getFloorZ() + $z));
-				if($block->getId() !== Block::AIR){
-					return true;
-				}
-			}
-		}
-
-		return false;
-	}
-
-	/**
-	 * @param int $airTicks
-	 * @return float
-	 */
-	private function calculateFallDamage($airTicks){
-		if($airTicks < 3){
-			return 0;
-		}
-
-		$fallDistance = ($airTicks - 3) * 0.1;
-		return $fallDistance * 2;
+		$this->getPlayerData($player)->setState("nofall.lastDamage", (float) $damage);
 	}
 }

@@ -22,17 +22,16 @@
 
 namespace pocketmine\anticheat\check;
 
-use pocketmine\anticheat\AntiCheat;
 use pocketmine\Player;
 use pocketmine\item\Item;
 
+/**
+ * 非法物品检测：堆叠、32k、附魔、NBT、禁用物品。
+ *
+ * 修复了旧版读取 `check-banned`（配置中不存在）的问题，改为读取 `banned-items`；
+ * 命中进入统一缓冲，alert 模式下不移除物品。
+ */
 class ItemCheck extends Check{
-
-	/** @var array */
-	private $violations = [];
-
-	/** @var array */
-	private $bannedItems = [];
 
 	/** @var array */
 	private static $MAX_STACK_SIZES = [
@@ -67,95 +66,72 @@ class ItemCheck extends Check{
 		Item::FLINT_AND_STEEL => 1,
 		Item::ENCHANTED_BOOK => 1,
 		Item::POTION => 1,
-		Item::SPLASH_POTION => 1
+		Item::SPLASH_POTION => 1,
 	];
 
-	public function __construct(AntiCheat $antiCheat, array $config){
-		parent::__construct($antiCheat, $config);
-		$this->loadBannedItems();
-	}
-
-	private function loadBannedItems(){
-		$banned = $this->getConfig()["banned-items"] ?? [];
-		foreach($banned as $id){
-			$this->bannedItems[] = (int) $id;
-		}
+	public function getDisplayName() : string{
+		return "Item";
 	}
 
 	public function clearPlayerData(string $playerName){
-		unset($this->violations[$playerName]);
 	}
 
 	public function check(Player $player, Item $item){
-		$name = $player->getName();
-
 		if(!$this->enabled) return;
+		if($item->getId() === Item::AIR) return;
 
-		$illegal = false;
-		$reason = "";
-
-		if($this->getConfig()["check-stack"] ?? true){
-			if($this->isIllegalStack($item)){
-				$illegal = true;
-				$reason = "非法堆叠数量: " . $item->getCount();
-			}
+		$reason = $this->inspect($item);
+		if($reason === null){
+			$this->decay($player, 0.5);
+			return;
 		}
 
-		if(!$illegal && ($this->getConfig()["check-32k"] ?? true)){
-			if($this->is32kWeapon($item)){
-				$illegal = true;
-				$reason = "32k武器检测";
-			}
-		}
+		$this->flag($player, $reason . " (" . $item->getName() . ")", 1.0);
 
-		if(!$illegal && ($this->getConfig()["check-enchantments"] ?? true)){
-			$enchantResult = $this->checkEnchantments($item);
-			if($enchantResult !== null){
-				$illegal = true;
-				$reason = $enchantResult;
-			}
-		}
-
-		if(!$illegal && ($this->getConfig()["check-nbt"] ?? true)){
-			$nbtResult = $this->checkNBT($item);
-			if($nbtResult !== null){
-				$illegal = true;
-				$reason = $nbtResult;
-			}
-		}
-
-		if(!$illegal && ($this->getConfig()["check-banned"] ?? true)){
-			if(in_array($item->getId(), $this->bannedItems)){
-				$illegal = true;
-				$reason = "禁止物品: " . $item->getName();
-			}
-		}
-
-		if($illegal){
-			$violation = isset($this->violations[$name]) ? $this->violations[$name] + 1 : 1;
-			$this->violations[$name] = $violation;
-
-			$this->antiCheat->logCheat($player->getName(), "ItemCheck", $reason);
-
-			$maxViolations = (int) ($this->getConfig()["max-violations"] ?? 3);
-			if($violation >= $maxViolations){
-				$player->getInventory()->removeItem($item);
-				$this->antiCheat->punish($player, "ItemCheck", $violation);
-			}else{
-				$player->getInventory()->removeItem($item);
-				$player->sendMessage($this->antiCheat->getMessage("item-removed", ["item" => $item->getName()]));
-			}
+		// 仅在惩罚模式下移除非法物品
+		if($this->shouldEnforce()){
+			$player->getInventory()->removeItem($item);
+			$player->sendMessage($this->antiCheat->getMessage("item-removed", ["item" => $item->getName()]));
 		}
 	}
 
-	private function isIllegalStack(Item $item){
-		$maxStack = isset(self::$MAX_STACK_SIZES[$item->getId()]) ? self::$MAX_STACK_SIZES[$item->getId()] : 64;
+	private function inspect(Item $item) : ?string{
+		if((bool) ($this->config["check-stack"] ?? true) and $this->isIllegalStack($item)){
+			return "非法堆叠数量: " . $item->getCount();
+		}
+
+		if((bool) ($this->config["check-32k"] ?? true) and $this->is32kWeapon($item)){
+			return "32k武器检测";
+		}
+
+		if((bool) ($this->config["check-enchantments"] ?? true)){
+			$result = $this->checkEnchantments($item);
+			if($result !== null){
+				return $result;
+			}
+		}
+
+		if((bool) ($this->config["check-nbt"] ?? true)){
+			$result = $this->checkNBT($item);
+			if($result !== null){
+				return $result;
+			}
+		}
+
+		if(in_array($item->getId(), (array) ($this->config["banned-items"] ?? []), true)){
+			return "禁止物品: " . $item->getName();
+		}
+
+		return null;
+	}
+
+	private function isIllegalStack(Item $item) : bool{
+		$maxStack = self::$MAX_STACK_SIZES[$item->getId()] ?? 64;
 		return $item->getCount() > $maxStack;
 	}
 
-	private function is32kWeapon(Item $item){
-		$enchantments = $item->getEnchantments();
-		foreach($enchantments as $enchant){
+	private function is32kWeapon(Item $item) : bool{
+		foreach($item->getEnchantments() as $enchant){
 			if($enchant->getLevel() > 10){
 				return true;
 			}
@@ -163,7 +139,7 @@ class ItemCheck extends Check{
 		return false;
 	}
 
-	private function checkEnchantments(Item $item){
+	private function checkEnchantments(Item $item) : ?string{
 		$enchantments = $item->getEnchantments();
 
 		if(count($enchantments) > 10){
@@ -171,42 +147,33 @@ class ItemCheck extends Check{
 		}
 
 		foreach($enchantments as $enchant){
-			$level = $enchant->getLevel();
-			$maxLevel = 5;
-
-			if($level > $maxLevel){
-				return "非法附魔等级: " . $enchant->getName() . " " . $level;
+			if($enchant->getLevel() > 5){
+				return "非法附魔等级: " . $enchant->getName() . " " . $enchant->getLevel();
 			}
 		}
 
 		return null;
 	}
 
-	private function checkNBT(Item $item){
+	private function checkNBT(Item $item) : ?string{
 		$nbt = $item->getNamedTag();
 		if($nbt === null){
 			return null;
 		}
 
-		if($nbt->hasTag("RepairCost")){
-			$repairCost = $nbt->getInt("RepairCost");
-			if($repairCost > 100){
-				return "异常修复费用: " . $repairCost;
-			}
+		if($nbt->hasTag("RepairCost") and $nbt->getInt("RepairCost") > 100){
+			return "异常修复费用: " . $nbt->getInt("RepairCost");
 		}
 
 		if($nbt->hasTag("display")){
 			$display = $nbt->getCompoundTag("display");
-			if($display !== null && $display->hasTag("Name")){
-				$customName = $display->getString("Name");
-				if(strlen($customName) > 100){
-					return "异常物品名称长度";
-				}
+			if($display !== null and $display->hasTag("Name") and strlen($display->getString("Name")) > 100){
+				return "异常物品名称长度";
 			}
-			if($display !== null && $display->hasTag("Lore")){
+			if($display !== null and $display->hasTag("Lore")){
 				try{
 					$lore = $display->getListTag("Lore");
-					if($lore !== null && count($lore) > 10){
+					if($lore !== null and count($lore) > 10){
 						return "Lore行数过多: " . count($lore);
 					}
 				}catch(\Exception $e){
@@ -218,7 +185,7 @@ class ItemCheck extends Check{
 		if($nbt->hasTag("AttributeModifiers")){
 			try{
 				$modifiers = $nbt->getListTag("AttributeModifiers");
-				if($modifiers !== null && count($modifiers) > 5){
+				if($modifiers !== null and count($modifiers) > 5){
 					return "属性修饰符过多: " . count($modifiers);
 				}
 			}catch(\Exception $e){
