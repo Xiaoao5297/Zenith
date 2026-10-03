@@ -83,7 +83,7 @@ class PlayerData{
 		return $this->lastSample;
 	}
 
-	public function setLastSample(MovementSnapshot $sample){
+	public function setLastSample(?MovementSnapshot $sample){
 		$this->lastSample = $sample;
 	}
 
