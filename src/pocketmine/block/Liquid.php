@@ -313,19 +313,11 @@ abstract class Liquid extends Transparent{
             // 处理向下流动
             $bottomBlock = $this->level->getBlock($this->temporalVector->setComponents($this->x, $this->y - 1, $this->z));
 
-            if($bottomBlock->canBeFlowedInto() or $bottomBlock instanceof Liquid){
-                if($this instanceof Lava and $bottomBlock instanceof Water){
-                    $this->getLevel()->setBlock($bottomBlock, Block::get(Item::STONE), true);
-                    $this->triggerLavaMixEffects($bottomBlock);
-                    return;
-                }
-/*
-                if($decay >= 8){
-                    $this->flowIntoBlock($bottomBlock, $decay);
-                }else{
-                    $this->flowIntoBlock($bottomBlock, $decay | 0x08);
-                }*/
-            }elseif($decay >= 0 and ($decay === 0 or !$bottomBlock->canBeFlowedInto())){
+            if($decay >= 0){
+                $this->flowIntoBlock($bottomBlock, $decay | 0x08);
+            }
+
+            if($decay >= 0 and ($decay === 0 or !$bottomBlock->canBeFlowedInto())){
                 // 向四周流动
                 $flags = $this->getOptimalFlowDirections();
 
@@ -367,6 +359,12 @@ abstract class Liquid extends Transparent{
      * @param int $newFlowDecay
      */
     private function flowIntoBlock(Block $block, $newFlowDecay){
+        if($this instanceof Lava and $block instanceof Water){
+            $this->getLevel()->setBlock($block, Block::get(Item::STONE), true);
+            $this->triggerLavaMixEffects($block);
+            return;
+        }
+
         if($block->canBeFlowedInto()){
             if($block instanceof Lava){
                 $this->triggerLavaMixEffects($block);

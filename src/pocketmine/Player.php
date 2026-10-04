@@ -4023,11 +4023,12 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 							break;
 						}
 					}
-					/*if(!$anvilInventory->finishRename($this, $packet->type)){
-						$this->getServer()->getLogger()->debug($this->getName()." failed to rename an item in an anvil");
+					if($anvilInventory->hasPendingOperation() and !$anvilInventory->finishRename($this, $packet->type)){
+						$this->getServer()->getLogger()->debug($this->getName()." failed to finish an anvil operation");
 						$this->inventory->sendContents($this);
-					}*/
-					$anvilInventory->finishRename($this, $packet->type);
+						$this->inventory->sendArmorContents($this);
+						$anvilInventory->sendContents($this);
+					}
 					break;
 				}elseif(($recipe instanceof BigShapelessRecipe or $recipe instanceof BigShapedRecipe) and $this->craftingType === 0){
 					$this->server->getLogger()->debug("Received big crafting recipe from ".$this->getName()." with no crafting table open");
@@ -4318,7 +4319,29 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 								break;
 							}
 						}
+						if($packet->slot === $anvilInventory->getResultSlotIndex() and $packet->item->getId() === Item::AIR and $anvilInventory->isResultTakePending()){
+							if(!$anvilInventory->finishRename($this, 0)){
+								$this->inventory->sendContents($this);
+								$this->inventory->sendArmorContents($this);
+								$anvilInventory->sendContents($this);
+							}
+							break;
+						}
+						if($packet->slot === $anvilInventory->getResultSlotIndex() and $packet->item->getId() === Item::AIR and $anvilInventory->hasPendingOperation()){
+							break;
+						}
 						$result = $anvilInventory->onRename($this, $packet->slot, $anvilInventory->getItem($packet->slot), $packet->item);
+						if($packet->slot === $anvilInventory->getResultSlotIndex() and $anvilInventory->isResultTakePending() and $result === true){
+							if(!$anvilInventory->finishRename($this, 0)){
+								$this->inventory->sendContents($this);
+								$this->inventory->sendArmorContents($this);
+								$anvilInventory->sendContents($this);
+							}
+							break;
+						}
+						if($packet->slot === $anvilInventory->getResultSlotIndex() and $result === true){
+							break;
+						}
 						if($result === 2){
 							break;
 						}
