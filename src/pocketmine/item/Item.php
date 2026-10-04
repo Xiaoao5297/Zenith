@@ -1123,6 +1123,36 @@ class Item{
 				self::addCreativeItem(Item::get(460 + $i, 0));
 			}//All kinds of fish
 			self::addCreativeItem(Item::get(Item::ENCHANTED_BOOK, 0));
+			foreach([
+				Enchantment::TYPE_ARMOR_PROTECTION,
+				Enchantment::TYPE_ARMOR_FIRE_PROTECTION,
+				Enchantment::TYPE_ARMOR_FALL_PROTECTION,
+				Enchantment::TYPE_ARMOR_EXPLOSION_PROTECTION,
+				Enchantment::TYPE_ARMOR_PROJECTILE_PROTECTION,
+				Enchantment::TYPE_ARMOR_THORNS,
+				Enchantment::TYPE_WATER_BREATHING,
+				Enchantment::TYPE_WATER_SPEED,
+				Enchantment::TYPE_WATER_AFFINITY,
+				Enchantment::TYPE_WEAPON_SHARPNESS,
+				Enchantment::TYPE_WEAPON_SMITE,
+				Enchantment::TYPE_WEAPON_ARTHROPODS,
+				Enchantment::TYPE_WEAPON_KNOCKBACK,
+				Enchantment::TYPE_WEAPON_FIRE_ASPECT,
+				Enchantment::TYPE_WEAPON_LOOTING,
+				Enchantment::TYPE_MINING_EFFICIENCY,
+				Enchantment::TYPE_MINING_SILK_TOUCH,
+				Enchantment::TYPE_MINING_DURABILITY,
+				Enchantment::TYPE_MINING_FORTUNE,
+				Enchantment::TYPE_BOW_POWER,
+				Enchantment::TYPE_BOW_KNOCKBACK,
+				Enchantment::TYPE_BOW_FLAME,
+				Enchantment::TYPE_BOW_INFINITY,
+			] as $enchId){
+				$max = Enchantment::getEnchantMaxLevel($enchId);
+				if($max > 0){
+					self::addCreativeItemExact(self::createEnchantedBook($enchId, $max));
+				}
+			}
 			self::addCreativeItem(Item::get(Item::COOKED_FISH, 0));
 			self::addCreativeItem(Item::get(Item::COOKED_SALMON, 0));//Cooked Fish
 			self::addCreativeItem(Item::get(Item::ROTTEN_FLESH, 0));
@@ -1200,6 +1230,20 @@ class Item{
 
 	public static function addCreativeItem(Item $item){
 		Item::$creative[] = Item::get($item->getId(), $item->getDamage());
+	}
+
+	public static function addCreativeItemExact(Item $item){
+		Item::$creative[] = clone $item;
+	}
+
+	public static function createEnchantedBook(int $enchId, int $level) : Item{
+		$book = Item::get(Item::ENCHANTED_BOOK, 0, 1);
+		$enchantment = Enchantment::getEnchantment($enchId);
+		if($enchantment->getId() !== Enchantment::TYPE_INVALID){
+			$book->addEnchantment($enchantment->setLevel($level));
+		}
+
+		return $book;
 	}
 
 	public static function removeCreativeItem(Item $item){
