@@ -21,6 +21,7 @@ use pocketmine\level\generator\gorigional\structure\MapGenRavine;
 use pocketmine\level\generator\gorigional\structure\MapGenScatteredFeature;
 use pocketmine\level\generator\gorigional\structure\MapGenStronghold;
 use pocketmine\level\generator\gorigional\structure\StructureWorldAccess;
+use pocketmine\level\generator\normal\populator\VillagePopulator;
 use pocketmine\math\Vector3;
 use pocketmine\utils\Random;
 
@@ -85,6 +86,8 @@ class Gorigional extends Generator{
 	private $stronghold;
 	/** @var MapGenScatteredFeature */
 	private $scatteredFeature;
+	/** @var VillagePopulator */
+	private $village;
 
 	public function __construct(array $settings = []){
 
@@ -122,6 +125,7 @@ class Gorigional extends Generator{
 		$this->mineshaft = new MapGenMineshaft($this->seed);
 		$this->stronghold = new MapGenStronghold($this->seed);
 		$this->scatteredFeature = new MapGenScatteredFeature($this->seed, new GenLayerBiomeSource($this->genLayer));
+		$this->village = new VillagePopulator();
 	}
 
 	public function getName(){
@@ -415,6 +419,7 @@ class Gorigional extends Generator{
 		$flag = false;
 
 		$this->mineshaft->generateStructure(new StructureWorldAccess($this->level), $chunkX, $chunkZ);
+		$this->village->populate($this->level, $chunkX, $chunkZ, new Random(0xdeadbeef ^ ($chunkX << 8) ^ $chunkZ ^ $this->seed));
 		$this->stronghold->generateStructure(new StructureWorldAccess($this->level), $chunkX, $chunkZ);
 		$this->scatteredFeature->generateStructure(new StructureWorldAccess($this->level), $chunkX, $chunkZ);
 
