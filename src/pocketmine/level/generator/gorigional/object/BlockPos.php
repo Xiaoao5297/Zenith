@@ -50,4 +50,12 @@ class BlockPos{
 	public function east(){
 		return new BlockPos($this->x + 1, $this->y, $this->z);
 	}
+
+	public function up($n = 1){
+		return new BlockPos($this->x, $this->y + $n, $this->z);
+	}
+
+	public function down($n = 1){
+		return new BlockPos($this->x, $this->y - $n, $this->z);
+	}
 }
