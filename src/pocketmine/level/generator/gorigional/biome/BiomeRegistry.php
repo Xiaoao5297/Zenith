@@ -58,6 +58,59 @@ final class BiomeRegistry{
 		self::add(new BaseBiome(129, "Sunflower Plains", 0.125, 0.05, 0.8, 0.4));
 		self::add(new BaseBiome(130, "Desert M", 0.225, 0.25, 2.0, 0.0));
 		self::add(new BaseBiome(140, "Ice Plains Spikes", 0.425, 0.45, 0.0, 0.5));
+
+		self::configureDecorators();
+	}
+
+	private static function cfg($id, array $v){
+		if(!isset(self::$biomes[$id])){
+			return;
+		}
+		$d = self::$biomes[$id]->getDecorator();
+		if(isset($v['trees'])){ $d->treesPerChunk = $v['trees']; }
+		if(isset($v['extraTree'])){ $d->extraTreeChance = $v['extraTree']; }
+		if(isset($v['flowers'])){ $d->flowersPerChunk = $v['flowers']; }
+		if(isset($v['grass'])){ $d->grassPerChunk = $v['grass']; }
+		if(isset($v['deadBush'])){ $d->deadBushPerChunk = $v['deadBush']; }
+		if(isset($v['mushrooms'])){ $d->mushroomsPerChunk = $v['mushrooms']; }
+		if(isset($v['reeds'])){ $d->reedsPerChunk = $v['reeds']; }
+		if(isset($v['cacti'])){ $d->cactiPerChunk = $v['cacti']; }
+		if(isset($v['waterlily'])){ $d->waterlilyPerChunk = $v['waterlily']; }
+		if(isset($v['gravel'])){ $d->gravelPatchesPerChunk = $v['gravel']; }
+		if(isset($v['sand'])){ $d->sandPatchesPerChunk = $v['sand']; }
+		if(isset($v['clay'])){ $d->clayPerChunk = $v['clay']; }
+		if(isset($v['bigMush'])){ $d->bigMushroomsPerChunk = $v['bigMush']; }
+	}
+
+	private static function configureDecorators(){
+		self::cfg(1, ['trees' => 0, 'extraTree' => 0.05, 'flowers' => 4, 'grass' => 10]);
+		self::cfg(2, ['trees' => -999, 'deadBush' => 2, 'reeds' => 50, 'cacti' => 10]);
+		self::cfg(4, ['trees' => 10, 'grass' => 2, 'flowers' => 4]);
+		self::cfg(5, ['trees' => 10, 'grass' => 1, 'mushrooms' => 1]);
+		self::cfg(6, ['trees' => 2, 'flowers' => 1, 'deadBush' => 1, 'mushrooms' => 8, 'reeds' => 10, 'clay' => 1, 'waterlily' => 4, 'sand' => 0, 'gravel' => 0, 'grass' => 5]);
+		self::cfg(12, ['trees' => 0, 'extraTree' => 0.05, 'flowers' => 0, 'grass' => 0]);
+		self::cfg(14, ['trees' => 0, 'extraTree' => 0, 'flowers' => 0, 'grass' => 0, 'mushrooms' => 1, 'bigMush' => 1]);
+		self::cfg(15, ['trees' => 0, 'extraTree' => 0, 'flowers' => 0, 'grass' => 0, 'mushrooms' => 1, 'bigMush' => 1]);
+		self::cfg(16, ['trees' => -999, 'deadBush' => 0, 'reeds' => 0, 'cacti' => 0]);
+		self::cfg(21, ['trees' => 50, 'grass' => 25, 'flowers' => 4]);
+		self::cfg(22, ['trees' => 50, 'grass' => 25, 'flowers' => 4]);
+		self::cfg(23, ['trees' => 2, 'grass' => 3, 'flowers' => 2]);
+		self::cfg(25, ['trees' => -999]);
+		self::cfg(26, ['trees' => -999]);
+		self::cfg(27, ['trees' => 10, 'grass' => 2, 'flowers' => 4]);
+		self::cfg(29, ['trees' => -999, 'grass' => 2, 'flowers' => 0]);
+		self::cfg(30, ['trees' => 10, 'grass' => 1, 'mushrooms' => 1]);
+		self::cfg(31, ['trees' => 10, 'grass' => 1, 'mushrooms' => 1]);
+		self::cfg(32, ['trees' => 10, 'grass' => 7, 'deadBush' => 1, 'mushrooms' => 3]);
+		self::cfg(33, ['trees' => 10, 'grass' => 7, 'deadBush' => 1, 'mushrooms' => 3]);
+		self::cfg(34, ['trees' => 3]);
+		self::cfg(35, ['trees' => 1, 'flowers' => 4, 'grass' => 20]);
+		self::cfg(36, ['trees' => 1, 'flowers' => 4, 'grass' => 20]);
+		self::cfg(37, ['trees' => -999, 'deadBush' => 20, 'cacti' => 5, 'flowers' => 0]);
+		self::cfg(38, ['trees' => 5, 'deadBush' => 20, 'cacti' => 5]);
+		self::cfg(39, ['trees' => -999, 'deadBush' => 20, 'cacti' => 5]);
+		self::cfg(129, ['trees' => 0, 'extraTree' => 0.05, 'flowers' => 4, 'grass' => 10]);
+		self::cfg(140, ['trees' => 0, 'extraTree' => 0.05, 'flowers' => 0, 'grass' => 0]);
 	}
 
 	private static function add(Biome $b){

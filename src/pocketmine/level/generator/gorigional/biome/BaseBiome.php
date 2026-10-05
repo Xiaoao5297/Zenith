@@ -5,6 +5,9 @@ namespace pocketmine\level\generator\gorigional\biome;
 use pocketmine\block\Block;
 use pocketmine\level\format\FullChunk;
 use pocketmine\level\generator\gorigional\JavaRandom;
+use pocketmine\level\generator\gorigional\object\BlockPos;
+use pocketmine\level\generator\gorigional\object\Decorator;
+use pocketmine\level\generator\gorigional\object\ObjectChunkManager;
 
 /**
  * 移植自 SCAXE-GO-CE pkg/level/generator/biome/biome.go 的 BaseBiome。
@@ -22,6 +25,8 @@ class BaseBiome implements Biome{
 	public $temperature;
 	/** @var float */
 	public $rainfall;
+	/** @var Decorator */
+	public $decorator;
 
 	public function __construct($id, $name, $baseHeight, $heightVariation, $temperature, $rainfall){
 		$this->id = $id;
@@ -30,6 +35,7 @@ class BaseBiome implements Biome{
 		$this->heightVariation = $heightVariation;
 		$this->temperature = $temperature;
 		$this->rainfall = $rainfall;
+		$this->decorator = new Decorator();
 	}
 
 	public function getID(){
@@ -46,6 +52,25 @@ class BaseBiome implements Biome{
 
 	public function getColor(){
 		return self::generateBiomeColor($this->temperature, $this->rainfall);
+	}
+
+	public function decorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
+		$this->decorator->decorate($level, $r, $this, $pos);
+	}
+
+	public function getTreeFeature(JavaRandom $r){
+		return null;
+	}
+
+	public function getFlowerType(JavaRandom $r, BlockPos $pos){
+		if($r->nextBoundedInt(3) > 0){
+			return $this->decorator->flowerYGen;
+		}
+		return $this->decorator->flowerRGen;
+	}
+
+	public function getDecorator(){
+		return $this->decorator;
 	}
 
 	public function genTerrainBlocks(FullChunk $chunk, JavaRandom $r, $x, $z, $noiseVal){

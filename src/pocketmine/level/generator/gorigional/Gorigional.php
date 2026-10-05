@@ -10,6 +10,10 @@ use pocketmine\level\generator\gorigional\biome\BiomeRegistry;
 use pocketmine\level\generator\gorigional\layer\LayerFactory;
 use pocketmine\level\generator\gorigional\noise\OctavesNoise;
 use pocketmine\level\generator\gorigional\noise\PerlinSimplexGenerator;
+use pocketmine\level\generator\gorigional\object\BlockPos;
+use pocketmine\level\generator\gorigional\object\ChunkManagerAdapter;
+use pocketmine\level\generator\gorigional\object\Dungeon;
+use pocketmine\level\generator\gorigional\object\Lake;
 use pocketmine\level\generator\gorigional\structure\MapGenCaves;
 use pocketmine\level\generator\gorigional\structure\MapGenRavine;
 use pocketmine\math\Vector3;
@@ -377,7 +381,54 @@ class Gorigional extends Generator{
 	}
 
 	public function populateChunk($chunkX, $chunkZ){
+		$x = $chunkX * 16;
+		$z = $chunkZ * 16;
 
+		$ints = $this->genLayer->getInts($x + 16, $z + 16, 1, 1);
+		$biomeID = $ints[0] & 0xFF;
+		$b = BiomeRegistry::getBiome($biomeID);
+
+		$rnd = new JavaRandom($this->seed);
+		$k = intdiv($rnd->nextLong(), 2) * 2 + 1;
+		$l = intdiv($rnd->nextLong(), 2) * 2 + 1;
+		$seed = Int64::add(Int64::mul($chunkX, $k), Int64::mul($chunkZ, $l)) ^ $this->seed;
+		$rnd->setSeed($seed);
+
+		$manager = new ChunkManagerAdapter($this->level);
+
+		$isOceanOrRiver = $biomeID === 0 || $biomeID === 10 || $biomeID === 24 || $biomeID === 7 || $biomeID === 11;
+
+		$flag = false;
+
+		if($b->getID() !== 2 && $b->getID() !== 17 && !$isOceanOrRiver && !$flag && $rnd->nextBoundedInt(80) === 0){
+			$i1 = $rnd->nextBoundedInt(16) + 8;
+			$j1 = $rnd->nextBoundedInt(256);
+			$k1 = $rnd->nextBoundedInt(16) + 8;
+
+			$lake = new Lake(9);
+			$lake->generate($manager, $rnd, new BlockPos($x + $i1, $j1, $z + $k1));
+		}
+
+		if(!$flag && !$isOceanOrRiver && $rnd->nextBoundedInt(intdiv(80, 10)) === 0){
+			$i2 = $rnd->nextBoundedInt(16) + 8;
+			$l2 = $rnd->nextBoundedInt($rnd->nextBoundedInt(248) + 8);
+			$k3 = $rnd->nextBoundedInt(16) + 8;
+
+			if($l2 < self::SEA_LEVEL || $rnd->nextBoundedInt(intdiv(80, 8)) === 0){
+				$lake = new Lake(10);
+				$lake->generate($manager, $rnd, new BlockPos($x + $i2, $l2, $z + $k3));
+			}
+		}
+
+		for($j2 = 0; $j2 < 8; $j2++){
+			$i3 = $rnd->nextBoundedInt(16) + 8;
+			$l3 = $rnd->nextBoundedInt(256);
+			$l1 = $rnd->nextBoundedInt(16) + 8;
+			$dungeon = new Dungeon();
+			$dungeon->generate($manager, $rnd, new BlockPos($x + $i3, $l3, $z + $l1));
+		}
+
+		$b->decorate($manager, $rnd, new BlockPos($x, 0, $z));
 	}
 
 	private static function clampedLerp($lowerB, $upperB, $t){

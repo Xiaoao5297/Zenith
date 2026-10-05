@@ -30,4 +30,12 @@ final class JavaMath{
 		self::init();
 		return self::$sinTable[((int) ($value * 10430.378 + 16384.0)) & 65535];
 	}
+
+	public static function floor($value){
+		$i = (int) $value;
+		if($value < $i){
+			return $i - 1;
+		}
+		return $i;
+	}
 }
