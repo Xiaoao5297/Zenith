@@ -14,9 +14,12 @@ use pocketmine\level\generator\gorigional\object\BlockPos;
 use pocketmine\level\generator\gorigional\object\ChunkManagerAdapter;
 use pocketmine\level\generator\gorigional\object\Dungeon;
 use pocketmine\level\generator\gorigional\object\Lake;
+use pocketmine\level\generator\gorigional\structure\GenLayerBiomeSource;
 use pocketmine\level\generator\gorigional\structure\MapGenCaves;
 use pocketmine\level\generator\gorigional\structure\MapGenMineshaft;
 use pocketmine\level\generator\gorigional\structure\MapGenRavine;
+use pocketmine\level\generator\gorigional\structure\MapGenScatteredFeature;
+use pocketmine\level\generator\gorigional\structure\MapGenStronghold;
 use pocketmine\level\generator\gorigional\structure\StructureWorldAccess;
 use pocketmine\math\Vector3;
 use pocketmine\utils\Random;
@@ -78,6 +81,10 @@ class Gorigional extends Generator{
 	private $ravines;
 	/** @var MapGenMineshaft */
 	private $mineshaft;
+	/** @var MapGenStronghold */
+	private $stronghold;
+	/** @var MapGenScatteredFeature */
+	private $scatteredFeature;
 
 	public function __construct(array $settings = []){
 
@@ -113,6 +120,8 @@ class Gorigional extends Generator{
 		$this->caves->maxHeight = self::MAX_HEIGHT;
 		$this->ravines->maxHeight = self::MAX_HEIGHT;
 		$this->mineshaft = new MapGenMineshaft($this->seed);
+		$this->stronghold = new MapGenStronghold($this->seed);
+		$this->scatteredFeature = new MapGenScatteredFeature($this->seed, new GenLayerBiomeSource($this->genLayer));
 	}
 
 	public function getName(){
@@ -406,6 +415,8 @@ class Gorigional extends Generator{
 		$flag = false;
 
 		$this->mineshaft->generateStructure(new StructureWorldAccess($this->level), $chunkX, $chunkZ);
+		$this->stronghold->generateStructure(new StructureWorldAccess($this->level), $chunkX, $chunkZ);
+		$this->scatteredFeature->generateStructure(new StructureWorldAccess($this->level), $chunkX, $chunkZ);
 
 		if($b->getID() !== 2 && $b->getID() !== 17 && !$isOceanOrRiver && !$flag && $rnd->nextBoundedInt(80) === 0){
 			$i1 = $rnd->nextBoundedInt(16) + 8;
