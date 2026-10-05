@@ -15,7 +15,9 @@ use pocketmine\level\generator\gorigional\object\ChunkManagerAdapter;
 use pocketmine\level\generator\gorigional\object\Dungeon;
 use pocketmine\level\generator\gorigional\object\Lake;
 use pocketmine\level\generator\gorigional\structure\MapGenCaves;
+use pocketmine\level\generator\gorigional\structure\MapGenMineshaft;
 use pocketmine\level\generator\gorigional\structure\MapGenRavine;
+use pocketmine\level\generator\gorigional\structure\StructureWorldAccess;
 use pocketmine\math\Vector3;
 use pocketmine\utils\Random;
 
@@ -74,6 +76,8 @@ class Gorigional extends Generator{
 	private $caves;
 	/** @var MapGenRavine */
 	private $ravines;
+	/** @var MapGenMineshaft */
+	private $mineshaft;
 
 	public function __construct(array $settings = []){
 
@@ -108,6 +112,7 @@ class Gorigional extends Generator{
 		$this->ravines = new MapGenRavine($this->seed);
 		$this->caves->maxHeight = self::MAX_HEIGHT;
 		$this->ravines->maxHeight = self::MAX_HEIGHT;
+		$this->mineshaft = new MapGenMineshaft($this->seed);
 	}
 
 	public function getName(){
@@ -399,6 +404,8 @@ class Gorigional extends Generator{
 		$isOceanOrRiver = $biomeID === 0 || $biomeID === 10 || $biomeID === 24 || $biomeID === 7 || $biomeID === 11;
 
 		$flag = false;
+
+		$this->mineshaft->generateStructure(new StructureWorldAccess($this->level), $chunkX, $chunkZ);
 
 		if($b->getID() !== 2 && $b->getID() !== 17 && !$isOceanOrRiver && !$flag && $rnd->nextBoundedInt(80) === 0){
 			$i1 = $rnd->nextBoundedInt(16) + 8;
