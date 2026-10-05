@@ -61,6 +61,7 @@ use pocketmine\level\generator\biome\Biome;
 use pocketmine\level\generator\Flat;
 use pocketmine\level\generator\VoidGS;
 use pocketmine\level\generator\Generator;
+use pocketmine\level\generator\gorigional\Gorigional;
 use pocketmine\level\generator\hell\Nether;
 use pocketmine\level\generator\normal\Normal;
 use pocketmine\level\Level;
@@ -2172,6 +2173,7 @@ class Server{
 			Generator::addGenerator(Nether::class, "hell");
 			Generator::addGenerator(Nether::class, "nether");
 			Generator::addGenerator(VoidGS::class, "void");
+			Generator::addGenerator(Gorigional::class, "gorigional");
 			Generator::addGenerator(\pocketmine\level\generator\ender\Ender::class, "ender");
 			Generator::addGenerator(\pocketmine\level\generator\skyworld\Skyworld::class, "skyworld");
 
