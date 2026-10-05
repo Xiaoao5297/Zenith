@@ -10,6 +10,8 @@ use pocketmine\level\generator\gorigional\biome\BiomeRegistry;
 use pocketmine\level\generator\gorigional\layer\LayerFactory;
 use pocketmine\level\generator\gorigional\noise\OctavesNoise;
 use pocketmine\level\generator\gorigional\noise\PerlinSimplexGenerator;
+use pocketmine\level\generator\gorigional\structure\MapGenCaves;
+use pocketmine\level\generator\gorigional\structure\MapGenRavine;
 use pocketmine\math\Vector3;
 use pocketmine\utils\Random;
 
@@ -64,6 +66,11 @@ class Gorigional extends Generator{
 	/** @var float[] */
 	private $biomeWeights = [];
 
+	/** @var MapGenCaves */
+	private $caves;
+	/** @var MapGenRavine */
+	private $ravines;
+
 	public function __construct(array $settings = []){
 
 	}
@@ -92,6 +99,11 @@ class Gorigional extends Generator{
 				$this->biomeWeights[$i + 2 + ($j + 2) * 5] = $f;
 			}
 		}
+
+		$this->caves = new MapGenCaves($this->seed);
+		$this->ravines = new MapGenRavine($this->seed);
+		$this->caves->maxHeight = self::MAX_HEIGHT;
+		$this->ravines->maxHeight = self::MAX_HEIGHT;
 	}
 
 	public function getName(){
@@ -360,6 +372,8 @@ class Gorigional extends Generator{
 
 		$this->setBlocksInChunk($chunkX, $chunkZ, $chunk);
 		$this->replaceBiomeBlocks($chunkX, $chunkZ, $chunk, $rnd);
+		$this->caves->generateChunk($chunkX, $chunkZ, $chunk);
+		$this->ravines->generateChunk($chunkX, $chunkZ, $chunk);
 	}
 
 	public function populateChunk($chunkX, $chunkZ){
