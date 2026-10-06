@@ -16,14 +16,17 @@ abstract class ScatteredFeaturePiece extends StructureComponentBase{
 	public $hPos = -1;
 
 	public function __construct($componentType, $x, $y, $z, $width, $height, $depth, $facing){
-		$box = BoundingBox::getComponentToAddBoundingBox($x, $y, $z, 0, 0, 0, $width, $height, $depth, $facing);
-
 		$this->componentType = $componentType;
-		$this->boundingBox = $box;
 		$this->coordBaseMode = $facing;
 		$this->width = $width;
 		$this->height = $height;
 		$this->depth = $depth;
+
+		if($facing === 0 || $facing === 2){
+			$this->boundingBox = new BoundingBox($x, $y, $z, $x + $width - 1, $y + $height - 1, $z + $depth - 1);
+		}else{
+			$this->boundingBox = new BoundingBox($x, $y, $z, $x + $depth - 1, $y + $height - 1, $z + $width - 1);
+		}
 	}
 
 	public function offsetToAverageGroundLevel(WorldAccess $w, BoundingBox $box, $yOffset){

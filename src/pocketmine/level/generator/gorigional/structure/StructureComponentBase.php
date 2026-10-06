@@ -286,6 +286,30 @@ abstract class StructureComponentBase implements StructureComponent{
 		];
 	}
 
+	public function generateChest(WorldAccess $w, BoundingBox $box, JavaRandom $rnd, $x, $y, $z){
+		$worldX = $this->getXWithOffset($x, $z);
+		$worldY = $this->getYWithOffset($y);
+		$worldZ = $this->getZWithOffset($x, $z);
+
+		if($box->resultIsInside($worldX, $worldY, $worldZ) && $w->getBlockId($worldX, $worldY, $worldZ) !== 54){
+			$w->setBlock($worldX, $worldY, $worldZ, 54, 0);
+			return true;
+		}
+		return false;
+	}
+
+	public function generateDispenser(WorldAccess $w, BoundingBox $box, JavaRandom $rnd, $x, $y, $z, $meta){
+		$worldX = $this->getXWithOffset($x, $z);
+		$worldY = $this->getYWithOffset($y);
+		$worldZ = $this->getZWithOffset($x, $z);
+
+		if($box->resultIsInside($worldX, $worldY, $worldZ) && $w->getBlockId($worldX, $worldY, $worldZ) !== 23){
+			$w->setBlock($worldX, $worldY, $worldZ, 23, $this->getMetadataWithOffset(23, $meta));
+			return true;
+		}
+		return false;
+	}
+
 	public static function findIntersecting(array $list, BoundingBox $box){
 		foreach($list as $c){
 			$bb = $c->getBoundingBox();
@@ -331,18 +355,16 @@ abstract class StructureComponentBase implements StructureComponent{
 		}
 	}
 
-	public function fillWithRandomizedBlocks(WorldAccess $w, BoundingBox $box, $minX, $minY, $minZ, $maxX, $maxY, $maxZ, $alwaysReplace, JavaRandom $rnd, callable $selector){
+	public function fillWithRandomizedBlocks(WorldAccess $w, BoundingBox $box, $minX, $minY, $minZ, $maxX, $maxY, $maxZ, $keepOld, JavaRandom $rnd, callable $selector){
 		for($y = $minY; $y <= $maxY; $y++){
 			for($x = $minX; $x <= $maxX; $x++){
 				for($z = $minZ; $z <= $maxZ; $z++){
+					if($keepOld && $this->getBlock($w, $x, $y, $z, $box) === 0){
+						continue;
+					}
 					$wall = ($x === $minX || $x === $maxX || $z === $minZ || $z === $maxZ || $y === $minY || $y === $maxY);
 					$result = $selector($rnd, $x, $y, $z, $wall);
-					$id = $result[0];
-					$meta = $result[1];
-
-					if($id !== 0){
-						$this->setBlockState($w, $id, $meta, $x, $y, $z, $box);
-					}
+					$this->placeBlock($w, $result[0], $result[1], $x, $y, $z, $box);
 				}
 			}
 		}

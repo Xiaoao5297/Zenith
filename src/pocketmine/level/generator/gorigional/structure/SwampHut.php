@@ -5,15 +5,25 @@ namespace pocketmine\level\generator\gorigional\structure;
 use pocketmine\level\generator\gorigional\JavaRandom;
 
 /**
- * 移植自 SCAXE-GO-CE structure.SwampHut。
+ * 移植自 Java 1.7.10 ComponentScatteredFeaturePieces$SwampHut。
  */
 class SwampHut extends ScatteredFeaturePiece{
+	const AIR = 0;
+	const PLANKS = 5;
+	const LOG = 17;
+	const OAK_STAIRS = 53;
+	const CRAFTING_TABLE = 58;
+	const FENCE = 85;
+	const CAULDRON = 118;
+	const SPRUCE_STAIRS = 134;
+	const FLOWER_POT = 140;
+
 	/** @var bool */
 	private $hasWitch = false;
 
 	public function __construct(JavaRandom $rnd, $x, $z){
 		$facing = $rnd->nextBoundedInt(4);
-		parent::__construct(2, $x, 64, $z, 7, 7, 9, $facing);
+		parent::__construct(2, $x, 64, $z, 7, 5, 9, $facing);
 	}
 
 	public function buildComponent(StructureComponent $component = null, array &$components, JavaRandom $rnd){
@@ -25,56 +35,45 @@ class SwampHut extends ScatteredFeaturePiece{
 			return false;
 		}
 
-		$SPRUCE_PLANKS = 5;
-		$SPRUCE_PLANKS_META = 1;
-		$SPRUCE_LOG = 17;
-		$SPRUCE_LOG_META = 1;
+		$this->fillWithBlocks($w, $box, 1, 1, 1, 5, 1, 7, self::PLANKS, 1, self::PLANKS, 1, false);
+		$this->fillWithBlocks($w, $box, 1, 4, 2, 5, 4, 7, self::PLANKS, 1, self::PLANKS, 1, false);
+		$this->fillWithBlocks($w, $box, 2, 1, 0, 4, 1, 0, self::PLANKS, 1, self::PLANKS, 1, false);
+		$this->fillWithBlocks($w, $box, 2, 2, 2, 3, 3, 2, self::PLANKS, 1, self::PLANKS, 1, false);
+		$this->fillWithBlocks($w, $box, 1, 2, 3, 1, 3, 6, self::PLANKS, 1, self::PLANKS, 1, false);
+		$this->fillWithBlocks($w, $box, 5, 2, 3, 5, 3, 6, self::PLANKS, 1, self::PLANKS, 1, false);
+		$this->fillWithBlocks($w, $box, 2, 2, 7, 4, 3, 7, self::PLANKS, 1, self::PLANKS, 1, false);
 
-		$this->fillWithBlocks($w, $box, 1, 0, 2, 1, 3, 2, $SPRUCE_LOG, $SPRUCE_LOG_META, $SPRUCE_LOG, $SPRUCE_LOG_META, false);
-		$this->fillWithBlocks($w, $box, 5, 0, 2, 5, 3, 2, $SPRUCE_LOG, $SPRUCE_LOG_META, $SPRUCE_LOG, $SPRUCE_LOG_META, false);
-		$this->fillWithBlocks($w, $box, 1, 0, 7, 1, 3, 7, $SPRUCE_LOG, $SPRUCE_LOG_META, $SPRUCE_LOG, $SPRUCE_LOG_META, false);
-		$this->fillWithBlocks($w, $box, 5, 0, 7, 5, 3, 7, $SPRUCE_LOG, $SPRUCE_LOG_META, $SPRUCE_LOG, $SPRUCE_LOG_META, false);
+		$this->fillWithBlocks($w, $box, 1, 0, 2, 1, 3, 2, self::LOG, 0, self::LOG, 0, false);
+		$this->fillWithBlocks($w, $box, 5, 0, 2, 5, 3, 2, self::LOG, 0, self::LOG, 0, false);
+		$this->fillWithBlocks($w, $box, 1, 0, 7, 1, 3, 7, self::LOG, 0, self::LOG, 0, false);
+		$this->fillWithBlocks($w, $box, 5, 0, 7, 5, 3, 7, self::LOG, 0, self::LOG, 0, false);
 
-		for($i = 2; $i <= 7; $i += 5){
-			for($j = 1; $j <= 5; $j += 4){
-				$this->replaceAirAndLiquidDownwards($w, $SPRUCE_LOG, $SPRUCE_LOG_META, $j, -1, $i, $box);
+		$this->placeBlock($w, self::FENCE, 0, 2, 3, 2, $box);
+		$this->placeBlock($w, self::FENCE, 0, 3, 3, 7, $box);
+		$this->placeBlock($w, self::AIR, 0, 1, 3, 4, $box);
+		$this->placeBlock($w, self::AIR, 0, 5, 3, 4, $box);
+		$this->placeBlock($w, self::AIR, 0, 5, 3, 5, $box);
+		$this->placeBlock($w, self::FLOWER_POT, 7, 1, 3, 5, $box);
+		$this->placeBlock($w, self::CRAFTING_TABLE, 0, 3, 2, 6, $box);
+		$this->placeBlock($w, self::CAULDRON, 0, 4, 2, 6, $box);
+		$this->placeBlock($w, self::FENCE, 0, 1, 2, 1, $box);
+		$this->placeBlock($w, self::FENCE, 0, 5, 2, 1, $box);
+
+		$i = $this->getMetadataWithOffset(self::OAK_STAIRS, 3);
+		$j = $this->getMetadataWithOffset(self::OAK_STAIRS, 1);
+		$k = $this->getMetadataWithOffset(self::OAK_STAIRS, 0);
+		$l = $this->getMetadataWithOffset(self::OAK_STAIRS, 2);
+
+		$this->fillWithBlocks($w, $box, 0, 4, 1, 6, 4, 1, self::SPRUCE_STAIRS, $i, self::SPRUCE_STAIRS, $i, false);
+		$this->fillWithBlocks($w, $box, 0, 4, 2, 0, 4, 7, self::SPRUCE_STAIRS, $k, self::SPRUCE_STAIRS, $k, false);
+		$this->fillWithBlocks($w, $box, 6, 4, 2, 6, 4, 7, self::SPRUCE_STAIRS, $j, self::SPRUCE_STAIRS, $j, false);
+		$this->fillWithBlocks($w, $box, 0, 4, 8, 6, 4, 8, self::SPRUCE_STAIRS, $l, self::SPRUCE_STAIRS, $l, false);
+
+		for($j1 = 2; $j1 <= 7; $j1 += 5){
+			for($i1 = 1; $i1 <= 5; $i1 += 4){
+				$this->replaceAirAndLiquidDownwards($w, self::LOG, 0, $i1, -1, $j1, $box);
 			}
 		}
-
-		$this->fillWithBlocks($w, $box, 1, 1, 1, 5, 1, 7, $SPRUCE_PLANKS, $SPRUCE_PLANKS_META, $SPRUCE_PLANKS, $SPRUCE_PLANKS_META, false);
-		$this->fillWithBlocks($w, $box, 2, 1, 0, 4, 1, 0, $SPRUCE_PLANKS, $SPRUCE_PLANKS_META, $SPRUCE_PLANKS, $SPRUCE_PLANKS_META, false);
-
-		$this->fillWithBlocks($w, $box, 1, 2, 3, 1, 3, 6, $SPRUCE_PLANKS, $SPRUCE_PLANKS_META, $SPRUCE_PLANKS, $SPRUCE_PLANKS_META, false);
-		$this->fillWithBlocks($w, $box, 5, 2, 3, 5, 3, 6, $SPRUCE_PLANKS, $SPRUCE_PLANKS_META, $SPRUCE_PLANKS, $SPRUCE_PLANKS_META, false);
-		$this->fillWithBlocks($w, $box, 2, 2, 7, 4, 3, 7, $SPRUCE_PLANKS, $SPRUCE_PLANKS_META, $SPRUCE_PLANKS, $SPRUCE_PLANKS_META, false);
-		$this->fillWithBlocks($w, $box, 1, 0, 2, 1, 3, 2, $SPRUCE_LOG, $SPRUCE_LOG_META, $SPRUCE_LOG, $SPRUCE_LOG_META, false);
-		$this->fillWithBlocks($w, $box, 5, 0, 2, 5, 3, 2, $SPRUCE_LOG, $SPRUCE_LOG_META, $SPRUCE_LOG, $SPRUCE_LOG_META, false);
-		$this->fillWithBlocks($w, $box, 1, 0, 7, 1, 3, 7, $SPRUCE_LOG, $SPRUCE_LOG_META, $SPRUCE_LOG, $SPRUCE_LOG_META, false);
-		$this->fillWithBlocks($w, $box, 5, 0, 7, 5, 3, 7, $SPRUCE_LOG, $SPRUCE_LOG_META, $SPRUCE_LOG, $SPRUCE_LOG_META, false);
-
-		$SPRUCE_STAIRS = 134;
-		$S_NORTH = 3;
-		$S_EAST = 0;
-		$S_WEST = 1;
-		$S_SOUTH = 2;
-		$this->fillWithBlocks($w, $box, 0, 4, 1, 6, 4, 1, $SPRUCE_STAIRS, $S_NORTH, $SPRUCE_STAIRS, $S_NORTH, false);
-		$this->fillWithBlocks($w, $box, 0, 4, 2, 0, 4, 7, $SPRUCE_STAIRS, $S_EAST, $SPRUCE_STAIRS, $S_EAST, false);
-		$this->fillWithBlocks($w, $box, 6, 4, 2, 6, 4, 7, $SPRUCE_STAIRS, $S_WEST, $SPRUCE_STAIRS, $S_WEST, false);
-		$this->fillWithBlocks($w, $box, 0, 4, 8, 6, 4, 8, $SPRUCE_STAIRS, $S_SOUTH, $SPRUCE_STAIRS, $S_SOUTH, false);
-
-		$this->fillWithBlocks($w, $box, 1, 4, 2, 5, 4, 7, $SPRUCE_PLANKS, $SPRUCE_PLANKS_META, $SPRUCE_PLANKS, $SPRUCE_PLANKS_META, false);
-
-		$OAK_FENCE = 85;
-		$FLOWER_POT = 140;
-		$CRAFTING_TABLE = 58;
-		$CAULDRON = 118;
-
-		$this->setBlockState($w, $OAK_FENCE, 0, 2, 3, 2, $box);
-		$this->setBlockState($w, $OAK_FENCE, 0, 3, 3, 7, $box);
-
-		$this->setBlockState($w, $FLOWER_POT, 0, 1, 3, 5, $box);
-		$this->setBlockState($w, $CRAFTING_TABLE, 0, 3, 2, 6, $box);
-		$this->setBlockState($w, $CAULDRON, 0, 4, 2, 6, $box);
 
 		if(!$this->hasWitch){
 			$this->hasWitch = true;

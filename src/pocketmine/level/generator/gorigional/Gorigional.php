@@ -20,7 +20,6 @@ use pocketmine\level\generator\gorigional\structure\MapGenCaves;
 use pocketmine\level\generator\gorigional\structure\MapGenMineshaft;
 use pocketmine\level\generator\gorigional\structure\MapGenRavine;
 use pocketmine\level\generator\gorigional\structure\MapGenScatteredFeature;
-use pocketmine\level\generator\gorigional\structure\MapGenStronghold;
 use pocketmine\level\generator\gorigional\structure\WorldChunkManager;
 use pocketmine\level\generator\normal\populator\VillagePopulator;
 use pocketmine\math\Vector3;
@@ -83,8 +82,6 @@ class Gorigional extends Generator{
 	private $ravines;
 	/** @var MapGenMineshaft */
 	private $mineshaft;
-	/** @var MapGenStronghold */
-	private $stronghold;
 	/** @var MapGenScatteredFeature */
 	private $scatteredFeature;
 	/** @var VillagePopulator */
@@ -127,7 +124,6 @@ class Gorigional extends Generator{
 		$this->ravines->maxHeight = self::MAX_HEIGHT;
 		$this->world = new GeneratorWorld($level, $this->seed, new WorldChunkManager($this->genLayer, $this->biomeGen));
 		$this->mineshaft = new MapGenMineshaft($this->seed);
-		$this->stronghold = new MapGenStronghold($this->seed);
 		$this->scatteredFeature = new MapGenScatteredFeature($this->seed);
 		$this->village = new VillagePopulator();
 	}
@@ -404,7 +400,6 @@ class Gorigional extends Generator{
 		$this->ravines->generateChunk($chunkX, $chunkZ, $chunk);
 
 		$this->mineshaft->prepare($this->world, $chunkX, $chunkZ, $chunk);
-		$this->stronghold->prepare($this->world, $chunkX, $chunkZ, $chunk);
 		$this->scatteredFeature->prepare($this->world, $chunkX, $chunkZ, $chunk);
 	}
 
@@ -432,7 +427,6 @@ class Gorigional extends Generator{
 
 		$this->mineshaft->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 		$this->village->populate($this->level, $chunkX, $chunkZ, new Random(0xdeadbeef ^ ($chunkX << 8) ^ $chunkZ ^ $this->seed));
-		$this->stronghold->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 		$this->scatteredFeature->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 
 		if($b->getID() !== 2 && $b->getID() !== 17 && !$isOceanOrRiver && !$flag && $rnd->nextBoundedInt(80) === 0){

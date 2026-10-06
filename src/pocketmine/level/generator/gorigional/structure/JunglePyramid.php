@@ -31,7 +31,6 @@ class JunglePyramid extends ScatteredFeaturePiece{
 			return false;
 		}
 
-		$COBBLE = 4;
 		$MOSSY = 48;
 		$STONE_STAIRS = 67;
 		$VINE = 106;
@@ -43,13 +42,24 @@ class JunglePyramid extends ScatteredFeaturePiece{
 		$REPEATER = 93;
 		$DISPENSER = 23;
 		$STONEBRICK = 98;
+		$MONSTER_EGG = 97;
 		$CHISELED = 3;
 
-		$selector = function(JavaRandom $rnd, $x, $y, $z, $wall) use ($COBBLE, $MOSSY){
-			if($rnd->nextFloat() < 0.4){
-				return [$COBBLE, 0];
+		$selector = function(JavaRandom $rnd, $x, $y, $z, $wall){
+			if($wall){
+				$f = $rnd->nextFloat();
+				if($f < 0.2){
+					return [98, 2];
+				}
+				if($f < 0.5){
+					return [98, 1];
+				}
+				if($f < 0.55){
+					return [97, 2];
+				}
+				return [98, 0];
 			}
-			return [$MOSSY, 0];
+			return [0, 0];
 		};
 
 		$this->fillWithRandomizedBlocks($w, $box, 0, -4, 0, $this->width - 1, 0, $this->depth - 1, false, $rnd, $selector);
@@ -234,7 +244,7 @@ class JunglePyramid extends ScatteredFeaturePiece{
 		$this->setBlockState($w, $STICKY_PISTON, 1, 9, -2, 8, $box);
 		$this->setBlockState($w, $STICKY_PISTON, 4, 10, -2, 8, $box);
 		$this->setBlockState($w, $STICKY_PISTON, 4, 10, -1, 8, $box);
-		$this->setBlockState($w, $REPEATER, 0, 10, -2, 10, $box);
+		$this->setBlockState($w, $REPEATER, 2, 10, -2, 10, $box);
 
 		if(!$this->placedHiddenChest){
 			$this->setBlockState($w, 54, 4, 9, -3, 10, $box);
