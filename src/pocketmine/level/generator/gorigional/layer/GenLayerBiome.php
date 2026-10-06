@@ -24,7 +24,7 @@ class GenLayerBiome extends GenLayer{
 		$this->iceBiomes = [self::BIOME_ICE_PLAINS, self::BIOME_ICE_PLAINS, self::BIOME_ICE_PLAINS, self::BIOME_COLD_TAIGA];
 	}
 
-	public function getInts($areaX, $areaY, $width, $height){
+	protected function getIntsInternal($areaX, $areaY, $width, $height){
 		$parentInts = $this->parent->getInts($areaX, $areaY, $width, $height);
 		$result = array_fill(0, $width * $height, 0);
 

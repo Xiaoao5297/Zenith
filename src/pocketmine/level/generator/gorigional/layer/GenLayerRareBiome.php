@@ -11,7 +11,7 @@ class GenLayerRareBiome extends GenLayer{
 		parent::__construct($baseSeed, $parent);
 	}
 
-	public function getInts($x, $z, $width, $depth){
+	protected function getIntsInternal($x, $z, $width, $depth){
 		$xOff = $x - 1;
 		$zOff = $z - 1;
 		$wOff = $width + 2;

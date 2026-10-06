@@ -18,7 +18,7 @@ class GenLayerEdge extends GenLayer{
 		$this->mode = $mode;
 	}
 
-	public function getInts($areaX, $areaY, $width, $height){
+	protected function getIntsInternal($areaX, $areaY, $width, $height){
 		switch($this->mode){
 			case self::HEAT_ICE:
 				return $this->getIntsHeatIce($areaX, $areaY, $width, $height);

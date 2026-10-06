@@ -11,7 +11,7 @@ class GenLayerIsland extends GenLayer{
 		parent::__construct($seed, null);
 	}
 
-	public function getInts($x, $z, $width, $depth){
+	protected function getIntsInternal($x, $z, $width, $depth){
 		$result = array_fill(0, $width * $depth, 0);
 
 		for($i = 0; $i < $depth; $i++){

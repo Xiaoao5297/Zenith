@@ -11,7 +11,7 @@ class GenLayerRiver extends GenLayer{
 		parent::__construct($baseSeed, $parent);
 	}
 
-	public function getInts($x, $z, $width, $depth){
+	protected function getIntsInternal($x, $z, $width, $depth){
 		$parentInts = $this->parent->getInts($x - 1, $z - 1, $width + 2, $depth + 2);
 		$output = array_fill(0, $width * $depth, 0);
 

@@ -11,7 +11,7 @@ class GenLayerVoronoiZoom extends GenLayer{
 		parent::__construct($baseSeed, $parent);
 	}
 
-	public function getInts($x, $z, $width, $depth){
+	protected function getIntsInternal($x, $z, $width, $depth){
 		$x -= 2;
 		$z -= 2;
 

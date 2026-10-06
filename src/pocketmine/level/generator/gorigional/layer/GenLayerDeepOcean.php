@@ -11,7 +11,7 @@ class GenLayerDeepOcean extends GenLayer{
 		parent::__construct($seed, $parent);
 	}
 
-	public function getInts($areaX, $areaY, $width, $height){
+	protected function getIntsInternal($areaX, $areaY, $width, $height){
 		$parentX = $areaX - 1;
 		$parentY = $areaY - 1;
 		$parentWidth = $width + 2;

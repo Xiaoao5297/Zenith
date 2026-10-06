@@ -7,6 +7,7 @@ use pocketmine\level\ChunkManager;
 use pocketmine\level\format\FullChunk;
 use pocketmine\level\generator\Generator;
 use pocketmine\level\generator\gorigional\biome\BiomeRegistry;
+use pocketmine\level\generator\gorigional\layer\GenLayer;
 use pocketmine\level\generator\gorigional\layer\LayerFactory;
 use pocketmine\level\generator\gorigional\noise\OctavesNoise;
 use pocketmine\level\generator\gorigional\noise\PerlinSimplexGenerator;
@@ -389,6 +390,8 @@ class Gorigional extends Generator{
 			return;
 		}
 
+		GenLayer::newEpoch();
+
 		$seed = Int64::add(Int64::mul($chunkX, 341873128712), Int64::mul($chunkZ, 132897987541));
 		$rnd = new JavaRandom($seed);
 
@@ -399,6 +402,8 @@ class Gorigional extends Generator{
 	}
 
 	public function populateChunk($chunkX, $chunkZ){
+		GenLayer::newEpoch();
+
 		$x = $chunkX * 16;
 		$z = $chunkZ * 16;
 

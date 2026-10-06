@@ -23,7 +23,7 @@ class GenLayerRiverMix extends GenLayer{
 		$this->riverPatternGeneratorChain->initWorldGenSeed($seed);
 	}
 
-	public function getInts($x, $z, $width, $depth){
+	protected function getIntsInternal($x, $z, $width, $depth){
 		$biomeInts = $this->biomePatternGeneratorChain->getInts($x, $z, $width, $depth);
 		$riverInts = $this->riverPatternGeneratorChain->getInts($x, $z, $width, $depth);
 		$output = array_fill(0, $width * $depth, 0);

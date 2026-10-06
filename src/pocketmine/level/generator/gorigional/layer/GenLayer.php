@@ -117,8 +117,33 @@ abstract class GenLayer{
 		return $layer;
 	}
 
+	/** @var int */
+	private static $epoch = 0;
+	/** @var array */
+	private $memo = [];
+	/** @var int */
+	private $memoEpoch = -1;
+
+	public static function newEpoch(){
+		self::$epoch++;
+	}
+
+	final public function getInts($x, $z, $width, $depth){
+		if($this->memoEpoch !== self::$epoch){
+			$this->memo = [];
+			$this->memoEpoch = self::$epoch;
+		}
+
+		$key = $x . ',' . $z . ',' . $width . ',' . $depth;
+		if(isset($this->memo[$key])){
+			return $this->memo[$key];
+		}
+
+		return $this->memo[$key] = $this->getIntsInternal($x, $z, $width, $depth);
+	}
+
 	/**
 	 * @return int[]
 	 */
-	abstract public function getInts($x, $z, $width, $depth);
+	abstract protected function getIntsInternal($x, $z, $width, $depth);
 }

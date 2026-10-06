@@ -19,7 +19,7 @@ class GenLayerHills extends GenLayer{
 		$this->riverLayer->initWorldGenSeed($seed);
 	}
 
-	public function getInts($x, $z, $width, $depth){
+	protected function getIntsInternal($x, $z, $width, $depth){
 		$parentInts = $this->parent->getInts($x - 1, $z - 1, $width + 2, $depth + 2);
 		$riverInts = $this->riverLayer->getInts($x - 1, $z - 1, $width + 2, $depth + 2);
 		$output = array_fill(0, $width * $depth, 0);
