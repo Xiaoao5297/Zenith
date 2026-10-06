@@ -48,6 +48,30 @@ class BoundingBox{
 		return $x >= $this->minX && $x <= $this->maxX && $z >= $this->minZ && $z <= $this->maxZ && $y >= $this->minY && $y <= $this->maxY;
 	}
 
+	public function getXSize(){
+		return $this->maxX - $this->minX + 1;
+	}
+
+	public function getYSize(){
+		return $this->maxY - $this->minY + 1;
+	}
+
+	public function getZSize(){
+		return $this->maxZ - $this->minZ + 1;
+	}
+
+	public function getCenterX(){
+		return $this->minX + intdiv($this->maxX - $this->minX + 1, 2);
+	}
+
+	public function getCenterY(){
+		return $this->minY + intdiv($this->maxY - $this->minY + 1, 2);
+	}
+
+	public function getCenterZ(){
+		return $this->minZ + intdiv($this->maxZ - $this->minZ + 1, 2);
+	}
+
 	public function offset($x, $y, $z){
 		$this->minX += $x;
 		$this->minY += $y;

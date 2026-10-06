@@ -66,6 +66,13 @@ abstract class StructureComponentBase implements StructureComponent{
 			return $meta;
 		}
 
+		if($id === 66){
+			if($this->coordBaseMode === 1 || $this->coordBaseMode === 3){
+				return $meta === 1 ? 0 : 1;
+			}
+			return $meta;
+		}
+
 		if(self::isStairs($id)){
 			switch($this->coordBaseMode){
 				case 0: return $meta;
@@ -151,6 +158,9 @@ abstract class StructureComponentBase implements StructureComponent{
 		for($y = $minY; $y <= $maxY; $y++){
 			for($x = $minX; $x <= $maxX; $x++){
 				for($z = $minZ; $z <= $maxZ; $z++){
+					if($keepOld && $this->getBlock($w, $x, $y, $z, $box) === 0){
+						continue;
+					}
 					if($x !== $minX && $x !== $maxX && $z !== $minZ && $z !== $maxZ && $y !== $minY && $y !== $maxY){
 						$this->setBlockState($w, $insideId, $insideMeta, $x, $y, $z, $box);
 					}else{
@@ -159,6 +169,131 @@ abstract class StructureComponentBase implements StructureComponent{
 				}
 			}
 		}
+	}
+
+	public function placeBlock(WorldAccess $w, $id, $meta, $x, $y, $z, BoundingBox $box){
+		$worldX = $this->getXWithOffset($x, $z);
+		$worldY = $this->getYWithOffset($y);
+		$worldZ = $this->getZWithOffset($x, $z);
+
+		if($box->resultIsInside($worldX, $worldY, $worldZ)){
+			$w->setBlock($worldX, $worldY, $worldZ, $id, $meta);
+		}
+	}
+
+	public function getBlock(WorldAccess $w, $x, $y, $z, BoundingBox $box){
+		$worldX = $this->getXWithOffset($x, $z);
+		$worldY = $this->getYWithOffset($y);
+		$worldZ = $this->getZWithOffset($x, $z);
+
+		if(!$box->resultIsInside($worldX, $worldY, $worldZ)){
+			return 0;
+		}
+		return $w->getBlockId($worldX, $worldY, $worldZ);
+	}
+
+	public function randomlyPlaceBlock(WorldAccess $w, BoundingBox $box, JavaRandom $rnd, $chance, $x, $y, $z, $id, $meta){
+		if($rnd->nextFloat() < $chance){
+			$this->placeBlock($w, $id, $meta, $x, $y, $z, $box);
+		}
+	}
+
+	public function randomlyFillWithBlocks(WorldAccess $w, BoundingBox $box, JavaRandom $rnd, $chance, $minX, $minY, $minZ, $maxX, $maxY, $maxZ, $outlineId, $insideId, $keepOld){
+		for($y = $minY; $y <= $maxY; $y++){
+			for($x = $minX; $x <= $maxX; $x++){
+				for($z = $minZ; $z <= $maxZ; $z++){
+					if($rnd->nextFloat() <= $chance && (!$keepOld || $this->getBlock($w, $x, $y, $z, $box) !== 0)){
+						if($x !== $minX && $x !== $maxX && $z !== $minZ && $z !== $maxZ && $y !== $minY && $y !== $maxY){
+							$this->placeBlock($w, $insideId, 0, $x, $y, $z, $box);
+						}else{
+							$this->placeBlock($w, $outlineId, 0, $x, $y, $z, $box);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	public function clearEllipsoid(WorldAccess $w, BoundingBox $box, $minX, $minY, $minZ, $maxX, $maxY, $maxZ, $id, $flag){
+		$f = (float) ($maxX - $minX + 1);
+		$f1 = (float) ($maxY - $minY + 1);
+		$f2 = (float) ($maxZ - $minZ + 1);
+		$f3 = (float) $minX + $f / 2.0;
+		$f4 = (float) $minZ + $f2 / 2.0;
+
+		for($y = $minY; $y <= $maxY; $y++){
+			$f5 = (float) ($y - $minY) / $f1;
+			for($x = $minX; $x <= $maxX; $x++){
+				$f6 = ((float) $x - $f3) / ($f * 0.5);
+				for($z = $minZ; $z <= $maxZ; $z++){
+					$f7 = ((float) $z - $f4) / ($f2 * 0.5);
+					if(!$flag || $this->getBlock($w, $x, $y, $z, $box) !== 0){
+						$f8 = $f6 * $f6 + $f5 * $f5 + $f7 * $f7;
+						if($f8 <= 1.05){
+							$this->placeBlock($w, $id, 0, $x, $y, $z, $box);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	public function isLiquidInStructureBoundingBox(WorldAccess $w, BoundingBox $box){
+		$i = max($this->boundingBox->minX - 1, $box->minX);
+		$j = max($this->boundingBox->minY - 1, $box->minY);
+		$k = max($this->boundingBox->minZ - 1, $box->minZ);
+		$l = min($this->boundingBox->maxX + 1, $box->maxX);
+		$i1 = min($this->boundingBox->maxY + 1, $box->maxY);
+		$j1 = min($this->boundingBox->maxZ + 1, $box->maxZ);
+
+		for($k1 = $i; $k1 <= $l; $k1++){
+			for($l1 = $k; $l1 <= $j1; $l1++){
+				if(self::isLiquid($w->getBlockId($k1, $j, $l1)) || self::isLiquid($w->getBlockId($k1, $i1, $l1))){
+					return true;
+				}
+			}
+		}
+		for($k1 = $i; $k1 <= $l; $k1++){
+			for($l1 = $j; $l1 <= $i1; $l1++){
+				if(self::isLiquid($w->getBlockId($k1, $l1, $k)) || self::isLiquid($w->getBlockId($k1, $l1, $j1))){
+					return true;
+				}
+			}
+		}
+		for($k1 = $k; $k1 <= $j1; $k1++){
+			for($l1 = $j; $l1 <= $i1; $l1++){
+				if(self::isLiquid($w->getBlockId($i, $l1, $k1)) || self::isLiquid($w->getBlockId($l, $l1, $k1))){
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	public static function isLiquid($id){
+		return $id === 8 || $id === 9 || $id === 10 || $id === 11;
+	}
+
+	/**
+	 * @return int[] [x, y, z]
+	 */
+	public function getChunkPosition(){
+		return [
+			$this->boundingBox->getCenterX(),
+			$this->boundingBox->getCenterY(),
+			$this->boundingBox->getCenterZ()
+		];
+	}
+
+	public static function findIntersecting(array $list, BoundingBox $box){
+		foreach($list as $c){
+			$bb = $c->getBoundingBox();
+			if($bb !== null && $bb->intersectsWith($box)){
+				return $c;
+			}
+		}
+		return null;
 	}
 
 	public function fillWithAir(WorldAccess $w, BoundingBox $box, $minX, $minY, $minZ, $maxX, $maxY, $maxZ){

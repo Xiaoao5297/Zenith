@@ -12,9 +12,9 @@ class MineshaftStart extends StructureStart{
 	public function __construct(World $world, JavaRandom $rand, $chunkX, $chunkZ){
 		parent::__construct($chunkX, $chunkZ);
 
-		$room = new MineshaftRoom(($chunkX << 4) + 2, ($chunkZ << 4) + 2);
+		$room = new MineshaftRoom(0, $rand, ($chunkX << 4) + 2, ($chunkZ << 4) + 2);
 		$this->components[] = $room;
-		$room->buildComponent(null, $this->components, $rand);
+		$room->buildComponent($room, $this->components, $rand);
 
 		$this->updateBoundingBox();
 		$this->placeAtHeight($world, $rand, 10);
