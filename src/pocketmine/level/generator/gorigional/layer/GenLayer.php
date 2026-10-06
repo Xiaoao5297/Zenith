@@ -54,9 +54,9 @@ abstract class GenLayer{
 	/** @var int */
 	protected $baseSeed;
 	/** @var int */
-	protected $worldGenSeed;
+	protected $worldGenSeed = 0;
 	/** @var int */
-	protected $chunkSeed;
+	protected $chunkSeed = 0;
 
 	public function __construct($baseSeed, GenLayer $parent = null){
 		$this->baseSeed = $baseSeed;

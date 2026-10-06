@@ -56,10 +56,48 @@ final class BiomeRegistry{
 		self::add(new MesaBiome(39, "Mesa Plateau", 1.5, 0.025));
 
 		self::add(new BaseBiome(129, "Sunflower Plains", 0.125, 0.05, 0.8, 0.4));
-		self::add(new BaseBiome(130, "Desert M", 0.225, 0.25, 2.0, 0.0));
 		self::add(new BaseBiome(140, "Ice Plains Spikes", 0.425, 0.45, 0.0, 0.5));
 
 		self::configureDecorators();
+		self::registerMutations();
+	}
+
+	/**
+	 * 移植自 Java 1.7.10 BiomeGenBase 静态块注册的变种群系（id = 父 + 128）。
+	 * 高度按各 func_150566_k() 的取值给定；null 表示默认父群系 +0.1/+0.2。
+	 */
+	private static function registerMutations(){
+		self::mutate(2, 0.225, 0.25);
+		self::mutate(3, 1.0, 0.5);
+		self::mutate(4, 0.1, 0.4);
+		self::mutate(5);
+		self::mutate(6);
+		self::mutate(21);
+		self::mutate(23);
+		self::mutate(27);
+		self::mutate(28);
+		self::mutate(29, null, null, true);
+		self::mutate(30);
+		self::mutate(32, 0.2, 0.2);
+		self::mutate(34, 1.0, 0.5);
+		self::mutate(35, 0.3625, 1.225);
+		self::mutate(36, 1.05, 1.2125);
+		self::mutate(37, 0.1, 0.2);
+		self::mutate(38, 0.45, 0.3);
+		self::mutate(39, 0.45, 0.3);
+
+		// Java: field_76773_a[161] = field_76773_a[160]（Mega Taiga Hills M 复用 Mega Taiga M 对象）
+		if(isset(self::$biomes[160])){
+			self::$biomes[161] = self::$biomes[160];
+		}
+	}
+
+	private static function mutate($parentID, $minElevation = null, $maxElevation = null, $decorateParent = false){
+		if(!isset(self::$biomes[$parentID])){
+			return;
+		}
+		$b = new MutatedBiome(self::$biomes[$parentID], $minElevation, $maxElevation, $decorateParent);
+		self::$biomes[$b->getID()] = $b;
 	}
 
 	private static function cfg($id, array $v){

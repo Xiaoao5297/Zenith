@@ -125,7 +125,7 @@ class Gorigional extends Generator{
 		$this->ravines->maxHeight = self::MAX_HEIGHT;
 		$this->mineshaft = new MapGenMineshaft($this->seed);
 		$this->stronghold = new MapGenStronghold($this->seed);
-		$this->scatteredFeature = new MapGenScatteredFeature($this->seed, new GenLayerBiomeSource($this->genLayer));
+		$this->scatteredFeature = new MapGenScatteredFeature($this->seed, new GenLayerBiomeSource($this->biomeGen));
 		$this->village = new VillagePopulator();
 	}
 
@@ -379,7 +379,7 @@ class Gorigional extends Generator{
 
 				$biomeColor = $b->getColor();
 				$c->setBiomeColor($i, $j, ($biomeColor >> 16) & 0xFF, ($biomeColor >> 8) & 0xFF, $biomeColor & 0xFF);
-				$c->setBiomeId($i, $j, $biomeID);
+				$c->setBiomeId($i, $j, $b->getID());
 			}
 		}
 	}
@@ -407,7 +407,7 @@ class Gorigional extends Generator{
 		$x = $chunkX * 16;
 		$z = $chunkZ * 16;
 
-		$ints = $this->genLayer->getInts($x + 16, $z + 16, 1, 1);
+		$ints = $this->biomeGen->getInts($x + 16, $z + 16, 1, 1);
 		$biomeID = $ints[0] & 0xFF;
 		$b = BiomeRegistry::getBiome($biomeID);
 

@@ -69,8 +69,6 @@ class MapGenScatteredFeature{
 			case 21:
 			case 22:
 			case 6:
-			case 12:
-			case 30:
 				return true;
 		}
 		return false;
