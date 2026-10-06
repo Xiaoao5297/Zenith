@@ -43,27 +43,23 @@ class ImprovedNoise{
 		}
 	}
 
-	private static function lerp($t, $a, $b){
-		return $a + $t * ($b - $a);
-	}
-
-	private static function grad3D($hash, $x, $y, $z){
-		$i = $hash & 15;
-		return self::$gradX[$i] * $x + self::$gradY[$i] * $y + self::$gradZ[$i] * $z;
-	}
-
-	private static function grad2D($hash, $x, $z){
-		$i = $hash & 15;
-		return self::$grad2X[$i] * $x + self::$grad2Z[$i] * $z;
-	}
-
 	public function populateNoiseArray(array &$noiseArray, $xOffset, $yOffset, $zOffset, $xSize, $ySize, $zSize, $xScale, $yScale, $zScale, $noiseScale){
+		$p = $this->permutations;
+		$xc = $this->xCoord;
+		$yc = $this->yCoord;
+		$zc = $this->zCoord;
+
 		if($ySize === 1){
+			$g2X = self::$grad2X;
+			$g2Z = self::$grad2Z;
+			$gX = self::$gradX;
+			$gZ = self::$gradZ;
+
 			$invScale = 1.0 / $noiseScale;
 			$idx = 0;
 
 			for($j2 = 0; $j2 < $xSize; $j2++){
-				$d17 = $xOffset + $j2 * $xScale + $this->xCoord;
+				$d17 = $xOffset + $j2 * $xScale + $xc;
 				$i6 = (int) floor($d17);
 				if($d17 < $i6){
 					$i6--;
@@ -73,7 +69,7 @@ class ImprovedNoise{
 				$d18 = $d17 * $d17 * $d17 * ($d17 * ($d17 * 6.0 - 15.0) + 10.0);
 
 				for($j6 = 0; $j6 < $zSize; $j6++){
-					$d19 = $zOffset + $j6 * $zScale + $this->zCoord;
+					$d19 = $zOffset + $j6 * $zScale + $zc;
 					$k6 = (int) floor($d19);
 					if($d19 < $k6){
 						$k6--;
@@ -82,20 +78,34 @@ class ImprovedNoise{
 					$d19 = $d19 - $k6;
 					$d20 = $d19 * $d19 * $d19 * ($d19 * ($d19 * 6.0 - 15.0) + 10.0);
 
-					$i5 = $this->permutations[$k2] + 0;
-					$j5 = $this->permutations[$i5] + $l6;
-					$j = $this->permutations[$k2 + 1] + 0;
-					$k5 = $this->permutations[$j] + $l6;
+					$i5 = $p[$k2] + 0;
+					$j5 = $p[$i5] + $l6;
+					$j = $p[$k2 + 1] + 0;
+					$k5 = $p[$j] + $l6;
 
-					$d14 = self::lerp($d18, self::grad2D($this->permutations[$j5], $d17, $d19), self::grad3D($this->permutations[$k5], $d17 - 1.0, 0.0, $d19));
-					$d15 = self::lerp($d18, self::grad3D($this->permutations[$j5 + 1], $d17, 0.0, $d19 - 1.0), self::grad3D($this->permutations[$k5 + 1], $d17 - 1.0, 0.0, $d19 - 1.0));
-					$d21 = self::lerp($d20, $d14, $d15);
+					$h = $p[$j5] & 15;
+					$lo = $g2X[$h] * $d17 + $g2Z[$h] * $d19;
+					$h = $p[$k5] & 15;
+					$hi = $gX[$h] * ($d17 - 1.0) + $gZ[$h] * $d19;
+					$d14 = $lo + $d18 * ($hi - $lo);
+
+					$h = $p[$j5 + 1] & 15;
+					$lo = $gX[$h] * $d17 + $gZ[$h] * ($d19 - 1.0);
+					$h = $p[$k5 + 1] & 15;
+					$hi = $gX[$h] * ($d17 - 1.0) + $gZ[$h] * ($d19 - 1.0);
+					$d15 = $lo + $d18 * ($hi - $lo);
+
+					$d21 = $d14 + $d20 * ($d15 - $d14);
 					$noiseArray[$idx] += $d21 * $invScale;
 					$idx++;
 				}
 			}
 			return;
 		}
+
+		$gX = self::$gradX;
+		$gY = self::$gradY;
+		$gZ = self::$gradZ;
 
 		$invScale = 1.0 / $noiseScale;
 		$k = -1;
@@ -105,7 +115,7 @@ class ImprovedNoise{
 		$idx = 0;
 
 		for($l2 = 0; $l2 < $xSize; $l2++){
-			$d5 = $xOffset + $l2 * $xScale + $this->xCoord;
+			$d5 = $xOffset + $l2 * $xScale + $xc;
 			$i3 = (int) floor($d5);
 			if($d5 < $i3){
 				$i3--;
@@ -115,7 +125,7 @@ class ImprovedNoise{
 			$d6 = $d5 * $d5 * $d5 * ($d5 * ($d5 * 6.0 - 15.0) + 10.0);
 
 			for($k3 = 0; $k3 < $zSize; $k3++){
-				$d7 = $zOffset + $k3 * $zScale + $this->zCoord;
+				$d7 = $zOffset + $k3 * $zScale + $zc;
 				$l3 = (int) floor($d7);
 				if($d7 < $l3){
 					$l3--;
@@ -125,7 +135,7 @@ class ImprovedNoise{
 				$d8 = $d7 * $d7 * $d7 * ($d7 * ($d7 * 6.0 - 15.0) + 10.0);
 
 				for($j4 = 0; $j4 < $ySize; $j4++){
-					$d9 = $yOffset + $j4 * $yScale + $this->yCoord;
+					$d9 = $yOffset + $j4 * $yScale + $yc;
 					$k4 = (int) floor($d9);
 					if($d9 < $k4){
 						$k4--;
@@ -136,33 +146,41 @@ class ImprovedNoise{
 
 					if($j4 === 0 || $l4 !== $k){
 						$k = $l4;
-						$l = $this->permutations[$j3] + $l4;
-						$i1 = $this->permutations[$l] + $i4;
-						$j1 = $this->permutations[$l + 1] + $i4;
-						$k1 = $this->permutations[$j3 + 1] + $l4;
-						$l1 = $this->permutations[$k1] + $i4;
-						$i2 = $this->permutations[$k1 + 1] + $i4;
+						$l = $p[$j3] + $l4;
+						$i1 = $p[$l] + $i4;
+						$j1 = $p[$l + 1] + $i4;
+						$k1 = $p[$j3 + 1] + $l4;
+						$l1 = $p[$k1] + $i4;
+						$i2 = $p[$k1 + 1] + $i4;
 
-						$g1 = self::grad3D($this->permutations[$i1], $d5, $d9, $d7);
-						$g2 = self::grad3D($this->permutations[$l1], $d5 - 1.0, $d9, $d7);
-						$d1 = self::lerp($d6, $g1, $g2);
+						$h = $p[$i1] & 15;
+						$g1 = $gX[$h] * $d5 + $gY[$h] * $d9 + $gZ[$h] * $d7;
+						$h = $p[$l1] & 15;
+						$g2 = $gX[$h] * ($d5 - 1.0) + $gY[$h] * $d9 + $gZ[$h] * $d7;
+						$d1 = $g1 + $d6 * ($g2 - $g1);
 
-						$g3 = self::grad3D($this->permutations[$j1], $d5, $d9 - 1.0, $d7);
-						$g4 = self::grad3D($this->permutations[$i2], $d5 - 1.0, $d9 - 1.0, $d7);
-						$d2 = self::lerp($d6, $g3, $g4);
+						$h = $p[$j1] & 15;
+						$g3 = $gX[$h] * $d5 + $gY[$h] * ($d9 - 1.0) + $gZ[$h] * $d7;
+						$h = $p[$i2] & 15;
+						$g4 = $gX[$h] * ($d5 - 1.0) + $gY[$h] * ($d9 - 1.0) + $gZ[$h] * $d7;
+						$d2 = $g3 + $d6 * ($g4 - $g3);
 
-						$g5 = self::grad3D($this->permutations[$i1 + 1], $d5, $d9, $d7 - 1.0);
-						$g6 = self::grad3D($this->permutations[$l1 + 1], $d5 - 1.0, $d9, $d7 - 1.0);
-						$d3 = self::lerp($d6, $g5, $g6);
+						$h = $p[$i1 + 1] & 15;
+						$g5 = $gX[$h] * $d5 + $gY[$h] * $d9 + $gZ[$h] * ($d7 - 1.0);
+						$h = $p[$l1 + 1] & 15;
+						$g6 = $gX[$h] * ($d5 - 1.0) + $gY[$h] * $d9 + $gZ[$h] * ($d7 - 1.0);
+						$d3 = $g5 + $d6 * ($g6 - $g5);
 
-						$g7 = self::grad3D($this->permutations[$j1 + 1], $d5, $d9 - 1.0, $d7 - 1.0);
-						$g8 = self::grad3D($this->permutations[$i2 + 1], $d5 - 1.0, $d9 - 1.0, $d7 - 1.0);
-						$d4 = self::lerp($d6, $g7, $g8);
+						$h = $p[$j1 + 1] & 15;
+						$g7 = $gX[$h] * $d5 + $gY[$h] * ($d9 - 1.0) + $gZ[$h] * ($d7 - 1.0);
+						$h = $p[$i2 + 1] & 15;
+						$g8 = $gX[$h] * ($d5 - 1.0) + $gY[$h] * ($d9 - 1.0) + $gZ[$h] * ($d7 - 1.0);
+						$d4 = $g7 + $d6 * ($g8 - $g7);
 					}
 
-					$d11 = self::lerp($d10, $d1, $d2);
-					$d12 = self::lerp($d10, $d3, $d4);
-					$d13 = self::lerp($d8, $d11, $d12);
+					$d11 = $d1 + $d10 * ($d2 - $d1);
+					$d12 = $d3 + $d10 * ($d4 - $d3);
+					$d13 = $d11 + $d8 * ($d12 - $d11);
 
 					$noiseArray[$idx] += $d13 * $invScale;
 					$idx++;
