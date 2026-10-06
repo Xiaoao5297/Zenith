@@ -26,7 +26,18 @@ class JavaRandom{
 	}
 
 	private function next($bits){
-		$this->seed = Int64::add(Int64::mul($this->seed, self::MULTIPLIER), self::ADDEND) & self::MASK48;
+		// 种子 < 2^48，乘数 < 2^35：按 16 位分肢只需 3 次乘法即可得到 mod 2^48 结果
+		$s = $this->seed;
+		$a = ($s >> 32) & 0xFFFF;
+		$b = ($s >> 16) & 0xFFFF;
+		$c = $s & 0xFFFF;
+		$m = self::MULTIPLIER;
+
+		$t1 = (($a * $m) & 0xFFFF) << 32;
+		$t2 = (($b * $m) & 0xFFFFFFFF) << 16;
+		$t3 = ($c * $m) & self::MASK48;
+
+		$this->seed = ($t1 + $t2 + $t3 + self::ADDEND) & self::MASK48;
 		return $this->seed >> (48 - $bits);
 	}
 
