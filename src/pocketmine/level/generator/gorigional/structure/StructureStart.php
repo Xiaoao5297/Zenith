@@ -32,6 +32,28 @@ class StructureStart{
 		}
 	}
 
+	/**
+	 * 对应 Java StructureStart.func_75067_a：把结构整体下移到指定高度附近。
+	 */
+	public function placeAtHeight(World $world, JavaRandom $random, $topOffset){
+		$j = 63 - $topOffset;
+		$k = ($this->boundingBox->maxY - $this->boundingBox->minY + 1) + 1;
+
+		if($k < $j){
+			$k += $random->nextBoundedInt($j - $k);
+		}
+
+		$l = $k - $this->boundingBox->minY;
+		$this->boundingBox->offset(0, $l, 0);
+
+		foreach($this->components as $c){
+			$bb = $c->getBoundingBox();
+			if($bb !== null){
+				$bb->offset(0, $l, 0);
+			}
+		}
+	}
+
 	public function updateBoundingBox(){
 		if(empty($this->components)){
 			return;

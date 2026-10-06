@@ -3,115 +3,75 @@
 namespace pocketmine\level\generator\gorigional\structure;
 
 use pocketmine\level\generator\gorigional\JavaRandom;
+use pocketmine\level\generator\gorigional\biome\BiomeRegistry;
 
 /**
- * 移植自 SCAXE-GO-CE structure.MapGenStronghold。
+ * 移植自 Java 1.7.10 MapGenStronghold。
  */
-class MapGenStronghold{
-	/** @var int[][] */
-	private $structureCoords = [];
-	/** @var int */
-	private $worldSeed;
-	/** @var JavaRandom */
-	private $ran;
+class MapGenStronghold extends MapGenStructure{
+	/** @var int[] */
+	private $allowedBiomeIDs = [];
+	/** @var int[][]|null */
+	private $positions = null;
 	/** @var float */
 	private $distance = 32.0;
 	/** @var int */
 	private $spread = 3;
-	/** @var StructureStart[] */
-	private $structureMap = [];
 
 	public function __construct($seed){
-		$this->worldSeed = $seed;
-		$this->ran = new JavaRandom($seed);
-		$this->generatePositions();
-	}
+		parent::__construct($seed);
 
-	private function generatePositions(){
-		$this->ran->setSeed($this->worldSeed);
-
-		$generated = 0;
-		$ring = 0;
-
-		while($generated < 128){
-			$d1 = (4.0 * $this->distance + $this->distance * $ring * 6.0) + ($this->ran->nextDouble() - 0.5) * $this->distance * 2.5;
-
-			if($ring === 0){
-				$countInRing = $this->spread;
-			}else{
-				$countInRing = $ring * $this->spread + $this->spread;
+		foreach(BiomeRegistry::getAllBiomes() as $id => $biome){
+			if($biome->getMinElevation() > 0.0){
+				$this->allowedBiomeIDs[] = $id;
 			}
-
-			if($generated + $countInRing > 128){
-				$countInRing = 128 - $generated;
-			}
-
-			$d2 = $this->ran->nextDouble() * M_PI * 2.0;
-			$d3 = M_PI * 2.0 / $countInRing;
-
-			for($l = 0; $l < $countInRing; $l++){
-				$this->ran->nextDouble();
-				$angle = $d2 + $l * $d3;
-
-				$cx = (int) round(cos($angle) * $d1);
-				$cz = (int) round(sin($angle) * $d1);
-
-				$this->structureCoords[] = [$cx, $cz];
-				$generated++;
-			}
-			$ring++;
 		}
 	}
 
-	public function canSpawnStructureAtCoords($chunkX, $chunkZ){
-		foreach($this->structureCoords as $pos){
-			if($pos[0] === $chunkX && $pos[1] === $chunkZ){
+	protected function canSpawnStructureAtCoords($chunkX, $chunkZ){
+		if($this->positions === null){
+			$this->generatePositions();
+		}
+
+		foreach($this->positions as $p){
+			if($p[0] === $chunkX && $p[1] === $chunkZ){
 				return true;
 			}
 		}
 		return false;
 	}
 
-	public function getStructureStart($chunkX, $chunkZ){
-		$key = $chunkX . ':' . $chunkZ;
+	private function generatePositions(){
+		$this->positions = [];
 
-		if(isset($this->structureMap[$key])){
-			return $this->structureMap[$key];
-		}
+		$random = new JavaRandom($this->world->getSeed());
+		$d0 = $random->nextDouble() * M_PI * 2.0;
+		$k = 1;
+		$spread = $this->spread;
+		$count = 3;
 
-		if($this->canSpawnStructureAtCoords($chunkX, $chunkZ)){
-			$start = new StrongholdStart($this->worldSeed, $this->ran, $chunkX, $chunkZ);
-			$this->structureMap[$key] = $start;
-			return $start;
-		}
-		return null;
-	}
+		for($l = 0; $l < $count; $l++){
+			$d1 = (1.25 * $k + $random->nextDouble()) * $this->distance * $k;
+			$i1 = (int) round(cos($d0) * $d1);
+			$j1 = (int) round(sin($d0) * $d1);
 
-	public function generateStructure(WorldAccess $w, $chunkX, $chunkZ){
-		$x = $chunkX * 16;
-		$z = $chunkZ * 16;
-		$chunkBox = new BoundingBox($x, 0, $z, $x + 15, 255, $z + 15);
+			$pos = $this->world->findBiomePosition(($i1 << 4) + 8, ($j1 << 4) + 8, 112, $this->allowedBiomeIDs, $random);
+			if($pos !== null){
+				$i1 = $pos[0] >> 4;
+				$j1 = $pos[2] >> 4;
+			}
 
-		$success = false;
+			$this->positions[] = [$i1, $j1];
+			$d0 += 6.283185307179586 * $k / $spread;
 
-		for($i = $chunkX - 8; $i <= $chunkX + 8; $i++){
-			for($j = $chunkZ - 8; $j <= $chunkZ + 8; $j++){
-				if($this->canSpawnStructureAtCoords($i, $j)){
-					$start = $this->getStructureStart($i, $j);
-					if($start !== null && $start->boundingBox !== null && $start->boundingBox->intersectsWith($chunkBox)){
-						$start->generateStructure($w, $this->ran, $chunkBox);
-						$success = true;
-					}
-				}
+			if($l === $spread){
+				$k += 2 + $random->nextBoundedInt(5);
+				$spread += 1 + $random->nextBoundedInt(2);
 			}
 		}
-		return $success;
 	}
 
-	/**
-	 * @return int[][]
-	 */
-	public function getStructureCoords(){
-		return $this->structureCoords;
+	protected function getStructureStart($chunkX, $chunkZ){
+		return new StrongholdStart($this->world, $this->rand, $chunkX, $chunkZ);
 	}
 }

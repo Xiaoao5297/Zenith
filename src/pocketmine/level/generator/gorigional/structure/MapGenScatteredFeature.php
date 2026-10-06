@@ -2,33 +2,16 @@
 
 namespace pocketmine\level\generator\gorigional\structure;
 
-use pocketmine\level\generator\gorigional\Int64;
-use pocketmine\level\generator\gorigional\JavaRandom;
-
 /**
- * 移植自 SCAXE-GO-CE structure.MapGenScatteredFeature。
+ * 移植自 Java 1.7.10 MapGenScatteredFeature。
  */
-class MapGenScatteredFeature{
-	/** @var int */
-	private $worldSeed;
+class MapGenScatteredFeature extends MapGenStructure{
 	/** @var int */
 	private $maxDistanceBetweenScatteredFeatures = 32;
 	/** @var int */
 	private $minDistanceBetweenScatteredFeatures = 8;
-	/** @var JavaRandom */
-	private $rand;
-	/** @var BiomeSource|null */
-	private $biomeSource;
-	/** @var StructureStart[] */
-	private $structureMap = [];
 
-	public function __construct($seed, BiomeSource $biomeSource = null){
-		$this->worldSeed = $seed;
-		$this->rand = new JavaRandom($seed);
-		$this->biomeSource = $biomeSource;
-	}
-
-	public function canSpawnStructureAtCoords($chunkX, $chunkZ){
+	protected function canSpawnStructureAtCoords($chunkX, $chunkZ){
 		$i = $chunkX;
 		$j = $chunkZ;
 
@@ -42,21 +25,16 @@ class MapGenScatteredFeature{
 		$k = intdiv($chunkX, $this->maxDistanceBetweenScatteredFeatures);
 		$l = intdiv($chunkZ, $this->maxDistanceBetweenScatteredFeatures);
 
-		$seed = Int64::add(Int64::add(Int64::add(Int64::mul($k, 341873128712), Int64::mul($l, 132897987541)), $this->worldSeed), 14357617);
-		$this->rand->setSeed($seed);
+		$random = $this->world->getRandomAt($k, $l, 14357617);
 
 		$k *= $this->maxDistanceBetweenScatteredFeatures;
 		$l *= $this->maxDistanceBetweenScatteredFeatures;
 
-		$k += $this->rand->nextBoundedInt($this->maxDistanceBetweenScatteredFeatures - 8);
-		$l += $this->rand->nextBoundedInt($this->maxDistanceBetweenScatteredFeatures - 8);
+		$k += $random->nextBoundedInt($this->maxDistanceBetweenScatteredFeatures - $this->minDistanceBetweenScatteredFeatures);
+		$l += $random->nextBoundedInt($this->maxDistanceBetweenScatteredFeatures - $this->minDistanceBetweenScatteredFeatures);
 
 		if($i === $k && $j === $l){
-			if($this->biomeSource !== null){
-				$bID = $this->biomeSource->getBiome($i * 16 + 8, $j * 16 + 8);
-				return $this->isStructureBiome($bID);
-			}
-			return true;
+			return $this->isStructureBiome($this->world->getBiome($i * 16 + 8, $j * 16 + 8));
 		}
 
 		return false;
@@ -74,45 +52,7 @@ class MapGenScatteredFeature{
 		return false;
 	}
 
-	public function getStructureStart($chunkX, $chunkZ){
-		$key = $chunkX . ':' . $chunkZ;
-
-		if(isset($this->structureMap[$key])){
-			return $this->structureMap[$key];
-		}
-
-		if($this->canSpawnStructureAtCoords($chunkX, $chunkZ)){
-			$biomeID = 1;
-			if($this->biomeSource !== null){
-				$biomeID = $this->biomeSource->getBiome($chunkX * 16 + 8, $chunkZ * 16 + 8);
-			}
-
-			$start = new ScatteredFeatureStart($this->worldSeed, $this->rand, $chunkX, $chunkZ, $biomeID);
-			$this->structureMap[$key] = $start;
-			return $start;
-		}
-		return null;
-	}
-
-	public function generateStructure(WorldAccess $w, $chunkX, $chunkZ){
-		$x = $chunkX * 16;
-		$z = $chunkZ * 16;
-		$chunkBox = new BoundingBox($x, 0, $z, $x + 15, 255, $z + 15);
-
-		$success = false;
-		$rangeVal = 8;
-
-		for($i = $chunkX - $rangeVal; $i <= $chunkX + $rangeVal; $i++){
-			for($j = $chunkZ - $rangeVal; $j <= $chunkZ + $rangeVal; $j++){
-				if($this->canSpawnStructureAtCoords($i, $j)){
-					$start = $this->getStructureStart($i, $j);
-					if($start !== null && $start->boundingBox !== null && $start->boundingBox->intersectsWith($chunkBox)){
-						$start->generateStructure($w, $this->rand, $chunkBox);
-						$success = true;
-					}
-				}
-			}
-		}
-		return $success;
+	protected function getStructureStart($chunkX, $chunkZ){
+		return new ScatteredFeatureStart($this->world, $this->rand, $chunkX, $chunkZ);
 	}
 }

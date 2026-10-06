@@ -156,6 +156,14 @@ final class BiomeRegistry{
 	}
 
 	/**
+	 * @return Biome[] id => Biome
+	 */
+	public static function getAllBiomes(){
+		self::init();
+		return self::$biomes;
+	}
+
+	/**
 	 * @return Biome
 	 */
 	public static function getBiome($id){

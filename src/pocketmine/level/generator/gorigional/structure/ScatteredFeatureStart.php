@@ -5,13 +5,15 @@ namespace pocketmine\level\generator\gorigional\structure;
 use pocketmine\level\generator\gorigional\JavaRandom;
 
 /**
- * 移植自 SCAXE-GO-CE structure.ScatteredFeatureStart。
+ * 移植自 Java 1.7.10 MapGenScatteredFeature$Start。
  */
 class ScatteredFeatureStart extends StructureStart{
 
-	public function __construct($seed, JavaRandom $rnd, $chunkX, $chunkZ, $biomeID){
+	public function __construct(World $world, JavaRandom $rand, $chunkX, $chunkZ){
 		parent::__construct($chunkX, $chunkZ);
-		$this->createComponents($rnd, $chunkX, $chunkZ, $biomeID);
+
+		$biomeID = $world->getBiome($chunkX * 16 + 8, $chunkZ * 16 + 8);
+		$this->createComponents($rand, $chunkX, $chunkZ, $biomeID);
 		$this->updateBoundingBox();
 	}
 
@@ -26,13 +28,6 @@ class ScatteredFeatureStart extends StructureStart{
 				break;
 			case 6:
 				$this->components[] = new SwampHut($rnd, $x, $z);
-				break;
-			case 2:
-			case 17:
-				$this->components[] = new DesertPyramid($rnd, $x, $z);
-				break;
-			case 12:
-			case 30:
 				break;
 			default:
 				$this->components[] = new DesertPyramid($rnd, $x, $z);

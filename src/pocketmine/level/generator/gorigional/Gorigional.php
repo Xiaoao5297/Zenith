@@ -15,13 +15,13 @@ use pocketmine\level\generator\gorigional\object\BlockPos;
 use pocketmine\level\generator\gorigional\object\ChunkManagerAdapter;
 use pocketmine\level\generator\gorigional\object\Dungeon;
 use pocketmine\level\generator\gorigional\object\Lake;
-use pocketmine\level\generator\gorigional\structure\GenLayerBiomeSource;
+use pocketmine\level\generator\gorigional\structure\GeneratorWorld;
 use pocketmine\level\generator\gorigional\structure\MapGenCaves;
 use pocketmine\level\generator\gorigional\structure\MapGenMineshaft;
 use pocketmine\level\generator\gorigional\structure\MapGenRavine;
 use pocketmine\level\generator\gorigional\structure\MapGenScatteredFeature;
 use pocketmine\level\generator\gorigional\structure\MapGenStronghold;
-use pocketmine\level\generator\gorigional\structure\StructureWorldAccess;
+use pocketmine\level\generator\gorigional\structure\WorldChunkManager;
 use pocketmine\level\generator\normal\populator\VillagePopulator;
 use pocketmine\math\Vector3;
 use pocketmine\utils\Random;
@@ -89,6 +89,8 @@ class Gorigional extends Generator{
 	private $scatteredFeature;
 	/** @var VillagePopulator */
 	private $village;
+	/** @var GeneratorWorld */
+	private $world;
 
 	public function __construct(array $settings = []){
 
@@ -123,9 +125,10 @@ class Gorigional extends Generator{
 		$this->ravines = new MapGenRavine($this->seed);
 		$this->caves->maxHeight = self::MAX_HEIGHT;
 		$this->ravines->maxHeight = self::MAX_HEIGHT;
+		$this->world = new GeneratorWorld($level, $this->seed, new WorldChunkManager($this->genLayer, $this->biomeGen));
 		$this->mineshaft = new MapGenMineshaft($this->seed);
 		$this->stronghold = new MapGenStronghold($this->seed);
-		$this->scatteredFeature = new MapGenScatteredFeature($this->seed, new GenLayerBiomeSource($this->biomeGen));
+		$this->scatteredFeature = new MapGenScatteredFeature($this->seed);
 		$this->village = new VillagePopulator();
 	}
 
@@ -399,6 +402,10 @@ class Gorigional extends Generator{
 		$this->replaceBiomeBlocks($chunkX, $chunkZ, $chunk, $rnd);
 		$this->caves->generateChunk($chunkX, $chunkZ, $chunk);
 		$this->ravines->generateChunk($chunkX, $chunkZ, $chunk);
+
+		$this->mineshaft->prepare($this->world, $chunkX, $chunkZ, $chunk);
+		$this->stronghold->prepare($this->world, $chunkX, $chunkZ, $chunk);
+		$this->scatteredFeature->prepare($this->world, $chunkX, $chunkZ, $chunk);
 	}
 
 	public function populateChunk($chunkX, $chunkZ){
@@ -423,10 +430,10 @@ class Gorigional extends Generator{
 
 		$flag = false;
 
-		$this->mineshaft->generateStructure(new StructureWorldAccess($this->level), $chunkX, $chunkZ);
+		$this->mineshaft->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 		$this->village->populate($this->level, $chunkX, $chunkZ, new Random(0xdeadbeef ^ ($chunkX << 8) ^ $chunkZ ^ $this->seed));
-		$this->stronghold->generateStructure(new StructureWorldAccess($this->level), $chunkX, $chunkZ);
-		$this->scatteredFeature->generateStructure(new StructureWorldAccess($this->level), $chunkX, $chunkZ);
+		$this->stronghold->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
+		$this->scatteredFeature->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 
 		if($b->getID() !== 2 && $b->getID() !== 17 && !$isOceanOrRiver && !$flag && $rnd->nextBoundedInt(80) === 0){
 			$i1 = $rnd->nextBoundedInt(16) + 8;
