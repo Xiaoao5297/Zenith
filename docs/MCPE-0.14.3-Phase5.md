@@ -71,13 +71,30 @@ water=1967 lily=328
 - seed 61（Jungle Hills，22）：原木 17=137、树叶 18=594、藤蔓 106=159。
 - populate 约 0.17s。
 
-## 5.4 验证
+
+## 5.4 其他群系特化装饰
+
+修正 `BaseBiome` 中所有特化装饰的坐标与高度：
+
+- 森林、黑森林、Mega Taiga、热带草原、向日葵平原的 x/z 坐标统一为区块内 0..15。
+- 双层植物、蕨、热带草原草、向日葵改用该列地表 `getHeightAtForBiome()`，不再用随机地下高度。
+- 黑森林 4×4 树木网格去掉额外的 +8 偏移，覆盖整个区块。
+- Mega Taiga 的苔石堆和蕨同样改为区块内坐标；苔石仍从 y=128 向下寻找地表。
+
+验证：
+
+- seed 62（Savanna，35）：双层草 175=134、高草 31=61。
+- seed 25（Sunflower Plains，129）：向日葵 175=46、高草 31=42。
+- seed 19（Mega Taiga，32）：蕨 175=108。
+- seed 98（Desert M，130）与 seed 135（Forest M，132）正常生成，无崩溃。
+
+## 5.5 验证
 
 - `ExtremeHillsBiome.php`、`SwampBiome.php`、`BiomeRegistry.php`、`Gorigional.php` 的 `php -l` 全部通过。
 - seed 3（Extreme Hills+）：populate 约 0.09s，草/土正常，没有错误石头山顶。
 - seed 7（Swamp）：树木、藤蔓、甘蔗等装饰正常。
 
-## 5.5 待办
+## 5.6 待办
 
 - 群系边界（BiomeEdge）已按 Java/MCPE 的群系类别分组；变种群系（id+128）已在 `BiomeRegistry::registerMutations()` 注册并验证可生成。
 - 后续可继续微调变种 Mesa 的台地类型和丛林巨型树的树冠细节。

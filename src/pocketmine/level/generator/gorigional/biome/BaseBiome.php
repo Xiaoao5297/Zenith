@@ -122,10 +122,9 @@ class BaseBiome implements Biome{
 				default: $plant = new DoublePlant(DoublePlant::PEONY); break;
 			}
 			for($k = 0; $k < 5; $k++){
-				$px = $r->nextBoundedInt(16) + 8;
-				$pz = $r->nextBoundedInt(16) + 8;
-				$terrainHeight = self::getHeightAtForBiome($level, $pos->x + $px, $pos->z + $pz);
-				$py = $r->nextBoundedInt($terrainHeight + 32);
+				$px = $r->nextBoundedInt(16);
+				$pz = $r->nextBoundedInt(16);
+				$py = self::getHeightAtForBiome($level, $pos->x + $px, $pos->z + $pz);
 				if($plant->generate($level, $r, $pos->add($px, $py, $pz))){
 					break;
 				}
@@ -137,8 +136,8 @@ class BaseBiome implements Biome{
 	private function roofedForestDecorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
 		for($i = 0; $i < 4; $i++){
 			for($j = 0; $j < 4; $j++){
-				$k = $i * 4 + 1 + 8 + $r->nextBoundedInt(3);
-				$l = $j * 4 + 1 + 8 + $r->nextBoundedInt(3);
+				$k = $i * 4 + 1 + $r->nextBoundedInt(3);
+				$l = $j * 4 + 1 + $r->nextBoundedInt(3);
 
 				$treeX = $pos->x + $k;
 				$treeZ = $pos->z + $l;
@@ -166,9 +165,9 @@ class BaseBiome implements Biome{
 				default: $plant = new DoublePlant(DoublePlant::PEONY); break;
 			}
 			for($k = 0; $k < 5; $k++){
-				$px = $r->nextBoundedInt(16) + 8;
-				$pz = $r->nextBoundedInt(16) + 8;
-				$py = $r->nextBoundedInt(128 + 32);
+				$px = $r->nextBoundedInt(16);
+				$pz = $r->nextBoundedInt(16);
+				$py = self::getHeightAtForBiome($level, $pos->x + $px, $pos->z + $pz);
 				if($plant->generate($level, $r, $pos->add($px, $py, $pz))){
 					break;
 				}
@@ -181,16 +180,16 @@ class BaseBiome implements Biome{
 	private function megaTaigaDecorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
 		$boulderCount = $r->nextBoundedInt(3);
 		for($i = 0; $i < $boulderCount; $i++){
-			$bx = $r->nextBoundedInt(16) + 8;
-			$bz = $r->nextBoundedInt(16) + 8;
+			$bx = $r->nextBoundedInt(16);
+			$bz = $r->nextBoundedInt(16);
 			$boulder = new BlockBlob(Block::MOSS_STONE, 0);
 			$boulder->generate($level, $r, $pos->add($bx, 128, $bz));
 		}
 
 		for($i = 0; $i < 7; $i++){
-			$fx = $r->nextBoundedInt(16) + 8;
-			$fz = $r->nextBoundedInt(16) + 8;
-			$fy = $r->nextBoundedInt(160);
+			$fx = $r->nextBoundedInt(16);
+			$fz = $r->nextBoundedInt(16);
+			$fy = self::getHeightAtForBiome($level, $pos->x + $fx, $pos->z + $fz);
 			$fern = new DoublePlant(DoublePlant::FERN);
 			$fern->generate($level, $r, $pos->add($fx, $fy, $fz));
 		}
@@ -218,11 +217,10 @@ class BaseBiome implements Biome{
 
 	private function savannaDecorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
 		for($i = 0; $i < 7; $i++){
-			$px = $r->nextBoundedInt(16) + 8;
-			$pz = $r->nextBoundedInt(16) + 8;
+			$px = $r->nextBoundedInt(16);
+			$pz = $r->nextBoundedInt(16);
 
-			$terrainHeight = self::getHeightAtForBiome($level, $pos->x + $px, $pos->z + $pz);
-			$py = $r->nextBoundedInt($terrainHeight + 32);
+			$py = self::getHeightAtForBiome($level, $pos->x + $px, $pos->z + $pz);
 			$grass = new DoublePlant(DoublePlant::GRASS);
 			$grass->generate($level, $r, $pos->add($px, $py, $pz));
 		}
@@ -235,15 +233,10 @@ class BaseBiome implements Biome{
 
 		$sunflower = new DoublePlant(DoublePlant::SUNFLOWER);
 		for($i = 0; $i < 10; $i++){
-			$x = $pos->x + $r->nextBoundedInt(16) + 8;
-			$z = $pos->z + $r->nextBoundedInt(16) + 8;
-
-			$terrainHeight = $level->getHeight($x, $z);
-			$yMax = $terrainHeight + 32;
-			if($yMax > 0){
-				$y = $r->nextBoundedInt($yMax);
-				$sunflower->generate($level, $r, new BlockPos($x, $y, $z));
-			}
+			$x = $r->nextBoundedInt(16);
+			$z = $r->nextBoundedInt(16);
+			$y = self::getHeightAtForBiome($level, $pos->x + $x, $pos->z + $z);
+			$sunflower->generate($level, $r, $pos->add($x, $y, $z));
 		}
 	}
 
