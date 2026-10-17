@@ -6,7 +6,8 @@ use pocketmine\block\Block;
 use pocketmine\level\generator\gorigional\JavaRandom;
 
 /**
- * 移植自 SCAXE-GO-CE pkg/level/generator/object/lake.go。
+ * 湖泊生成：Java 1.7.10 的椭球布局，加上 MCPE LakeFeature 的壳层检查和
+ * 湖岸处理。MCPE 与 Java 的湖体几何基本同源，主要差异在随机流和壳层判定。
  */
 class Lake implements Feature{
 	/** @var int */
@@ -32,15 +33,15 @@ class Lake implements Feature{
 		$y -= 4;
 
 		$aboolean = array_fill(0, 2048, false);
-		$i = $r->nextBoundedInt(4) + 4;
+		$i = ($r->nextInt() & 3) + 4;
 
 		for($j = 0; $j < $i; $j++){
-			$d0 = $r->nextDouble() * 6.0 + 3.0;
-			$d1 = $r->nextDouble() * 4.0 + 2.0;
-			$d2 = $r->nextDouble() * 6.0 + 3.0;
-			$d3 = $r->nextDouble() * (16.0 - $d0 - 2.0) + 1.0 + $d0 / 2.0;
-			$d4 = $r->nextDouble() * (8.0 - $d1 - 4.0) + 2.0 + $d1 / 2.0;
-			$d5 = $r->nextDouble() * (16.0 - $d2 - 2.0) + 1.0 + $d2 / 2.0;
+			$d0 = $r->nextFloat() * 6.0 + 3.0;
+			$d1 = $r->nextFloat() * 4.0 + 2.0;
+			$d2 = $r->nextFloat() * 6.0 + 3.0;
+			$d3 = $r->nextFloat() * (16.0 - $d0 - 2.0) + 1.0 + $d0 / 2.0;
+			$d4 = $r->nextFloat() * (8.0 - $d1 - 4.0) + 2.0 + $d1 / 2.0;
+			$d5 = $r->nextFloat() * (16.0 - $d2 - 2.0) + 1.0 + $d2 / 2.0;
 
 			for($l = 1; $l < 15; $l++){
 				for($i1 = 1; $i1 < 15; $i1++){
@@ -58,6 +59,9 @@ class Lake implements Feature{
 			}
 		}
 
+		// MCPE LakeFeature 的 _check 检查的是湖体外壳：
+		// 下半部外壳必须是实心或同种液体，上半部外壳不能是液体，
+		// 避免湖水从洞穴、海面或陡坡泄漏。
 		for($k1 = 0; $k1 < 16; $k1++){
 			for($l2 = 0; $l2 < 16; $l2++){
 				for($k = 0; $k < 8; $k++){
@@ -68,18 +72,20 @@ class Lake implements Feature{
 						($k < 7 && $aboolean[($k1 * 16 + $l2) * 8 + $k + 1]) ||
 						($k > 0 && $aboolean[($k1 * 16 + $l2) * 8 + ($k - 1)]));
 
-					if($flag){
-						$mat = $w->getBlockId($x + $k1, $y + $k, $z + $l2);
+					if(!$flag){
+						continue;
+					}
 
-						if($k >= 4 && ($mat === Block::WATER || $mat === Block::STILL_WATER || $mat === Block::LAVA || $mat === Block::STILL_LAVA)){
+					$mat = $w->getBlockId($x + $k1, $y + $k, $z + $l2);
+					$isLiquid = $mat === Block::WATER || $mat === Block::STILL_WATER || $mat === Block::LAVA || $mat === Block::STILL_LAVA;
+
+					if($k < 4){
+						$isSolid = $mat !== 0 && !$isLiquid;
+						if(!$isSolid && $mat !== $this->blockID){
 							return false;
 						}
-
-						if($k < 4 && $mat !== 0 && $mat !== $this->blockID){
-							if($mat === 0){
-								return false;
-							}
-						}
+					}elseif($isLiquid){
+						return false;
 					}
 				}
 			}
@@ -93,21 +99,23 @@ class Lake implements Feature{
 						$by = $y + $i4;
 						$bz = $z + $i3;
 
-						$existing = $w->getBlockId($bx, $by, $bz);
-						if($existing === Block::WATER || $existing === Block::STILL_WATER){
-							continue;
-						}
+						$w->setBlock($bx, $by, $bz, $i4 < 4 ? $this->blockID : 0, 0);
+					}
+				}
+			}
+		}
 
-						$above = $w->getBlockId($bx, $by + 1, $bz);
-						if($above === Block::WATER || $above === Block::STILL_WATER){
-							continue;
+		// 湖面上方的泥土转草方块，贴近 MCPE 的湖岸处理。
+		for($l1 = 0; $l1 < 16; $l1++){
+			for($i3 = 0; $i3 < 16; $i3++){
+				for($i4 = 4; $i4 < 8; $i4++){
+					if($aboolean[($l1 * 16 + $i3) * 8 + $i4]){
+						$bx = $x + $l1;
+						$by = $y + $i4 - 1;
+						$bz = $z + $i3;
+						if($w->getBlockId($bx, $by, $bz) === Block::DIRT){
+							$w->setBlock($bx, $by, $bz, Block::GRASS, 0);
 						}
-
-						$targetBlock = $this->blockID;
-						if($i4 >= 4){
-							$targetBlock = 0;
-						}
-						$w->setBlock($bx, $by, $bz, $targetBlock, 0);
 					}
 				}
 			}
