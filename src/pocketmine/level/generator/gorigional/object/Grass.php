@@ -17,14 +17,14 @@ class Grass implements Feature{
 	}
 
 	public function generate(ObjectChunkManager $w, JavaRandom $r, BlockPos $pos){
-		for($i = 0; $i < 128; $i++){
+		for($i = 0; $i < 8; $i++){
 			$target = $pos->add(
 				$r->nextBoundedInt(8) - $r->nextBoundedInt(8),
-				$r->nextBoundedInt(4) - $r->nextBoundedInt(4),
+				0,
 				$r->nextBoundedInt(8) - $r->nextBoundedInt(8)
 			);
-
-			if($target->y < 0 || $target->y >= 256){
+			$target->y = $w->getHeight($target->x, $target->z) + 1;
+			if($target->y < 1 || $target->y >= 128){
 				continue;
 			}
 

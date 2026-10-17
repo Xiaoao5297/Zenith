@@ -11,7 +11,7 @@ use pocketmine\level\generator\gorigional\JavaRandom;
 class Cactus implements Feature{
 
 	public function generate(ObjectChunkManager $w, JavaRandom $r, BlockPos $pos){
-		for($i = 0; $i < 10; $i++){
+		for($i = 0; $i < 4; $i++){
 			$target = $pos->add(
 				$r->nextBoundedInt(8) - $r->nextBoundedInt(8),
 				$r->nextBoundedInt(4) - $r->nextBoundedInt(4),

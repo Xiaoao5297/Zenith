@@ -130,8 +130,8 @@ class Decorator{
 	}
 
 	public function decorate(ObjectChunkManager $w, JavaRandom $r, Biome $b, BlockPos $pos){
-		$this->genStandardOre1($w, $r, 10, $this->dirtGen, 0, 256, $pos);
-		$this->genStandardOre1($w, $r, 8, $this->gravelOreGen, 0, 256, $pos);
+		$this->genStandardOre1($w, $r, 10, $this->dirtGen, 0, 128, $pos);
+		$this->genStandardOre1($w, $r, 8, $this->gravelOreGen, 0, 128, $pos);
 		$this->genStandardOre1($w, $r, 10, $this->dioriteGen, 0, 80, $pos);
 		$this->genStandardOre1($w, $r, 10, $this->graniteGen, 0, 80, $pos);
 		$this->genStandardOre1($w, $r, 10, $this->andesiteGen, 0, 80, $pos);
@@ -143,24 +143,24 @@ class Decorator{
 		$this->genStandardOre2($w, $r, 1, $this->lapisGen, 16, 16, $pos);
 
 		for($i = 0; $i < $this->sandPatchesPerChunk; $i++){
-			$x = $r->nextBoundedInt(16) + 8;
-			$z = $r->nextBoundedInt(16) + 8;
+			$x = $r->nextBoundedInt(16);
+			$z = $r->nextBoundedInt(16);
 			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$this->sandGen->generate($w, $r, $pos->add($x, $terrainHeight, $z));
+			$this->sandGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
 		}
 
 		for($i = 0; $i < $this->clayPerChunk; $i++){
-			$x = $r->nextBoundedInt(16) + 8;
-			$z = $r->nextBoundedInt(16) + 8;
+			$x = $r->nextBoundedInt(16);
+			$z = $r->nextBoundedInt(16);
 			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$this->clayGen->generate($w, $r, $pos->add($x, $terrainHeight, $z));
+			$this->clayGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
 		}
 
 		for($i = 0; $i < $this->gravelPatchesPerChunk; $i++){
-			$x = $r->nextBoundedInt(16) + 8;
-			$z = $r->nextBoundedInt(16) + 8;
+			$x = $r->nextBoundedInt(16);
+			$z = $r->nextBoundedInt(16);
 			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$this->gravelGen->generate($w, $r, $pos->add($x, $terrainHeight, $z));
+			$this->gravelGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
 		}
 
 		$trees = $this->treesPerChunk;
@@ -168,159 +168,93 @@ class Decorator{
 			$trees++;
 		}
 		for($i = 0; $i < $trees; $i++){
-			$x = $r->nextBoundedInt(16) + 8;
-			$z = $r->nextBoundedInt(16) + 8;
+			$x = $r->nextBoundedInt(16);
+			$z = $r->nextBoundedInt(16);
 
 			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
 
 			$feature = $b->getTreeFeature($r);
 			if($feature !== null){
-				$feature->generate($w, $r, $pos->add($x, $terrainHeight, $z));
+				$feature->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
 			}
 		}
 
 		for($i = 0; $i < $this->flowersPerChunk; $i++){
-			$x = $r->nextBoundedInt(16) + 8;
-			$z = $r->nextBoundedInt(16) + 8;
+			$x = $r->nextBoundedInt(16);
+			$z = $r->nextBoundedInt(16);
 			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$yMax = $terrainHeight + 32;
+			$blockPos = $pos->add($x, $terrainHeight + 1, $z);
 
-			if($yMax > 0){
-				$y = $r->nextBoundedInt($yMax);
-				$blockPos = $pos->add($x, $y, $z);
-
-				$gen = $b->getFlowerType($r, $blockPos);
-				if($gen !== null){
-					$gen->generate($w, $r, $blockPos);
-				}
+			$gen = $b->getFlowerType($r, $blockPos);
+			if($gen !== null){
+				$gen->generate($w, $r, $blockPos);
 			}
 		}
 
 		for($i = 0; $i < $this->grassPerChunk; $i++){
-			$x = $r->nextBoundedInt(16) + 8;
-			$z = $r->nextBoundedInt(16) + 8;
-
+			$x = $r->nextBoundedInt(16);
+			$z = $r->nextBoundedInt(16);
 			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$yMax = $terrainHeight * 2;
-			if($yMax > 0){
-				$y = $r->nextBoundedInt($yMax);
-				$this->grassGen->generate($w, $r, $pos->add($x, $y, $z));
-			}
+			$this->grassGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
 		}
 
 		for($i = 0; $i < $this->deadBushPerChunk; $i++){
-			$x = $r->nextBoundedInt(16) + 8;
-			$z = $r->nextBoundedInt(16) + 8;
+			$x = $r->nextBoundedInt(16);
+			$z = $r->nextBoundedInt(16);
 			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$yMax = $terrainHeight * 2;
-			if($yMax > 0){
-				$y = $r->nextBoundedInt($yMax);
-				$this->deadBushGen->generate($w, $r, $pos->add($x, $y, $z));
-			}
+			$this->deadBushGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
 		}
 
 		for($i = 0; $i < $this->waterlilyPerChunk; $i++){
-			$x = $r->nextBoundedInt(16) + 8;
-			$z = $r->nextBoundedInt(16) + 8;
+			$x = $r->nextBoundedInt(16);
+			$z = $r->nextBoundedInt(16);
 			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$yMax = $terrainHeight * 2;
-			if($yMax > 0){
-				$y = $r->nextBoundedInt($yMax);
-				$this->waterlilyGen->generate($w, $r, $pos->add($x, $y, $z));
-			}
+			$this->waterlilyGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
 		}
 
 		for($i = 0; $i < $this->mushroomsPerChunk; $i++){
 			if($r->nextBoundedInt(4) === 0){
-				$x = $r->nextBoundedInt(16) + 8;
-				$z = $r->nextBoundedInt(16) + 8;
+				$x = $r->nextBoundedInt(16);
+				$z = $r->nextBoundedInt(16);
 				$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-				$this->mushroomBrGen->generate($w, $r, $pos->add($x, $terrainHeight, $z));
+				$this->mushroomBrGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
 			}
 			if($r->nextBoundedInt(8) === 0){
-				$x = $r->nextBoundedInt(16) + 8;
-				$z = $r->nextBoundedInt(16) + 8;
+				$x = $r->nextBoundedInt(16);
+				$z = $r->nextBoundedInt(16);
 				$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-				$yMax = $terrainHeight * 2;
-				if($yMax > 0){
-					$y = $r->nextBoundedInt($yMax);
-					$this->mushroomRdGen->generate($w, $r, $pos->add($x, $y, $z));
-				}
-			}
-		}
-
-		if($r->nextBoundedInt(4) === 0){
-			$x = $r->nextBoundedInt(16) + 8;
-			$z = $r->nextBoundedInt(16) + 8;
-			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$yMax = $terrainHeight * 2;
-			if($yMax > 0){
-				$y = $r->nextBoundedInt($yMax);
-				$this->mushroomBrGen->generate($w, $r, $pos->add($x, $y, $z));
-			}
-		}
-		if($r->nextBoundedInt(8) === 0){
-			$x = $r->nextBoundedInt(16) + 8;
-			$z = $r->nextBoundedInt(16) + 8;
-			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$yMax = $terrainHeight * 2;
-			if($yMax > 0){
-				$y = $r->nextBoundedInt($yMax);
-				$this->mushroomRdGen->generate($w, $r, $pos->add($x, $y, $z));
+				$this->mushroomRdGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
 			}
 		}
 
 		for($i = 0; $i < $this->reedsPerChunk; $i++){
-			$x = $r->nextBoundedInt(16) + 8;
-			$z = $r->nextBoundedInt(16) + 8;
+			$x = $r->nextBoundedInt(16);
+			$z = $r->nextBoundedInt(16);
 			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$yMax = $terrainHeight * 2;
-			if($yMax > 0){
-				$y = $r->nextBoundedInt($yMax);
-				$this->reedGen->generate($w, $r, $pos->add($x, $y, $z));
-			}
-		}
-
-		for($i = 0; $i < 10; $i++){
-			$x = $r->nextBoundedInt(16) + 8;
-			$z = $r->nextBoundedInt(16) + 8;
-			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$yMax = $terrainHeight * 2;
-			if($yMax > 0){
-				$y = $r->nextBoundedInt($yMax);
-				$this->reedGen->generate($w, $r, $pos->add($x, $y, $z));
-			}
+			$this->reedGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
 		}
 
 		if($r->nextBoundedInt(32) === 0){
-			$x = $r->nextBoundedInt(16) + 8;
-			$z = $r->nextBoundedInt(16) + 8;
+			$x = $r->nextBoundedInt(16);
+			$z = $r->nextBoundedInt(16);
 			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$yMax = $terrainHeight * 2;
-			if($yMax > 0){
-				$y = $r->nextBoundedInt($yMax);
-				$this->pumpkinGen->generate($w, $r, $pos->add($x, $y, $z));
-			}
+			$this->pumpkinGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
 		}
 
 		for($i = 0; $i < $this->cactiPerChunk; $i++){
-			$x = $r->nextBoundedInt(16) + 8;
-			$z = $r->nextBoundedInt(16) + 8;
+			$x = $r->nextBoundedInt(16);
+			$z = $r->nextBoundedInt(16);
 			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$yMax = $terrainHeight * 2;
-			if($yMax > 0){
-				$y = $r->nextBoundedInt($yMax);
-				$this->cactusGen->generate($w, $r, $pos->add($x, $y, $z));
-			}
+			$this->cactusGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
 		}
 
 		if($this->generateFalls){
 			for($i = 0; $i < 50; $i++){
-				$p = $pos->add($r->nextBoundedInt(16) + 8, $r->nextBoundedInt($r->nextBoundedInt(248) + 8), $r->nextBoundedInt(16) + 8);
+				$p = $pos->add($r->nextBoundedInt(16), $r->nextBoundedInt($r->nextBoundedInt(112) + 8) + 8, $r->nextBoundedInt(16));
 				$this->waterSpringGen->generate($w, $r, $p);
 			}
 			for($i = 0; $i < 20; $i++){
-				$p = $pos->add($r->nextBoundedInt(16) + 8, $r->nextBoundedInt($r->nextBoundedInt($r->nextBoundedInt(240) + 8) + 8), $r->nextBoundedInt(16) + 8);
+				$p = $pos->add($r->nextBoundedInt(16), $r->nextBoundedInt($r->nextBoundedInt(112) + 8) + 8, $r->nextBoundedInt(16));
 				$this->lavaSpringGen->generate($w, $r, $p);
 			}
 		}

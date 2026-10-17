@@ -420,7 +420,7 @@ class Gorigional extends Generator{
 		$x = $chunkX * 16;
 		$z = $chunkZ * 16;
 
-		$ints = $this->biomeGen->getInts($x + 16, $z + 16, 1, 1);
+		$ints = $this->biomeGen->getInts($x + 8, $z + 8, 1, 1);
 		$biomeID = $ints[0] & 0xFF;
 		$b = BiomeRegistry::getBiome($biomeID);
 

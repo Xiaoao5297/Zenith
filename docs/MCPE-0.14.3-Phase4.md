@@ -180,6 +180,21 @@ seed 1：
 - populate 的区块种子改为 MCPE MT 算法。
 - 湖泊、结构、地牢、结冰、装饰共用同一条 MT 随机流。
 
+### 4.7 装饰优化
+
+- 装饰坐标从 `nextBoundedInt(16) + 8` 改为 `nextBoundedInt(16)`，与 MCPE `BiomeDecorator` 的 `genrand & 0xf` 一致。
+- `populateChunk` 的群系取样从 `x + 16, z + 16` 改为 `x + 8, z + 8`（区块中心），避免用错 decorator。
+- 花、草、枯木、睡莲、蘑菇、甘蔗、南瓜、仙人掌和树统一使用该列 `getHeight() + 1`；Grass/Bush 在 x/z 偏移后重新取该列高度。
+- 删除 Java 硬编码的额外 10 次甘蔗和额外蘑菇。
+- 循环次数：Grass/Bush 128/64 → 8，Reed/Cactus/Waterlily → 4，Pumpkin → 8。
+- 矿石 dirt/gravel 高度 256 → 128；涌泉限制在 8..127。
+- 验证：
+  - seed 16 平原：`31=32`、`38=9`
+  - seed 11 森林：`17=47`、`18=402`、`31=5`、`37/38=9`
+  - seed 7 沼泽：`17=8`、`18=136`、`83=4`、`106=96`
+  - seed 19 Mega Taiga：`17=251`、`18=524`、`31=10`、`37=4`
+- 注意：seed 4 的群系 24 是 Deep Ocean，不是丛林；测试丛林需另找 21/22/23。
+
 ## 9. 已知限制
 
 - 要塞部件布局参考 Java 1.7.10，几何细节不是 MCPE 的逐块复刻。
