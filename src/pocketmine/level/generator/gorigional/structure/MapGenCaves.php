@@ -1,10 +1,30 @@
 <?php
 
+/***
+ *  _____                _  __   __
+ * /__  /  ___   ____   (_)/ /_ / /_
+ *   / /  / _ \ / __ \ / // __// __ \
+ *  / /__/  __// / / // // /_ / / / /
+ * /____/\___//_/ /_//_/ \__//_/ /_/
+ *
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * @author Xiaoao
+ * @link https://github.com/Xiaoao5297/Zenith
+ *
+ *
+*/
+
 namespace pocketmine\level\generator\gorigional\structure;
 
 use pocketmine\level\format\FullChunk;
 use pocketmine\level\generator\gorigional\JavaMath;
 use pocketmine\level\generator\gorigional\JavaRandom;
+use pocketmine\level\generator\gorigional\McpeRandom;
 
 /**
  * 移植自 SCAXE-GO-CE pkg/level/generator/gorigional/structure/map_gen_caves.go。
@@ -13,15 +33,23 @@ class MapGenCaves extends MapGenBase{
 	/** @var int */
 	public $maxHeight = 256;
 
+	public function __construct($seed){
+		parent::__construct($seed);
+		// MCPE 的洞穴内部随机流是 MT19937，而不是 Java LCG。
+		$this->rand = new McpeRandom($seed);
+	}
+
 	public function generateChunk($cx, $cz, FullChunk $chunk){
 		$this->generate($cx, $cz, $chunk);
 	}
 
 	public function recursiveGenerate($chunkX, $chunkZ, $originX, $originZ, FullChunk $chunk){
-		$nodes = $this->rand->nextBoundedInt($this->rand->nextBoundedInt($this->rand->nextBoundedInt(15) + 1) + 1);
-		if($this->rand->nextBoundedInt(7) !== 0){
-			$nodes = 0;
+		// MCPE LargeCaveFeature 只在约 1/15 的区块生成洞穴系统。
+		if($this->rand->nextInt() % 15 !== 0){
+			return;
 		}
+
+		$nodes = $this->rand->nextBoundedInt($this->rand->nextBoundedInt($this->rand->nextBoundedInt(15) + 1) + 1);
 
 		for($j = 0; $j < $nodes; $j++){
 			$rx = $originX * 16 + $this->rand->nextBoundedInt(16);
@@ -30,7 +58,7 @@ class MapGenCaves extends MapGenBase{
 
 			$count = 1;
 			if($this->rand->nextBoundedInt(4) === 0){
-				$this->addRoom($this->rand->nextLong(), $chunkX, $chunkZ, $chunk, $rx, $ry, $rz);
+				$this->addRoom($this->rand->nextInt() >> 1, $chunkX, $chunkZ, $chunk, $rx, $ry, $rz);
 				$count += $this->rand->nextBoundedInt(4);
 			}
 
@@ -43,7 +71,7 @@ class MapGenCaves extends MapGenBase{
 					$size *= ($this->rand->nextFloat() * $this->rand->nextFloat() * 3.0 + 1.0);
 				}
 
-				$this->addTunnel($this->rand->nextLong(), $chunkX, $chunkZ, $chunk, $rx, $ry, $rz, $size, $f, $f1, 0, 0, 1.0);
+				$this->addTunnel($this->rand->nextInt() >> 1, $chunkX, $chunkZ, $chunk, $rx, $ry, $rz, $size, $f, $f1, 0, 0, 1.0);
 			}
 		}
 	}
@@ -59,7 +87,7 @@ class MapGenCaves extends MapGenBase{
 		$f = 0.0;
 		$f1 = 0.0;
 
-		$rnd = new JavaRandom($seed);
+		$rnd = new McpeRandom($seed & 0x7FFFFFFF);
 
 		if($tunnelLength <= 0){
 			$i = $this->range * 16 - 16;

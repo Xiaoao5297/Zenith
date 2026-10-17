@@ -1,5 +1,24 @@
 <?php
 
+/***
+ *  _____                _  __   __
+ * /__  /  ___   ____   (_)/ /_ / /_
+ *   / /  / _ \ / __ \ / // __// __ \
+ *  / /__/  __// / / // // /_ / / / /
+ * /____/\___//_/ /_//_/ \__//_/ /_/
+ *
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * @author Xiaoao
+ * @link https://github.com/Xiaoao5297/Zenith
+ *
+ *
+*/
+
 namespace pocketmine\level\generator\gorigional;
 
 use pocketmine\block\Block;
@@ -422,7 +441,7 @@ class Gorigional extends Generator{
 		$this->setBlocksInChunk($chunkX, $chunkZ, $chunk);
 		$this->replaceBiomeBlocks($chunkX, $chunkZ, $chunk, $rnd);
 		$this->caves->generateChunk($chunkX, $chunkZ, $chunk);
-		$this->ravines->generateChunk($chunkX, $chunkZ, $chunk);
+		// MCPE 0.14.3 没有独立的峡谷特征；保留 MapGenRavine 类但默认不调用。
 
 		$this->mineshaft->prepare($this->world, $chunkX, $chunkZ, $chunk);
 		$this->scatteredFeature->prepare($this->world, $chunkX, $chunkZ, $chunk);
