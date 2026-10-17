@@ -428,41 +428,110 @@ class Gorigional extends Generator{
 
 		$isOceanOrRiver = $biomeID === 0 || $biomeID === 10 || $biomeID === 24 || $biomeID === 7 || $biomeID === 11;
 
-		$flag = false;
+		/*
+		 * MCPE 0.14.3 RandomLevelSource::postProcess:
+		 * 湖泊 -> Village -> Mineshaft -> Stronghold -> Scattered -> 地牢 -> 结冰 -> decorate。
+		 */
+		if(!$isOceanOrRiver){
+			$this->generateLakes($manager, $rnd, $x, $z, $b->getID());
+		}
 
-		$this->mineshaft->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 		$this->village->populate($this->level, $chunkX, $chunkZ, new Random(0xdeadbeef ^ ($chunkX << 8) ^ $chunkZ ^ $this->seed));
+		$this->mineshaft->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 		$this->scatteredFeature->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
-
-		if($b->getID() !== 2 && $b->getID() !== 17 && !$isOceanOrRiver && !$flag && $rnd->nextBoundedInt(80) === 0){
-			$i1 = $rnd->nextBoundedInt(16) + 8;
-			$j1 = $rnd->nextBoundedInt(256);
-			$k1 = $rnd->nextBoundedInt(16) + 8;
-
-			$lake = new Lake(9);
-			$lake->generate($manager, $rnd, new BlockPos($x + $i1, $j1, $z + $k1));
-		}
-
-		if(!$flag && !$isOceanOrRiver && $rnd->nextBoundedInt(intdiv(80, 10)) === 0){
-			$i2 = $rnd->nextBoundedInt(16) + 8;
-			$l2 = $rnd->nextBoundedInt($rnd->nextBoundedInt(248) + 8);
-			$k3 = $rnd->nextBoundedInt(16) + 8;
-
-			if($l2 < self::SEA_LEVEL || $rnd->nextBoundedInt(intdiv(80, 8)) === 0){
-				$lake = new Lake(10);
-				$lake->generate($manager, $rnd, new BlockPos($x + $i2, $l2, $z + $k3));
-			}
-		}
 
 		for($j2 = 0; $j2 < 8; $j2++){
 			$i3 = $rnd->nextBoundedInt(16) + 8;
-			$l3 = $rnd->nextBoundedInt(256);
+			$l3 = $rnd->nextBoundedInt(128);
 			$l1 = $rnd->nextBoundedInt(16) + 8;
 			$dungeon = new Dungeon();
 			$dungeon->generate($manager, $rnd, new BlockPos($x + $i3, $l3, $z + $l1));
 		}
 
+		$this->freezeChunk($manager, $chunkX, $chunkZ);
+
+		// MCPE 在 decorate 前把随机数重置到区块种子。
+		$rnd->setSeed($seed);
 		$b->decorate($manager, $rnd, new BlockPos($x, 0, $z));
+	}
+
+	/**
+	 * MCPE 0.14.3 湖泊分支：
+	 * - 沙漠/沙漠丘陵：1/8 概率尝试岩浆湖
+	 * - 其他群系：1/4 概率直接尝试水湖，3/4 概率再以 1/8 尝试岩浆湖
+	 * 水湖 y=rand&0x7f；岩浆湖 y=rand%(rand%120+8)，且需 y>59。
+	 */
+	private function generateLakes(ChunkManagerAdapter $manager, JavaRandom $rnd, $x, $z, $biomeID){
+		$isDesert = $biomeID === 2 || $biomeID === 17;
+
+		if($isDesert){
+			if($rnd->nextBoundedInt(8) !== 0){
+				return;
+			}
+			$this->tryLavaLake($manager, $rnd, $x, $z);
+			return;
+		}
+
+		if($rnd->nextBoundedInt(4) === 0){
+			$i = $rnd->nextBoundedInt(9) + 3;
+			$y = $rnd->nextBoundedInt(128);
+			$k = $rnd->nextBoundedInt(9) + 3;
+
+			$lake = new Lake(Block::STILL_WATER);
+			$lake->generate($manager, $rnd, new BlockPos($x + $i, $y, $z + $k));
+			return;
+		}
+
+		if($rnd->nextBoundedInt(8) === 0){
+			$this->tryLavaLake($manager, $rnd, $x, $z);
+		}
+	}
+
+	private function tryLavaLake(ChunkManagerAdapter $manager, JavaRandom $rnd, $x, $z){
+		$i = $rnd->nextBoundedInt(9) + 3;
+		$y = $rnd->nextBoundedInt($rnd->nextBoundedInt(120) + 8);
+		$k = $rnd->nextBoundedInt(9) + 3;
+
+		if($y <= 59){
+			return;
+		}
+		if($y >= 64 && $rnd->nextBoundedInt(10) !== 0){
+			return;
+		}
+
+		$lake = new Lake(Block::STILL_LAVA);
+		$lake->generate($manager, $rnd, new BlockPos($x + $i, $y, $z + $k));
+	}
+
+	/**
+	 * MCPE postProcess 末尾的 16x16 结冰：温度 < 0.15 的水面放冰。
+	 */
+	private function freezeChunk(ChunkManagerAdapter $manager, $chunkX, $chunkZ){
+		$biomeIDs = $this->biomeGen->getInts($chunkX * 16, $chunkZ * 16, 16, 16);
+
+		for($i = 0; $i < 16; $i++){
+			for($j = 0; $j < 16; $j++){
+				$biome = BiomeRegistry::getBiome($biomeIDs[$j * 16 + $i] & 0xFF);
+				if($biome->temperature >= 0.15){
+					continue;
+				}
+
+				$wx = $chunkX * 16 + $i;
+				$wz = $chunkZ * 16 + $j;
+
+				for($y = 127; $y > 0; $y--){
+					$id = $manager->getBlockId($wx, $y, $wz);
+					if($id === 0){
+						continue;
+					}
+
+					if($id === Block::STILL_WATER || $id === Block::WATER){
+						$manager->setBlock($wx, $y, $wz, Block::ICE, 0);
+					}
+					break;
+				}
+			}
+		}
 	}
 
 	private static function clampedLerp($lowerB, $upperB, $t){
