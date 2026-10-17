@@ -2,7 +2,7 @@
 
 namespace pocketmine\level\generator\gorigional\noise;
 
-use pocketmine\level\generator\gorigional\JavaRandom;
+use pocketmine\level\generator\gorigional\RandomSource;
 
 /**
  * 移植自 SCAXE-GO-CE pkg/level/generator/gorigional/noise/perlin_simplex.go。
@@ -13,7 +13,7 @@ class PerlinSimplexGenerator{
 	/** @var SimplexNoise[] */
 	private $noiseLevels = [];
 
-	public function __construct(JavaRandom $r, $levels){
+	public function __construct(RandomSource $r, $levels){
 		$this->levels = $levels;
 		for($i = 0; $i < $levels; $i++){
 			$this->noiseLevels[$i] = new SimplexNoise($r);

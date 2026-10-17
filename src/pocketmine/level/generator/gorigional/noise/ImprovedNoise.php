@@ -2,7 +2,7 @@
 
 namespace pocketmine\level\generator\gorigional\noise;
 
-use pocketmine\level\generator\gorigional\JavaRandom;
+use pocketmine\level\generator\gorigional\RandomSource;
 
 /**
  * 逐位对应 Java 1.7 ImprovedNoise。
@@ -24,7 +24,7 @@ class ImprovedNoise{
 	/** @var float */
 	public $zCoord;
 
-	public function __construct(JavaRandom $rnd){
+	public function __construct(RandomSource $rnd){
 		$this->xCoord = $rnd->nextDouble() * 256.0;
 		$this->yCoord = $rnd->nextDouble() * 256.0;
 		$this->zCoord = $rnd->nextDouble() * 256.0;

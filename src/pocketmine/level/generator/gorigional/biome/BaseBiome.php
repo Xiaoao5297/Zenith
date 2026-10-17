@@ -42,6 +42,12 @@ class BaseBiome implements Biome{
 	public $temperature;
 	/** @var float */
 	public $rainfall;
+	/** @var int 表层方块 */
+	public $topBlock = Block::GRASS;
+	/** @var int 表层方块 meta */
+	public $topMeta = 0;
+	/** @var int 表层下方填充方块 */
+	public $fillerBlock = Block::DIRT;
 	/** @var Decorator */
 	public $decorator;
 
@@ -272,7 +278,7 @@ class BaseBiome implements Biome{
 	}
 
 	private static function getHeightAtForBiome(ObjectChunkManager $level, $x, $z){
-		for($y = 255; $y >= 0; $y--){
+		for($y = 127; $y >= 0; $y--){
 			$bid = $level->getBlockId($x, $y, $z);
 			if($bid !== 0 && $bid !== 8 && $bid !== 9 && $bid !== 10 && $bid !== 11){
 				return $y + 1;
@@ -401,8 +407,9 @@ class BaseBiome implements Biome{
 	}
 
 	public function genTerrainBlocks(FullChunk $chunk, JavaRandom $r, $x, $z, $noiseVal){
-		$topBlock = Block::GRASS;
-		$fillerBlock = Block::DIRT;
+		$topBlock = $this->topBlock;
+		$topMeta = $this->topMeta;
+		$fillerBlock = $this->fillerBlock;
 		$stone = Block::STONE;
 		$air = Block::AIR;
 		$bedrock = Block::BEDROCK;
@@ -412,25 +419,25 @@ class BaseBiome implements Biome{
 		$chunkX = $x & 15;
 		$chunkZ = $z & 15;
 
-		$depth = (int) ($noiseVal / 3.0 + 3.0 + $r->nextDouble() * 0.25);
+		// MCPE：每列先取一次表层深度，再放 2..5 层基岩。
+		$depth = (int) ($noiseVal / 3.0 + 3.0 + $r->nextFloat() * 0.25);
+		$bedrockLayers = 2 + $r->nextBoundedInt(4);
+		for($y = 0; $y < $bedrockLayers; $y++){
+			$chunk->setBlock($chunkX, $y, $chunkZ, $bedrock, 0);
+		}
 
 		$run = -1;
 		$currentTop = $topBlock;
 		$currentFiller = $fillerBlock;
 
-		for($y = 255; $y >= 0; $y--){
-			if($y <= $r->nextBoundedInt(5)){
-				$chunk->setBlock($chunkX, $y, $chunkZ, $bedrock, 0);
-				continue;
-			}
-
+		for($y = 127; $y >= 0; $y--){
 			$id = $chunk->getBlockId($chunkX, $y, $chunkZ);
 
 			if($id === $air){
 				$run = -1;
 			}elseif($id === $stone){
 				if($run === -1){
-					if($depth <= 0){
+					if($depth < 1){
 						$currentTop = $air;
 						$currentFiller = $stone;
 					}elseif($y >= $seaLevel - 4 && $y <= $seaLevel + 1){
@@ -438,10 +445,16 @@ class BaseBiome implements Biome{
 						$currentFiller = $fillerBlock;
 					}
 
+					// 水下/低洼处：冷群系结冰，其余放水。
+					if($y < $seaLevel && $currentTop === $air){
+						$currentTop = $this->temperature < 0.15 ? Block::ICE : Block::STILL_WATER;
+						$topMeta = 0;
+					}
+
 					$run = $depth;
 
 					if($y >= $seaLevel - 1){
-						$chunk->setBlock($chunkX, $y, $chunkZ, $currentTop, 0);
+						$chunk->setBlock($chunkX, $y, $chunkZ, $currentTop, $topMeta);
 					}elseif($y < $seaLevel - 7 - $depth){
 						$currentTop = $air;
 						$currentFiller = $stone;
@@ -453,12 +466,13 @@ class BaseBiome implements Biome{
 					$run--;
 					$chunk->setBlock($chunkX, $y, $chunkZ, $currentFiller, 0);
 
-					if($run === 0 && $currentFiller === Block::SAND && $depth > 1){
+					if($run === 0 && $currentFiller === Block::SAND){
 						$extraDepth = $r->nextBoundedInt(4);
 						if($y - 63 > 0){
 							$extraDepth += $y - 63;
 						}
 						$run = $extraDepth;
+						$currentFiller = Block::SANDSTONE;
 					}
 				}
 			}

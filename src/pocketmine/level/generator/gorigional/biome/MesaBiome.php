@@ -88,9 +88,14 @@ class MesaBiome extends BaseBiome{
 		$stone = Block::STONE;
 		$air = Block::AIR;
 
+		$bedrockLayers = 2 + $r->nextBoundedInt(4);
+		for($y = 0; $y < $bedrockLayers; $y++){
+			$chunk->setBlock($chunkX, $y, $chunkZ, Block::BEDROCK, 0);
+		}
+
 		$run = -1;
 
-		for($y = 255; $y >= 0; $y--){
+		for($y = 127; $y >= 0; $y--){
 			$id = $chunk->getBlockId($chunkX, $y, $chunkZ);
 
 			if($id === $air){

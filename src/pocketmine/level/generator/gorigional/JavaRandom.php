@@ -6,7 +6,7 @@ namespace pocketmine\level\generator\gorigional;
  * java.util.Random 的 PHP 实现（48 位 LCG）。
  * 移植自 SCAXE-GO-CE pkg/math/rand/random.go。
  */
-class JavaRandom{
+class JavaRandom implements RandomSource{
 	const MULTIPLIER = 0x5DEECE66D;
 	const ADDEND = 0xB;
 	const MASK48 = 0xFFFFFFFFFFFF;

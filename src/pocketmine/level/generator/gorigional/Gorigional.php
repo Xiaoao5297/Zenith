@@ -9,6 +9,7 @@ use pocketmine\level\generator\Generator;
 use pocketmine\level\generator\gorigional\biome\BiomeRegistry;
 use pocketmine\level\generator\gorigional\layer\GenLayer;
 use pocketmine\level\generator\gorigional\layer\LayerFactory;
+use pocketmine\level\generator\gorigional\McpeRandom;
 use pocketmine\level\generator\gorigional\noise\OctavesNoise;
 use pocketmine\level\generator\gorigional\noise\PerlinSimplexGenerator;
 use pocketmine\level\generator\gorigional\object\BlockPos;
@@ -67,6 +68,8 @@ class Gorigional extends Generator{
 	private $scaleNoise;
 	/** @var OctavesNoise */
 	private $depthNoise;
+	/** @var OctavesNoise */
+	private $forestNoise;
 
 	/** @var \pocketmine\level\generator\gorigional\layer\GenLayer */
 	private $genLayer;
@@ -97,7 +100,7 @@ class Gorigional extends Generator{
 		$this->level = $level;
 		$this->seed = $level->getSeed();
 
-		$rnd = new JavaRandom($this->seed);
+		$rnd = new McpeRandom($this->seed);
 
 		$this->minLimitPerlinNoise = new OctavesNoise($rnd, 16);
 		$this->maxLimitPerlinNoise = new OctavesNoise($rnd, 16);
@@ -105,6 +108,8 @@ class Gorigional extends Generator{
 		$this->surfaceNoise = new PerlinSimplexGenerator($rnd, 4);
 		$this->scaleNoise = new OctavesNoise($rnd, 10);
 		$this->depthNoise = new OctavesNoise($rnd, 16);
+		// MCPE 也会构造第 7 个噪声。即使 getHeights 不使用它，也必须消费同一段随机流。
+		$this->forestNoise = new OctavesNoise($rnd, 8);
 
 		$layers = LayerFactory::initializeAll($this->seed);
 		$this->genLayer = $layers[0];
@@ -250,7 +255,7 @@ class Gorigional extends Generator{
 				$d0 = self::BASE_SIZE + $d8 * 4.0;
 
 				for($l1 = 0; $l1 < $verticalPoints; $l1++){
-					$d1 = ($l1 - $d0) * self::STRETCH_Y * 128.0 / 256.0 / $d9;
+					$d1 = ($l1 - $d0) * self::STRETCH_Y / $d9;
 
 					if($d1 < 0.0){
 						$d1 *= 4.0;
@@ -360,7 +365,7 @@ class Gorigional extends Generator{
 		$biomeIDs = $this->biomeGen->getInts($chunkX, $chunkZ, 16, 16);
 
 		$noiseArray = [];
-		$noiseArray = $this->surfaceNoise->getRegion($noiseArray, $chunkX, $chunkZ, 16, 16, 0.0625, 0.0625, 1.0);
+		$noiseArray = $this->surfaceNoise->getRegion($noiseArray, $chunkX, $chunkZ, 16, 16, 0.125, 0.125, 1.0);
 
 		for($i = 0; $i < 16; $i++){
 			for($j = 0; $j < 16; $j++){

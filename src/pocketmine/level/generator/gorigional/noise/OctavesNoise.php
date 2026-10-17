@@ -2,7 +2,7 @@
 
 namespace pocketmine\level\generator\gorigional\noise;
 
-use pocketmine\level\generator\gorigional\JavaRandom;
+use pocketmine\level\generator\gorigional\RandomSource;
 
 /**
  * 移植自 SCAXE-GO-CE pkg/level/generator/gorigional/noise/octaves.go。
@@ -13,7 +13,7 @@ class OctavesNoise{
 	/** @var int */
 	private $octaves;
 
-	public function __construct(JavaRandom $rnd, $octaves){
+	public function __construct(RandomSource $rnd, $octaves){
 		$this->octaves = $octaves;
 		for($i = 0; $i < $octaves; $i++){
 			$this->generators[$i] = new ImprovedNoise($rnd);

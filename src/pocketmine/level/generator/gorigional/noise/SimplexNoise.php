@@ -2,7 +2,7 @@
 
 namespace pocketmine\level\generator\gorigional\noise;
 
-use pocketmine\level\generator\gorigional\JavaRandom;
+use pocketmine\level\generator\gorigional\RandomSource;
 
 /**
  * 移植自 SCAXE-GO-CE pkg/level/generator/gorigional/noise/simplex.go。
@@ -27,7 +27,7 @@ class SimplexNoise{
 	/** @var int[] */
 	private $p = [];
 
-	public function __construct(JavaRandom $r){
+	public function __construct(RandomSource $r){
 		if(self::$sqrt3 === null){
 			self::$sqrt3 = sqrt(3.0);
 			self::$f2 = 0.5 * (self::$sqrt3 - 1.0);

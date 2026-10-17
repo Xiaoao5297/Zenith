@@ -2,6 +2,8 @@
 
 namespace pocketmine\level\generator\gorigional\biome;
 
+use pocketmine\block\Block;
+
 /**
  * 移植自 SCAXE-GO-CE pkg/level/generator/biome/registry.go。
  */
@@ -57,6 +59,18 @@ final class BiomeRegistry{
 
 		self::add(new BaseBiome(129, "Sunflower Plains", 0.125, 0.05, 0.8, 0.4));
 		self::add(new BaseBiome(140, "Ice Plains Spikes", 0.425, 0.45, 0.0, 0.5));
+
+		// MCPE Biome 构造器里的表层方块（top block / top meta / filler block）。
+		self::surface(2, Block::SAND, 0, Block::SAND);          // Desert
+		self::surface(17, Block::SAND, 0, Block::SAND);         // Desert Hills
+		self::surface(16, Block::SAND, 0, Block::SAND);         // Beach
+		self::surface(25, Block::STONE, 0, Block::STONE);       // Stone Beach
+		self::surface(14, Block::MYCELIUM, 0, Block::DIRT);     // Mushroom Island
+		self::surface(15, Block::MYCELIUM, 0, Block::DIRT);     // Mushroom Island Shore
+		self::surface(37, Block::SAND, 1, Block::HARDENED_CLAY); // Mesa
+		self::surface(38, Block::SAND, 1, Block::HARDENED_CLAY); // Mesa Plateau F
+		self::surface(39, Block::SAND, 1, Block::HARDENED_CLAY); // Mesa Plateau
+		self::surface(140, Block::SNOW_BLOCK, 0, Block::DIRT);  // Ice Plains Spikes
 
 		self::configureDecorators();
 		self::registerMutations();
@@ -149,6 +163,15 @@ final class BiomeRegistry{
 		self::cfg(39, ['trees' => -999, 'deadBush' => 20, 'cacti' => 5]);
 		self::cfg(129, ['trees' => 0, 'extraTree' => 0.05, 'flowers' => 4, 'grass' => 10]);
 		self::cfg(140, ['trees' => 0, 'extraTree' => 0.05, 'flowers' => 0, 'grass' => 0]);
+	}
+
+	private static function surface($id, $topBlock, $topMeta, $fillerBlock){
+		if(!isset(self::$biomes[$id]) || !(self::$biomes[$id] instanceof BaseBiome)){
+			return;
+		}
+		self::$biomes[$id]->topBlock = $topBlock;
+		self::$biomes[$id]->topMeta = $topMeta;
+		self::$biomes[$id]->fillerBlock = $fillerBlock;
 	}
 
 	private static function add(Biome $b){
