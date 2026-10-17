@@ -49,7 +49,11 @@ class GeneratorWorld implements World{
 	public function setChestContents($x, $y, $z, array $items){
 		$chunk = $this->blocks->getChunkAt($x, $z);
 		$provider = $chunk === null ? null : $chunk->getProvider();
-		if($provider === null || !($provider->getLevel() instanceof Level)){
+		if(!($provider instanceof \pocketmine\level\format\LevelProvider)){
+			return;
+		}
+		$level = $provider->getLevel();
+		if(!($level instanceof Level)){
 			return;
 		}
 
@@ -71,7 +75,11 @@ class GeneratorWorld implements World{
 	public function setSpawnerEntity($x, $y, $z, $entityId){
 		$chunk = $this->blocks->getChunkAt($x, $z);
 		$provider = $chunk === null ? null : $chunk->getProvider();
-		if($provider === null || !($provider->getLevel() instanceof Level)){
+		if(!($provider instanceof \pocketmine\level\format\LevelProvider)){
+			return;
+		}
+		$level = $provider->getLevel();
+		if(!($level instanceof Level)){
 			return;
 		}
 

@@ -320,6 +320,39 @@ abstract class StructureComponentBase implements StructureComponent{
 				[257, 0, 1, 1, 5],   // iron pickaxe
 				[322, 0, 1, 1, 1],   // golden apple
 			];
+		}elseif($type === 'jungle'){
+			// Java 1.7.10 丛林神庙战利品表，精简为常见物品。
+			$table = [
+				[264, 0, 1, 3, 3],   // diamond
+				[265, 0, 1, 5, 10],  // iron ingot
+				[266, 0, 2, 7, 15],  // gold ingot
+				[388, 0, 1, 3, 2],   // emerald
+				[352, 0, 4, 6, 20],  // bone
+				[367, 0, 3, 7, 16],  // rotten flesh
+				[403, 0, 0, 1, 3],   // enchanted book
+				[419, 0, 1, 1, 1],   // diamond horse armor
+				[418, 0, 1, 1, 1],   // gold horse armor
+				[417, 0, 1, 1, 1],   // iron horse armor
+			];
+		}elseif($type === 'desert'){
+			// Java 1.7.10 沙漠神殿战利品表，按 MCPE 0.14 可用物品裁剪。
+			$table = [
+				[264, 0, 1, 3, 5],   // diamond
+				[265, 0, 1, 5, 10],  // iron ingot
+				[266, 0, 1, 3, 10],  // gold ingot
+				[388, 0, 1, 3, 5],   // emerald
+				[352, 0, 1, 8, 10],  // bone
+				[375, 0, 1, 3, 10],  // spider eye
+				[403, 0, 0, 1, 5],   // enchanted book
+				[419, 0, 1, 1, 1],   // diamond horse armor
+				[418, 0, 1, 1, 2],   // gold horse armor
+				[417, 0, 1, 1, 3],   // iron horse armor
+				[466, 0, 1, 1, 1],   // enchanted golden apple
+				[322, 0, 1, 1, 5],   // golden apple
+				[263, 0, 3, 8, 10],  // coal
+				[297, 0, 1, 3, 10],  // bread
+				[367, 0, 1, 5, 10],  // rotten flesh
+			];
 		}else{
 			return [];
 		}

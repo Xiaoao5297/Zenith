@@ -24,6 +24,7 @@ class ScatteredFeatureStart extends StructureStart{
 		switch($biomeID){
 			case 21:
 			case 22:
+			case 23:
 				$this->components[] = new JunglePyramid($rnd, $x, $z);
 				break;
 			case 6:

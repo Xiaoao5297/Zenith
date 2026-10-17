@@ -45,6 +45,9 @@ class MapGenScatteredFeature extends MapGenStructure{
 			case 2:
 			case 17:
 			case 6:
+			case 21:
+			case 22:
+			case 23:
 			case 134:
 				return true;
 		}

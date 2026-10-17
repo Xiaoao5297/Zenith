@@ -211,8 +211,7 @@ class JunglePyramid extends ScatteredFeaturePiece{
 		$this->setBlockState($w, $VINE, 8, 8, -2, 3, $box);
 
 		if(!$this->placedMainChest){
-			$this->setBlockState($w, 54, 2, 8, -3, 3, $box);
-			$this->placedMainChest = true;
+			$this->placedMainChest = $this->generateChest($w, $box, $rnd, 8, -3, 3, 'jungle');
 		}
 
 		$this->setBlockState($w, $MOSSY, 0, 9, -3, 2, $box);
@@ -247,8 +246,7 @@ class JunglePyramid extends ScatteredFeaturePiece{
 		$this->setBlockState($w, $REPEATER, 2, 10, -2, 10, $box);
 
 		if(!$this->placedHiddenChest){
-			$this->setBlockState($w, 54, 4, 9, -3, 10, $box);
-			$this->placedHiddenChest = true;
+			$this->placedHiddenChest = $this->generateChest($w, $box, $rnd, 9, -3, 10, 'jungle');
 		}
 
 		return true;
