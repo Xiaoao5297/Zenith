@@ -19,10 +19,10 @@ final class BiomeRegistry{
 		self::add(new BaseBiome(0, "Ocean", -1.0, 0.1, 0.5, 0.5));
 		self::add(new BaseBiome(1, "Plains", 0.125, 0.05, 0.8, 0.4));
 		self::add(new BaseBiome(2, "Desert", 0.125, 0.05, 2.0, 0.0));
-		self::add(new BaseBiome(3, "Extreme Hills", 1.0, 0.5, 0.2, 0.3));
+		self::add(new ExtremeHillsBiome(3, "Extreme Hills", 1.0, 0.5, 0.2, 0.3, 0));
 		self::add(new BaseBiome(4, "Forest", 0.1, 0.2, 0.7, 0.8));
 		self::add(new BaseBiome(5, "Taiga", 0.2, 0.2, 0.25, 0.8));
-		self::add(new BaseBiome(6, "Swamp", -0.2, 0.1, 0.8, 0.9));
+		self::add(new SwampBiome(6, "Swamp", -0.2, 0.1, 0.8, 0.9));
 		self::add(new BaseBiome(7, "River", -0.5, 0.0, 0.5, 0.5));
 		self::add(new BaseBiome(8, "Hell", 0.1, 0.2, 2.0, 0.0));
 		self::add(new BaseBiome(9, "The End", 0.1, 0.2, 0.5, 0.5));
@@ -36,7 +36,7 @@ final class BiomeRegistry{
 		self::add(new BaseBiome(17, "Desert Hills", 0.45, 0.3, 2.0, 0.0));
 		self::add(new BaseBiome(18, "Forest Hills", 0.45, 0.3, 0.7, 0.8));
 		self::add(new BaseBiome(19, "Taiga Hills", 0.45, 0.3, 0.25, 0.8));
-		self::add(new BaseBiome(20, "Extreme Hills Edge", 0.8, 0.3, 0.2, 0.3));
+		self::add(new ExtremeHillsBiome(20, "Extreme Hills Edge", 0.8, 0.3, 0.2, 0.3, 1));
 		self::add(new BaseBiome(21, "Jungle", 0.1, 0.2, 0.95, 0.9));
 		self::add(new BaseBiome(22, "Jungle Hills", 0.45, 0.3, 0.95, 0.9));
 		self::add(new BaseBiome(23, "Jungle Edge", 0.1, 0.2, 0.95, 0.8));
@@ -50,7 +50,7 @@ final class BiomeRegistry{
 		self::add(new BaseBiome(31, "Cold Taiga Hills", 0.45, 0.3, -0.5, 0.4));
 		self::add(new BaseBiome(32, "Mega Taiga", 0.2, 0.2, 0.3, 0.8));
 		self::add(new BaseBiome(33, "Mega Taiga Hills", 0.45, 0.3, 0.3, 0.8));
-		self::add(new BaseBiome(34, "Extreme Hills+", 1.0, 0.5, 0.2, 0.3));
+		self::add(new ExtremeHillsBiome(34, "Extreme Hills+", 1.0, 0.5, 0.2, 0.3, 1));
 		self::add(new BaseBiome(35, "Savanna", 0.125, 0.05, 1.2, 0.0));
 		self::add(new BaseBiome(36, "Savanna Plateau", 1.5, 0.025, 1.0, 0.0));
 		self::add(new MesaBiome(37, "Mesa", 0.1, 0.2));
