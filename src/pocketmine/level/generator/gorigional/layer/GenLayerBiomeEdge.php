@@ -126,7 +126,13 @@ class GenLayerBiomeEdge extends GenLayer{
 		return $t1 === $t2 || $t1 === self::TEMP_MEDIUM || $t2 === self::TEMP_MEDIUM;
 	}
 
+	private static function baseBiomeID($id){
+		return $id >= 128 && $id < 256 ? $id - 128 : $id;
+	}
+
 	public static function biomesEqualOrMesaPlateau($a, $b){
+		$a = self::baseBiomeID($a);
+		$b = self::baseBiomeID($b);
 		if($a === $b){
 			return true;
 		}
@@ -142,6 +148,7 @@ class GenLayerBiomeEdge extends GenLayer{
 	}
 
 	private static function getTempCategory($id){
+		$id = self::baseBiomeID($id);
 		switch($id){
 			case self::BIOME_OCEAN:
 			case self::BIOME_DEEP_OCEAN:
@@ -191,6 +198,7 @@ class GenLayerBiomeEdge extends GenLayer{
 	}
 
 	private static function getBiomeClass($id){
+		$id = self::baseBiomeID($id);
 		switch($id){
 			case self::BIOME_MESA:
 			case self::BIOME_MESA_PLATEAU_F:

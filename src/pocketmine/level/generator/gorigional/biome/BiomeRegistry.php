@@ -91,6 +91,8 @@ final class BiomeRegistry{
 	 */
 	private static function registerMutations(){
 		self::mutate(2, 0.225, 0.25);
+		self::mutate(18);
+		self::mutate(19);
 		self::mutate(3, 1.0, 0.5);
 		self::mutate(4, 0.1, 0.4);
 		self::mutate(5);
@@ -101,6 +103,7 @@ final class BiomeRegistry{
 		self::mutate(28);
 		self::mutate(29, null, null, true);
 		self::mutate(30);
+		self::mutate(31);
 		self::mutate(32, 0.2, 0.2);
 		self::mutate(34, 1.0, 0.5);
 		self::mutate(35, 0.3625, 1.225);

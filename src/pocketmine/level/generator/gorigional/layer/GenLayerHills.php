@@ -129,7 +129,9 @@ class GenLayerHills extends GenLayer{
 			case self::BIOME_DESERT:
 			case self::BIOME_EXTREME_HILLS:
 			case self::BIOME_FOREST:
+			case self::BIOME_FOREST_HILLS:
 			case self::BIOME_TAIGA:
+			case self::BIOME_TAIGA_HILLS:
 			case self::BIOME_SWAMPLAND:
 			case self::BIOME_ICE_PLAINS:
 			case self::BIOME_JUNGLE:
@@ -138,6 +140,7 @@ class GenLayerHills extends GenLayer{
 			case self::BIOME_BIRCH_FOREST_HILLS:
 			case self::BIOME_ROOFED_FOREST:
 			case self::BIOME_COLD_TAIGA:
+			case self::BIOME_COLD_TAIGA_HILLS:
 			case self::BIOME_MEGA_TAIGA:
 			case self::BIOME_MEGA_TAIGA_HILLS:
 			case self::BIOME_EXTREME_HILLS_PLUS:
