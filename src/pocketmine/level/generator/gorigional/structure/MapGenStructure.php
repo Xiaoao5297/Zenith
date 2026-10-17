@@ -45,8 +45,8 @@ abstract class MapGenStructure extends MapGenBase{
 	public function generateStructure(World $world, JavaRandom $random, $chunkX, $chunkZ){
 		$this->world = $world;
 
-		$k = ($chunkX << 4) + 8;
-		$l = ($chunkZ << 4) + 8;
+		$k = $chunkX << 4;
+		$l = $chunkZ << 4;
 		$box = new BoundingBox($k, 0, $l, $k + 15, 255, $l + 15);
 
 		$flag = false;

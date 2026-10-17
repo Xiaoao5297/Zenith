@@ -21,6 +21,7 @@ use pocketmine\level\generator\gorigional\structure\MapGenCaves;
 use pocketmine\level\generator\gorigional\structure\MapGenMineshaft;
 use pocketmine\level\generator\gorigional\structure\MapGenRavine;
 use pocketmine\level\generator\gorigional\structure\MapGenScatteredFeature;
+use pocketmine\level\generator\gorigional\structure\MapGenStronghold;
 use pocketmine\level\generator\gorigional\structure\MapGenVillage;
 use pocketmine\level\generator\gorigional\structure\WorldChunkManager;
 use pocketmine\math\Vector3;
@@ -89,6 +90,8 @@ class Gorigional extends Generator{
 	private $scatteredFeature;
 	/** @var MapGenVillage */
 	private $village;
+	/** @var MapGenStronghold */
+	private $stronghold;
 	/** @var GeneratorWorld */
 	private $world;
 
@@ -131,6 +134,7 @@ class Gorigional extends Generator{
 		$this->mineshaft = new MapGenMineshaft($this->seed);
 		$this->scatteredFeature = new MapGenScatteredFeature($this->seed);
 		$this->village = new MapGenVillage($this->seed);
+		$this->stronghold = new MapGenStronghold($this->seed);
 	}
 
 	public function getName(){
@@ -407,6 +411,7 @@ class Gorigional extends Generator{
 		$this->mineshaft->prepare($this->world, $chunkX, $chunkZ, $chunk);
 		$this->scatteredFeature->prepare($this->world, $chunkX, $chunkZ, $chunk);
 		$this->village->prepare($this->world, $chunkX, $chunkZ, $chunk);
+		$this->stronghold->prepare($this->world, $chunkX, $chunkZ, $chunk);
 	}
 
 	public function populateChunk($chunkX, $chunkZ){
@@ -439,6 +444,7 @@ class Gorigional extends Generator{
 
 		$this->village->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 		$this->mineshaft->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
+		$this->stronghold->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 		$this->scatteredFeature->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 
 		for($j2 = 0; $j2 < 8; $j2++){
