@@ -80,6 +80,7 @@ class BaseBiome implements Biome{
 	public function decorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
 		switch($this->id){
 			case 4:
+			case 18:
 			case 27:
 				$this->forestDecorate($level, $r, $pos);
 				break;
@@ -292,6 +293,7 @@ class BaseBiome implements Biome{
 				}
 				return new OakTree();
 			case 27:
+			case 28:
 				return new BirchTree(false);
 			case 29:
 				if($r->nextBoundedInt(3) > 0){
@@ -305,6 +307,7 @@ class BaseBiome implements Biome{
 				}
 				return new OakTree();
 			case 5:
+			case 19:
 			case 30:
 			case 31:
 				if($r->nextBoundedInt(3) === 0){
@@ -327,6 +330,7 @@ class BaseBiome implements Biome{
 			case 6:
 				return new SwampTree();
 			case 12:
+			case 13:
 			case 140:
 				return new SpruceTree();
 			case 21:

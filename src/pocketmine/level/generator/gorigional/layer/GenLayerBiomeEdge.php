@@ -200,13 +200,19 @@ class GenLayerBiomeEdge extends GenLayer{
 			case self::BIOME_JUNGLE_HILLS:
 			case self::BIOME_JUNGLE_EDGE:
 				return 1002;
-			case self::BIOME_MEGA_TAIGA:
-			case self::BIOME_MEGA_TAIGA_HILLS:
 			case self::BIOME_TAIGA:
 			case self::BIOME_TAIGA_HILLS:
 			case self::BIOME_COLD_TAIGA:
 			case self::BIOME_COLD_TAIGA_HILLS:
+			case self::BIOME_MEGA_TAIGA:
+			case self::BIOME_MEGA_TAIGA_HILLS:
 				return 1003;
+			case self::BIOME_FOREST:
+			case self::BIOME_FOREST_HILLS:
+			case self::BIOME_BIRCH_FOREST:
+			case self::BIOME_BIRCH_FOREST_HILLS:
+			case self::BIOME_ROOFED_FOREST:
+				return 1005;
 			case self::BIOME_OCEAN:
 			case self::BIOME_DEEP_OCEAN:
 			case self::BIOME_FROZEN_OCEAN:
