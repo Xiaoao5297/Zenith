@@ -4,10 +4,11 @@ namespace pocketmine\level\generator\gorigional\biome;
 
 use pocketmine\block\Block;
 use pocketmine\level\format\FullChunk;
+use pocketmine\level\generator\gorigional\McpeRandom;
 use pocketmine\level\generator\gorigional\JavaRandom;
 
 /**
- * 移植自 SCAXE-GO-CE pkg/level/generator/biome/mesa.go。
+ * Mesa 群系表层：MCPE 的 64 层黏土色带 + 红沙台地。
  */
 class MesaBiome extends BaseBiome{
 	/** @var int[] */
@@ -15,110 +16,122 @@ class MesaBiome extends BaseBiome{
 
 	public function __construct($id, $name, $baseHeight, $heightVariation){
 		parent::__construct($id, $name, $baseHeight, $heightVariation, 2.0, 0.0);
-		$this->initClayBands();
+		$this->refreshBands(12345);
 	}
 
-	private function initClayBands(){
-		$this->initClayBandsWithSeed(12345);
-	}
+	public function refreshBands($seed){
+		$this->clayBands = array_fill(0, 64, 16);
+		$r = new McpeRandom($seed & 0xFFFFFFFF);
 
-	private function initClayBandsWithSeed($seed){
-		$this->clayBands = array_fill(0, 64, 0);
-		$r = new JavaRandom($seed);
-
-		$l = 0;
-		while($l < 64){
-			$l += $r->nextBoundedInt(5) + 1;
-			if($l < 64){
-				$this->clayBands[$l] = 1;
+		// 1 层：稀疏的橙色黏土带。
+		for($i = 0; $i < 64; $i++){
+			$i += $r->nextBoundedInt(5) + 1;
+			if($i < 64){
+				$this->clayBands[$i] = 1;
 			}
 		}
 
-		$yellowCount = $r->nextBoundedInt(4) + 2;
-		for($i = 0; $i < $yellowCount; $i++){
-			$width = $r->nextBoundedInt(3) + 1;
-			$start = $r->nextBoundedInt(64);
-			for($j = 0; $j < $width && $start + $j < 64; $j++){
+		// 4：黄色黏土。
+		$count = ($r->nextInt() & 3) + 2;
+		for($n = 0; $n < $count; $n++){
+			$width = $r->nextBoundedInt(3);
+			$start = $r->nextInt() & 63;
+			for($j = 0; $j <= $width && $start + $j < 64; $j++){
 				$this->clayBands[$start + $j] = 4;
 			}
 		}
 
-		$brownCount = $r->nextBoundedInt(4) + 2;
-		for($i = 0; $i < $brownCount; $i++){
+		// 12：棕色黏土。
+		$count = ($r->nextInt() & 3) + 2;
+		for($n = 0; $n < $count; $n++){
 			$width = $r->nextBoundedInt(3) + 2;
-			$start = $r->nextBoundedInt(64);
+			$start = $r->nextInt() & 63;
 			for($j = 0; $j < $width && $start + $j < 64; $j++){
 				$this->clayBands[$start + $j] = 12;
 			}
 		}
 
-		$redCount = $r->nextBoundedInt(4) + 2;
-		for($i = 0; $i < $redCount; $i++){
+		// 14：红色黏土。
+		$count = ($r->nextInt() & 3) + 2;
+		for($n = 0; $n < $count; $n++){
 			$width = $r->nextBoundedInt(3) + 1;
-			$start = $r->nextBoundedInt(64);
+			$start = $r->nextInt() & 63;
 			for($j = 0; $j < $width && $start + $j < 64; $j++){
 				$this->clayBands[$start + $j] = 14;
 			}
 		}
 
-		$whiteCount = $r->nextBoundedInt(3) + 3;
+		// 0 / 8：白色与浅灰色黏土带，带随机邻接。
+		$count = ($r->nextInt() & 3) + 3;
 		$pos = 0;
-		for($i = 0; $i < $whiteCount; $i++){
-			$pos += $r->nextBoundedInt(16) + 4;
+		for($n = 0; $n < $count; $n++){
+			$pos += ($r->nextInt() & 15) + 4;
 			if($pos >= 64){
 				break;
 			}
 			$this->clayBands[$pos] = 0;
-			$this->clayBands[$pos] = 8;
-
-			if($pos > 0 && $r->nextBoundedInt(2) === 0){
-				$this->clayBands[$pos - 1] = 7;
+			if($pos > 1 && ($r->nextInt() & 1) === 0){
+				$this->clayBands[$pos - 1] = 8;
 			}
-			if($pos < 63 && $r->nextBoundedInt(2) === 0){
-				$this->clayBands[$pos + 1] = 7;
+			if($pos < 63 && ($r->nextInt() & 1) === 0){
+				$this->clayBands[$pos + 1] = 8;
 			}
 		}
 	}
 
 	public function genTerrainBlocks(FullChunk $chunk, JavaRandom $r, $x, $z, $noiseVal){
-		$seaLevel = 63;
 		$chunkX = $x & 15;
 		$chunkZ = $z & 15;
 
-		$stone = Block::STONE;
-		$air = Block::AIR;
-
-		$bedrockLayers = 2 + $r->nextBoundedInt(4);
+		$bedrockLayers = 2 + ($r->nextInt() & 3);
 		for($y = 0; $y < $bedrockLayers; $y++){
 			$chunk->setBlock($chunkX, $y, $chunkZ, Block::BEDROCK, 0);
 		}
 
+		$depth = (int)($noiseVal / 3.0 + 3.0 + $r->nextFloat() * 0.25);
 		$run = -1;
+		$hasTop = false;
 
 		for($y = 127; $y >= 0; $y--){
 			$id = $chunk->getBlockId($chunkX, $y, $chunkZ);
-
-			if($id === $air){
+			if($id === Block::AIR){
 				$run = -1;
-			}elseif($id === $stone){
-				if($run === -1){
-					$run = 3 + (int) abs($noiseVal);
+				continue;
+			}
+			if($id !== Block::STONE){
+				continue;
+			}
 
-					if($y >= $seaLevel - 1){
-						if($y >= $seaLevel + 2 + (int) ($noiseVal * 3)){
-							$chunk->setBlock($chunkX, $y, $chunkZ, Block::SAND, 1);
+			if($run === -1){
+				$hasTop = false;
+				$run = $depth + max(0, $y - 63);
+
+				if($y >= 62){
+					if($y > 66 + $depth){
+						$band = $this->clayBands[$y & 63];
+						if($band < 16){
+							$chunk->setBlock($chunkX, $y, $chunkZ, Block::STAINED_CLAY, $band);
 						}else{
 							$chunk->setBlock($chunkX, $y, $chunkZ, Block::HARDENED_CLAY, 0);
 						}
 					}else{
-						$chunk->setBlock($chunkX, $y, $chunkZ, Block::STAINED_CLAY, 1);
+						$chunk->setBlock($chunkX, $y, $chunkZ, Block::SAND, 1);
+						$hasTop = true;
 					}
-				}elseif($run > 0){
-					$run--;
-
-					$clayBandIndex = $y % 64;
-					$clayMeta = $this->clayBands[$clayBandIndex];
-					$chunk->setBlock($chunkX, $y, $chunkZ, Block::STAINED_CLAY, $clayMeta);
+				}else{
+					$chunk->setBlock($chunkX, $y, $chunkZ, Block::HARDENED_CLAY, 0);
+				}
+			}elseif($run > 0){
+				$run--;
+				if($hasTop && $y >= 62){
+					$chunk->setBlock($chunkX, $y, $chunkZ, Block::SAND, 1);
+				}else{
+					$band = $this->clayBands[$y & 63];
+					if($band < 16){
+						$chunk->setBlock($chunkX, $y, $chunkZ, Block::STAINED_CLAY, $band);
+					}else{
+						$chunk->setBlock($chunkX, $y, $chunkZ, Block::HARDENED_CLAY, 0);
+					}
 				}
 			}
 		}

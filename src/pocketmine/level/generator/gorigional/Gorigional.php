@@ -115,6 +115,8 @@ class Gorigional extends Generator{
 		// MCPE 也会构造第 7 个噪声。即使 getHeights 不使用它，也必须消费同一段随机流。
 		$this->forestNoise = new OctavesNoise($rnd, 8);
 
+		BiomeRegistry::refreshMesa($this->seed);
+
 		$layers = LayerFactory::initializeAll($this->seed);
 		$this->genLayer = $layers[0];
 		$this->biomeGen = $layers[1];

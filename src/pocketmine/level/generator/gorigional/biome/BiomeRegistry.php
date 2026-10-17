@@ -11,6 +11,15 @@ final class BiomeRegistry{
 	/** @var Biome[] */
 	private static $biomes = [];
 
+	public static function refreshMesa($seed){
+		self::init();
+		foreach([37, 38, 39] as $id){
+			if(isset(self::$biomes[$id]) && self::$biomes[$id] instanceof MesaBiome){
+				self::$biomes[$id]->refreshBands($seed);
+			}
+		}
+	}
+
 	private static function init(){
 		if(!empty(self::$biomes)){
 			return;

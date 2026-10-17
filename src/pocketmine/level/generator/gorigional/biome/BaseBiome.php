@@ -201,17 +201,18 @@ class BaseBiome implements Biome{
 	private function jungleDecorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
 		$this->decorator->decorate($level, $r, $this, $pos);
 
-		$x = $r->nextBoundedInt(16) + 8;
-		$z = $r->nextBoundedInt(16) + 8;
-		$y = $r->nextBoundedInt(256);
+		$x = $r->nextBoundedInt(16);
+		$z = $r->nextBoundedInt(16);
+		$y = self::getHeightAtForBiome($level, $pos->x + $x, $pos->z + $z);
 		$melon = new BlockPatch(Block::MELON_BLOCK);
 		$melon->generate($level, $r, $pos->add($x, $y, $z));
 
 		$vines = new Vines();
 		for($i = 0; $i < 50; $i++){
-			$vx = $r->nextBoundedInt(16) + 8;
-			$vz = $r->nextBoundedInt(16) + 8;
-			$vines->generate($level, $r, $pos->add($vx, 128, $vz));
+			$vx = $r->nextBoundedInt(16);
+			$vz = $r->nextBoundedInt(16);
+			$vy = self::getHeightAtForBiome($level, $pos->x + $vx, $pos->z + $vz);
+			$vines->generate($level, $r, $pos->add($vx, $vy, $vz));
 		}
 	}
 

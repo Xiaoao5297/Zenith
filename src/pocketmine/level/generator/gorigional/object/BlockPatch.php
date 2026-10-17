@@ -20,11 +20,12 @@ class BlockPatch implements Feature{
 		for($i = 0; $i < 64; $i++){
 			$target = $pos->add(
 				$random->nextBoundedInt(8) - $random->nextBoundedInt(8),
-				$random->nextBoundedInt(4) - $random->nextBoundedInt(4),
+				0,
 				$random->nextBoundedInt(8) - $random->nextBoundedInt(8)
 			);
+			$target->y = $level->getHeight($target->x, $target->z) + 1;
 
-			if($target->y < 0 || $target->y >= 256){
+			if($target->y < 1 || $target->y >= 128){
 				continue;
 			}
 
