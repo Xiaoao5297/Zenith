@@ -35,6 +35,21 @@ class WorldChunkManager{
 	}
 
 	/**
+	 * 对应 Java WorldChunkManager.areBiomesViable / MCPE BiomeSource::isBiomeAllowed：
+	 * 在给定中心周围按 4 格间隔采样，确认全部属于允许群系。
+	 */
+	public function isBiomeAllowed($x, $z, $radius, array $allowedIDs){
+		for($dx = -$radius; $dx <= $radius; $dx += 4){
+			for($dz = -$radius; $dz <= $radius; $dz += 4){
+				if(!in_array($this->getBiome($x + $dx, $z + $dz), $allowedIDs, true)){
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	/**
 	 * 对应 WorldChunkManager.func_150795_a：在半径 radius 内找允许群系的最近位置。
 	 * @param int[] $allowedIDs
 	 * @return int[]|null [x, 0, z]

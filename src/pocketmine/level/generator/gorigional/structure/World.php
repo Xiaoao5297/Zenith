@@ -13,6 +13,8 @@ interface World extends WorldAccess{
 
 	public function getBiome($x, $z);
 
+	public function getBiomeManager();
+
 	/**
 	 * @param int[] $allowedIDs
 	 * @return int[]|null

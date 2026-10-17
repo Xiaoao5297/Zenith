@@ -21,8 +21,8 @@ use pocketmine\level\generator\gorigional\structure\MapGenCaves;
 use pocketmine\level\generator\gorigional\structure\MapGenMineshaft;
 use pocketmine\level\generator\gorigional\structure\MapGenRavine;
 use pocketmine\level\generator\gorigional\structure\MapGenScatteredFeature;
+use pocketmine\level\generator\gorigional\structure\MapGenVillage;
 use pocketmine\level\generator\gorigional\structure\WorldChunkManager;
-use pocketmine\level\generator\normal\populator\VillagePopulator;
 use pocketmine\math\Vector3;
 use pocketmine\utils\Random;
 
@@ -87,7 +87,7 @@ class Gorigional extends Generator{
 	private $mineshaft;
 	/** @var MapGenScatteredFeature */
 	private $scatteredFeature;
-	/** @var VillagePopulator */
+	/** @var MapGenVillage */
 	private $village;
 	/** @var GeneratorWorld */
 	private $world;
@@ -130,7 +130,7 @@ class Gorigional extends Generator{
 		$this->world = new GeneratorWorld($level, $this->seed, new WorldChunkManager($this->genLayer, $this->biomeGen));
 		$this->mineshaft = new MapGenMineshaft($this->seed);
 		$this->scatteredFeature = new MapGenScatteredFeature($this->seed);
-		$this->village = new VillagePopulator();
+		$this->village = new MapGenVillage($this->seed);
 	}
 
 	public function getName(){
@@ -406,6 +406,7 @@ class Gorigional extends Generator{
 
 		$this->mineshaft->prepare($this->world, $chunkX, $chunkZ, $chunk);
 		$this->scatteredFeature->prepare($this->world, $chunkX, $chunkZ, $chunk);
+		$this->village->prepare($this->world, $chunkX, $chunkZ, $chunk);
 	}
 
 	public function populateChunk($chunkX, $chunkZ){
@@ -436,7 +437,7 @@ class Gorigional extends Generator{
 			$this->generateLakes($manager, $rnd, $x, $z, $b->getID());
 		}
 
-		$this->village->populate($this->level, $chunkX, $chunkZ, new Random(0xdeadbeef ^ ($chunkX << 8) ^ $chunkZ ^ $this->seed));
+		$this->village->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 		$this->mineshaft->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 		$this->scatteredFeature->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 

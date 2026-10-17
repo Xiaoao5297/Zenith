@@ -3,8 +3,8 @@
 namespace pocketmine\level\generator\gorigional\structure;
 
 use pocketmine\level\format\FullChunk;
-use pocketmine\level\generator\gorigional\Int64;
 use pocketmine\level\generator\gorigional\JavaRandom;
+use pocketmine\level\generator\gorigional\McpeRandom;
 
 /**
  * 移植自 SCAXE-GO-CE pkg/level/generator/gorigional/structure/map_gen_base.go。
@@ -23,15 +23,19 @@ abstract class MapGenBase{
 	}
 
 	public function generate($chunkX, $chunkZ, FullChunk $chunk){
-		$this->rand->setSeed($this->worldSeed);
-		$r1 = $this->rand->nextLong();
-		$r2 = $this->rand->nextLong();
+		/*
+		 * MCPE LargeFeature::apply：
+		 * - 用世界种子初始化 MT，取两个随机数得到两个奇数乘子；
+		 * - 每个候选区块用 worldSeed ^ (x * i + z * j) 作为种子；
+		 * - 所有乘法和种子都按 32 位无符号截断。
+		 */
+		$seedRnd = new McpeRandom($this->worldSeed);
+		$i = (($seedRnd->nextInt() >> 2) * 2 + 1) & 0xFFFFFFFF;
+		$j = (($seedRnd->nextInt() >> 2) * 2 + 1) & 0xFFFFFFFF;
 
 		for($x = $chunkX - $this->range; $x <= $chunkX + $this->range; $x++){
 			for($z = $chunkZ - $this->range; $z <= $chunkZ + $this->range; $z++){
-				$rX = Int64::mul($x, $r1);
-				$rZ = Int64::mul($z, $r2);
-				$seed = $rX ^ $rZ ^ $this->worldSeed;
+				$seed = ($this->worldSeed ^ ((($x * $i) + ($z * $j)) & 0xFFFFFFFF)) & 0xFFFFFFFF;
 				$this->rand->setSeed($seed);
 
 				$this->recursiveGenerate($chunkX, $chunkZ, $x, $z, $chunk);

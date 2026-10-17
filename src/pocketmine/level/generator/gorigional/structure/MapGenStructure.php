@@ -13,6 +13,8 @@ use pocketmine\level\generator\gorigional\JavaRandom;
 abstract class MapGenStructure extends MapGenBase{
 	/** @var StructureStart[] key = originX:originZ */
 	protected $structureMap = [];
+	/** @var bool[] 已检查过且没有结构的区块，避免相邻区块重复扫描 */
+	protected $checkedChunks = [];
 	/** @var World|null */
 	protected $world;
 
@@ -26,8 +28,11 @@ abstract class MapGenStructure extends MapGenBase{
 		if(isset($this->structureMap[$key])){
 			return;
 		}
-
-		$this->rand->nextInt();
+		// 负结果也缓存；否则每个区块都会把 ±8 范围重新算一遍。
+		if(isset($this->checkedChunks[$key])){
+			return;
+		}
+		$this->checkedChunks[$key] = true;
 
 		if($this->canSpawnStructureAtCoords($originX, $originZ)){
 			$start = $this->getStructureStart($originX, $originZ);

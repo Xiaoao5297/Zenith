@@ -10,4 +10,6 @@ interface WorldAccess{
 	public function getBlockId($x, $y, $z);
 
 	public function setBlock($x, $y, $z, $id, $meta);
+
+	public function getHeight($x, $z);
 }

@@ -162,9 +162,9 @@ abstract class StructureComponentBase implements StructureComponent{
 						continue;
 					}
 					if($x !== $minX && $x !== $maxX && $z !== $minZ && $z !== $maxZ && $y !== $minY && $y !== $maxY){
-						$this->setBlockState($w, $insideId, $insideMeta, $x, $y, $z, $box);
+						$this->placeBlock($w, $insideId, $insideMeta, $x, $y, $z, $box);
 					}else{
-						$this->setBlockState($w, $outlineId, $outlineMeta, $x, $y, $z, $box);
+						$this->placeBlock($w, $outlineId, $outlineMeta, $x, $y, $z, $box);
 					}
 				}
 			}

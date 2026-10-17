@@ -39,8 +39,16 @@ class GeneratorWorld implements World{
 		$this->blocks->setBlock($x, $y, $z, $id, $meta);
 	}
 
+	public function getHeight($x, $z){
+		return $this->blocks->getHeight($x, $z);
+	}
+
 	public function getBiome($x, $z){
 		return $this->biomeManager->getBiome($x, $z);
+	}
+
+	public function getBiomeManager(){
+		return $this->biomeManager;
 	}
 
 	public function findBiomePosition($x, $z, $radius, array $allowedIDs, JavaRandom $random){
