@@ -195,6 +195,25 @@ seed 1：
   - seed 19 Mega Taiga：`17=251`、`18=524`、`31=10`、`37=4`
 - 注意：seed 4 的群系 24 是 Deep Ocean，不是丛林；测试丛林需另找 21/22/23。
 
+### 4.8 要塞自然生成配置
+
+- MCPE 0.14 原版默认不自然生成要塞，只有特殊种子才会出现。
+- 在 15 个 `src/pocketmine/resources/genisys_*.yml` 的 `world:` 段新增：
+
+```yaml
+generate-stronghold: false
+```
+
+- 默认值为 `false`。开启方式：
+
+```yaml
+world:
+ generate-stronghold: true
+```
+
+- `Gorigional::init()` 只在真实 `Level` 且配置开启时创建 `MapGenStronghold`；测试用的 `SimpleChunkManager` 默认关闭。
+- `generateChunk()` / `populateChunk()` 已加空值保护，关闭时完全跳过要塞的 prepare 和写入。
+
 ## 9. 已知限制
 
 - 要塞部件布局参考 Java 1.7.10，几何细节不是 MCPE 的逐块复刻。

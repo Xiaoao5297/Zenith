@@ -6,6 +6,7 @@ use pocketmine\block\Block;
 use pocketmine\level\ChunkManager;
 use pocketmine\level\format\FullChunk;
 use pocketmine\level\generator\Generator;
+use pocketmine\level\Level;
 use pocketmine\level\generator\gorigional\biome\BiomeRegistry;
 use pocketmine\level\generator\gorigional\layer\GenLayer;
 use pocketmine\level\generator\gorigional\layer\LayerFactory;
@@ -90,7 +91,7 @@ class Gorigional extends Generator{
 	private $scatteredFeature;
 	/** @var MapGenVillage */
 	private $village;
-	/** @var MapGenStronghold */
+	/** @var MapGenStronghold|null */
 	private $stronghold;
 	/** @var GeneratorWorld */
 	private $world;
@@ -134,7 +135,20 @@ class Gorigional extends Generator{
 		$this->mineshaft = new MapGenMineshaft($this->seed);
 		$this->scatteredFeature = new MapGenScatteredFeature($this->seed);
 		$this->village = new MapGenVillage($this->seed);
-		$this->stronghold = new MapGenStronghold($this->seed);
+
+		// MCPE 0.14 原版默认不自然生成要塞；仅在世界配置显式开启时创建。
+		$generateStronghold = false;
+		if($level instanceof Level){
+			$value = $level->getServer()->getAdvancedProperty("world.generate-stronghold", false);
+			if(is_bool($value)){
+				$generateStronghold = $value;
+			}elseif(is_string($value)){
+				$generateStronghold = in_array(strtolower($value), ["1", "true", "on", "yes"], true);
+			}elseif(is_int($value)){
+				$generateStronghold = $value !== 0;
+			}
+		}
+		$this->stronghold = $generateStronghold ? new MapGenStronghold($this->seed) : null;
 	}
 
 	public function getName(){
@@ -411,7 +425,9 @@ class Gorigional extends Generator{
 		$this->mineshaft->prepare($this->world, $chunkX, $chunkZ, $chunk);
 		$this->scatteredFeature->prepare($this->world, $chunkX, $chunkZ, $chunk);
 		$this->village->prepare($this->world, $chunkX, $chunkZ, $chunk);
-		$this->stronghold->prepare($this->world, $chunkX, $chunkZ, $chunk);
+		if($this->stronghold !== null){
+			$this->stronghold->prepare($this->world, $chunkX, $chunkZ, $chunk);
+		}
 	}
 
 	public function populateChunk($chunkX, $chunkZ){
@@ -445,7 +461,9 @@ class Gorigional extends Generator{
 
 		$this->village->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 		$this->mineshaft->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
-		$this->stronghold->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
+		if($this->stronghold !== null){
+			$this->stronghold->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
+		}
 		$this->scatteredFeature->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 
 		for($j2 = 0; $j2 < 8; $j2++){

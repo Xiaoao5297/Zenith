@@ -87,6 +87,8 @@ skyworld:
  spawn-z: -50
 
 world:
+ #Whether to naturally generate strongholds (MCPE 0.14 default: false)
+ generate-stronghold: false
  #按世界名单禁用自然刷怪 (填写世界文件夹名, 多个用逗号分隔)
  no-natural-mob-spawn: []
  #按世界名单禁用生物掉落与经验

@@ -65,7 +65,7 @@ player:
 
 nether:
  #选择是否允许下界，下界维度会自动生成
- allow-nether:false 
+ allow-nether: false 
  #下界维度的名称
  level-name: "nether"
  
@@ -83,6 +83,10 @@ skyworld:
  spawn-x: 0
  spawn-y: 64
  spawn-z: -50
+
+world:
+ #Whether to naturally generate strongholds (MCPE 0.14 default: false)
+ generate-stronghold: false
 
 server:
  #预生成经验数据，0=禁用

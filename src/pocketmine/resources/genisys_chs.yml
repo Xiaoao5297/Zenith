@@ -86,6 +86,10 @@ skyworld:
  spawn-y: 64
  spawn-z: -50
 
+world:
+ #Whether to naturally generate strongholds (MCPE 0.14 default: false)
+ generate-stronghold: false
+
 server:
  #预生成经验数据，0=禁用
  experience-cache: 65535
