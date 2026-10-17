@@ -108,6 +108,14 @@ class BaseBiome implements Biome{
 			case 34:
 				$this->extremeHillsDecorate($level, $r, $pos);
 				break;
+			case 12:
+			case 13:
+			case 30:
+			case 31:
+			case 140:
+				$this->decorator->decorate($level, $r, $this, $pos);
+				$this->snowDecorate($level, $pos);
+				break;
 			default:
 				$this->decorator->decorate($level, $r, $this, $pos);
 		}
@@ -353,6 +361,23 @@ class BaseBiome implements Biome{
 				return new OakTree();
 		}
 		return new OakTree();
+	}
+
+	private function snowDecorate(ObjectChunkManager $level, BlockPos $pos){
+		for($x = 0; $x < 16; $x++){
+			for($z = 0; $z < 16; $z++){
+				$wx = $pos->x + $x;
+				$wz = $pos->z + $z;
+				$y = self::getHeightAtForBiome($level, $wx, $wz);
+				if($y < 1 || $y >= 128 || $level->getBlockId($wx, $y, $wz) !== Block::AIR){
+					continue;
+				}
+				$below = $level->getBlockId($wx, $y - 1, $wz);
+				if($below === Block::GRASS || $below === Block::DIRT || $below === Block::STONE || $below === Block::SNOW_BLOCK || $below === Block::PODZOL){
+					$level->setBlock($wx, $y, $wz, Block::SNOW_LAYER, 0);
+				}
+			}
+		}
 	}
 
 	private function jungleTree(JavaRandom $r, $isEdge){

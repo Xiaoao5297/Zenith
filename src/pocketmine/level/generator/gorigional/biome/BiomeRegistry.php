@@ -55,10 +55,10 @@ final class BiomeRegistry{
 		self::add(new BaseBiome(27, "Birch Forest", 0.1, 0.2, 0.7, 0.8));
 		self::add(new BaseBiome(28, "Birch Forest Hills", 0.45, 0.3, 0.6, 0.6));
 		self::add(new BaseBiome(29, "Roofed Forest", 0.1, 0.2, 0.7, 0.8));
-		self::add(new BaseBiome(30, "Cold Taiga", 0.2, 0.2, -0.5, 0.4));
-		self::add(new BaseBiome(31, "Cold Taiga Hills", 0.45, 0.3, -0.5, 0.4));
-		self::add(new BaseBiome(32, "Mega Taiga", 0.2, 0.2, 0.3, 0.8));
-		self::add(new BaseBiome(33, "Mega Taiga Hills", 0.45, 0.3, 0.3, 0.8));
+		self::add(new TaigaBiome(30, "Cold Taiga", 0.2, 0.2, -0.5, 0.4, 1));
+		self::add(new TaigaBiome(31, "Cold Taiga Hills", 0.45, 0.3, -0.5, 0.4, 1));
+		self::add(new TaigaBiome(32, "Mega Taiga", 0.2, 0.2, 0.3, 0.8, 2));
+		self::add(new TaigaBiome(33, "Mega Taiga Hills", 0.45, 0.3, 0.3, 0.8, 2));
 		self::add(new ExtremeHillsBiome(34, "Extreme Hills+", 1.0, 0.5, 0.2, 0.3, 1));
 		self::add(new BaseBiome(35, "Savanna", 0.125, 0.05, 1.2, 0.0));
 		self::add(new BaseBiome(36, "Savanna Plateau", 1.5, 0.025, 1.0, 0.0));
