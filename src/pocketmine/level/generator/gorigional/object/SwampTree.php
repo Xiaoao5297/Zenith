@@ -25,7 +25,7 @@ class SwampTree extends Tree{
 		$y = $pos->y;
 		$z = $pos->z;
 
-		if($y < 1 || $y + $height + 1 > 256){
+		if($y < 1 || $y + $height + 1 > 128){
 			return false;
 		}
 
@@ -40,7 +40,7 @@ class SwampTree extends Tree{
 
 			for($xx = $x - $radius; $xx <= $x + $radius; $xx++){
 				for($zz = $z - $radius; $zz <= $z + $radius; $zz++){
-					if($yy >= 0 && $yy < 256){
+					if($yy >= 0 && $yy < 128){
 						$id = $level->getBlockId($xx, $yy, $zz);
 
 						if($id !== 0 && $id !== Block::LEAVES){
@@ -58,7 +58,7 @@ class SwampTree extends Tree{
 		}
 
 		$soil = $level->getBlockId($x, $y - 1, $z);
-		if(($soil === Block::GRASS || $soil === Block::DIRT) && $y < 256 - $height - 1){
+		if(($soil === Block::GRASS || $soil === Block::DIRT) && $y < 128 - $height - 1){
 			$level->setBlock($x, $y - 1, $z, Block::DIRT, 0);
 
 			for($yy = $y - 3 + $height; $yy <= $y + $height; $yy++){

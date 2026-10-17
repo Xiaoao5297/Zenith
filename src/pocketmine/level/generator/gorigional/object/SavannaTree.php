@@ -22,7 +22,7 @@ class SavannaTree extends Tree{
 		$y = $pos->y;
 		$z = $pos->z;
 
-		if($y >= 1 && $y + $height + 1 <= 256){
+		if($y >= 1 && $y + $height + 1 < 128){
 			for($j = $y; $j <= $y + 1 + $height; $j++){
 				$k = 1;
 				if($j === $y){
@@ -34,7 +34,7 @@ class SavannaTree extends Tree{
 
 				for($l = $x - $k; $l <= $x + $k && $flag; $l++){
 					for($i1 = $z - $k; $i1 <= $z + $k && $flag; $i1++){
-						if($j >= 0 && $j < 256){
+						if($j >= 0 && $j < 128){
 							$id = $level->getBlockId($l, $j, $i1);
 							if(!isset($this->overrides[$id])){
 								$flag = false;
@@ -51,7 +51,7 @@ class SavannaTree extends Tree{
 			}
 
 			$soil = $level->getBlockId($x, $y - 1, $z);
-			if(($soil === Block::GRASS || $soil === Block::DIRT) && $y < 256 - $height - 1){
+			if(($soil === Block::GRASS || $soil === Block::DIRT) && $y < 128 - $height - 1){
 				$level->setBlock($x, $y - 1, $z, Block::DIRT, 0);
 
 				$dir = $random->nextBoundedInt(4);

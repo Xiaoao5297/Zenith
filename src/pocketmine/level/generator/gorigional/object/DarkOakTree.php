@@ -29,7 +29,7 @@ class DarkOakTree implements Feature{
 		$k = $pos->y;
 		$l = $pos->z;
 
-		if($k < 1 || $k + $height + 1 >= 256){
+		if($k < 1 || $k + $height + 1 >= 128){
 			return false;
 		}
 

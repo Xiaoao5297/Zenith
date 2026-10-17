@@ -18,7 +18,7 @@ class PineTree extends Tree{
 		$height = $random->nextBoundedInt(5) + 7;
 		$foliageStart = $height - $random->nextBoundedInt(2) - 3;
 
-		if($pos->y < 1 || $pos->y + $height + 1 > 256){
+		if($pos->y < 1 || $pos->y + $height + 1 > 128){
 			return false;
 		}
 

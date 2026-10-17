@@ -93,7 +93,7 @@ class MegaJungleTree implements Feature{
 	}
 
 	private function ensureGrowable(ObjectChunkManager $level, JavaRandom $random, BlockPos $pos, $height){
-		if($pos->y < 1 || $pos->y + $height + 1 > 256){
+		if($pos->y < 1 || $pos->y + $height + 1 > 128){
 			return false;
 		}
 

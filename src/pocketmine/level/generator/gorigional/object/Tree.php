@@ -46,7 +46,7 @@ class Tree implements Feature{
 			for($xx = -$radiusToCheck; $xx < $radiusToCheck + 1; $xx++){
 				for($zz = -$radiusToCheck; $zz < $radiusToCheck + 1; $zz++){
 					$checkY = $y + $yy;
-					if($checkY >= 0 && $checkY < 256){
+					if($checkY >= 0 && $checkY < 128){
 						$id = $level->getBlockId($x + $xx, $checkY, $z + $zz);
 
 						if(!isset($this->overrides[$id])){
