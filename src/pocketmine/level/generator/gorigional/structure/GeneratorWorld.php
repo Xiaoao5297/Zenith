@@ -3,9 +3,16 @@
 namespace pocketmine\level\generator\gorigional\structure;
 
 use pocketmine\level\ChunkManager;
+use pocketmine\level\Level;
 use pocketmine\level\generator\gorigional\Int64;
 use pocketmine\level\generator\gorigional\JavaRandom;
 use pocketmine\level\generator\gorigional\object\ChunkManagerAdapter;
+use pocketmine\nbt\tag\CompoundTag;
+use pocketmine\nbt\tag\IntTag;
+use pocketmine\nbt\tag\StringTag;
+use pocketmine\tile\Chest;
+use pocketmine\tile\MobSpawner;
+use pocketmine\tile\Tile;
 
 /**
  * 把核心 ChunkManager 适配为结构生成所需的 World。
@@ -37,6 +44,47 @@ class GeneratorWorld implements World{
 
 	public function setBlock($x, $y, $z, $id, $meta){
 		$this->blocks->setBlock($x, $y, $z, $id, $meta);
+	}
+
+	public function setChestContents($x, $y, $z, array $items){
+		$chunk = $this->blocks->getChunkAt($x, $z);
+		$provider = $chunk === null ? null : $chunk->getProvider();
+		if($provider === null || !($provider->getLevel() instanceof Level)){
+			return;
+		}
+
+		$nbt = new CompoundTag("", [
+			"id" => new StringTag("id", Tile::CHEST),
+			"x" => new IntTag("x", $x),
+			"y" => new IntTag("y", $y),
+			"z" => new IntTag("z", $z)
+		]);
+		$tile = Tile::createTile(Tile::CHEST, $chunk, $nbt);
+		if(!($tile instanceof Chest)){
+			return;
+		}
+		foreach($items as $item){
+			$tile->setItem($item[0], \pocketmine\item\Item::get($item[1], $item[2], $item[3]));
+		}
+	}
+
+	public function setSpawnerEntity($x, $y, $z, $entityId){
+		$chunk = $this->blocks->getChunkAt($x, $z);
+		$provider = $chunk === null ? null : $chunk->getProvider();
+		if($provider === null || !($provider->getLevel() instanceof Level)){
+			return;
+		}
+
+		$nbt = new CompoundTag("", [
+			"id" => new StringTag("id", Tile::MOB_SPAWNER),
+			"x" => new IntTag("x", $x),
+			"y" => new IntTag("y", $y),
+			"z" => new IntTag("z", $z)
+		]);
+		$tile = Tile::createTile(Tile::MOB_SPAWNER, $chunk, $nbt);
+		if($tile instanceof MobSpawner){
+			$tile->setEntityId($entityId);
+		}
 	}
 
 	public function getHeight($x, $z){

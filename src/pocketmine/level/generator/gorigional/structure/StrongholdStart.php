@@ -15,6 +15,7 @@ class StrongholdStart extends StructureStart{
 
 		$start = new StrongholdStairs2(0, $rnd, ($chunkX << 4) + 2, ($chunkZ << 4) + 2);
 		$this->components[] = $start;
+		StrongholdPieces::setStartBox($start->getBoundingBox());
 		$start->buildComponent($start, $this->components, $rnd);
 
 		$guard = 0;

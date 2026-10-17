@@ -99,6 +99,16 @@ abstract class StrongholdPiece extends StructureComponentBase{
 		}
 	}
 
+	protected function placeSpawner(WorldAccess $w, BoundingBox $box, $x, $y, $z, $entityId){
+		$worldX = $this->getXWithOffset($x, $z);
+		$worldY = $this->getYWithOffset($y);
+		$worldZ = $this->getZWithOffset($x, $z);
+		if($box->resultIsInside($worldX, $worldY, $worldZ)){
+			$w->setBlock($worldX, $worldY, $worldZ, self::MONSTER_SPAWNER, 0);
+			$w->setSpawnerEntity($worldX, $worldY, $worldZ, $entityId);
+		}
+	}
+
 	protected static function makeBox($x, $y, $z, $minX, $minY, $minZ, $maxX, $maxY, $maxZ, $facing){
 		return BoundingBox::getComponentToAddBoundingBox($x, $y, $z, $minX, $minY, $minZ, $maxX, $maxY, $maxZ, $facing);
 	}

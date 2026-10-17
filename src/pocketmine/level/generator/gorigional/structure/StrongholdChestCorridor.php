@@ -40,7 +40,7 @@ class StrongholdChestCorridor extends StrongholdPiece{
 
 		if(!$this->chestPlaced){
 			$this->chestPlaced = true;
-			$this->generateChest($w, $box, $rnd, 3, 2, 3);
+			$this->generateChest($w, $box, $rnd, 3, 2, 3, 'stronghold');
 		}
 		return true;
 	}

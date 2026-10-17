@@ -45,7 +45,7 @@ class StrongholdPrison extends StrongholdPiece{
 		}
 
 		if($rnd->nextBoundedInt(3) === 0){
-			$this->generateChest($w, $box, $rnd, 2, 1, 5);
+			$this->generateChest($w, $box, $rnd, 2, 1, 5, 'stronghold');
 		}
 		return true;
 	}

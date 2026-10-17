@@ -13,8 +13,14 @@ use pocketmine\level\generator\gorigional\JavaRandom;
 class StrongholdPieces{
 	/** @var array<int,array{class:string,weight:int,limit:int,count:int}> */
 	private static $weights = [];
+	/** @var BoundingBox|null */
+	private static $startBox = null;
+	/** @var string|null */
+	private static $lastClass = null;
 
 	public static function reset(){
+		self::$startBox = null;
+		self::$lastClass = null;
 		self::$weights = [
 			['class' => StrongholdStraight::class, 'weight' => 40, 'limit' => 0, 'count' => 0],
 			['class' => StrongholdPrison::class, 'weight' => 5, 'limit' => 5, 'count' => 0],
@@ -25,20 +31,47 @@ class StrongholdPieces{
 			['class' => StrongholdStairs::class, 'weight' => 5, 'limit' => 5, 'count' => 0],
 			['class' => StrongholdCrossing::class, 'weight' => 5, 'limit' => 4, 'count' => 0],
 			['class' => StrongholdChestCorridor::class, 'weight' => 5, 'limit' => 4, 'count' => 0],
-			['class' => StrongholdLibrary::class, 'weight' => 10, 'limit' => 2, 'count' => 0],
-			['class' => StrongholdPortalRoom::class, 'weight' => 20, 'limit' => 1, 'count' => 0],
+			['class' => StrongholdLibrary::class, 'weight' => 10, 'limit' => 2, 'count' => 0, 'minType' => 5],
+			['class' => StrongholdPortalRoom::class, 'weight' => 20, 'limit' => 1, 'count' => 0, 'minType' => 6],
 		];
+	}
+
+	public static function setStartBox(BoundingBox $box){
+		self::$startBox = $box;
+	}
+
+	/**
+	 * 对应 Java StructureStrongholdPieces.func_75196_c 的硬限制。
+	 */
+	public static function canCreateAt($type, $x, $z){
+		if($type > 50 || self::$startBox === null){
+			return false;
+		}
+		return abs($x - self::$startBox->minX) <= 112 && abs($z - self::$startBox->minZ) <= 112;
 	}
 
 	private static function available($type){
 		$list = [];
 		$total = 0;
 		foreach(self::$weights as $i => $w){
-			if($type > 50 && $w['class'] === StrongholdPortalRoom::class){
+			if(isset($w['minType']) && $type <= $w['minType']){
 				continue;
 			}
 			if($w['limit'] > 0 && $w['count'] >= $w['limit']){
 				continue;
+			}
+			// Java 不允许连续两个相同部件；只有一种可选时才保留它，避免分支直接断掉。
+			if(self::$lastClass !== null && $w['class'] === self::$lastClass && count(self::$weights) > 1){
+				$continue = false;
+				foreach(self::$weights as $other){
+					if($other['class'] !== self::$lastClass && ($other['limit'] <= 0 || $other['count'] < $other['limit'])){
+						$continue = true;
+						break;
+					}
+				}
+				if($continue){
+					continue;
+				}
 			}
 			$list[] = $i;
 			$total += $w['weight'];
@@ -47,8 +80,8 @@ class StrongholdPieces{
 	}
 
 	public static function createRandom(array $components, JavaRandom $rnd, $x, $y, $z, $facing, $type){
-		if($type > 50){
-			return StrongholdCorridor::create($components, $rnd, $x, $y, $z, $facing, $type);
+		if(!self::canCreateAt($type, $x, $z)){
+			return null;
 		}
 
 		for($attempt = 0; $attempt < 5; $attempt++){
@@ -73,6 +106,7 @@ class StrongholdPieces{
 			$piece = self::createClass($class, $components, $rnd, $x, $y, $z, $facing, $type);
 			if($piece !== null){
 				self::$weights[$chosen]['count']++;
+				self::$lastClass = $class;
 				return $piece;
 			}
 		}

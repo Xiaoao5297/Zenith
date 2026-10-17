@@ -12,7 +12,7 @@ namespace pocketmine\level\generator\gorigional;
  * 注意：本项目只要求地形观感接近 MCPE 0.14.3，不要求同一 seed
  * 与 MCPE 逐方块 1:1 对齐，因此允许后续在消费顺序上做局部调整。
  */
-class McpeRandom implements RandomSource{
+class McpeRandom extends JavaRandom{
 	const N = 624;
 	const M = 397;
 	const MATRIX_A = 0x9908B0DF;
@@ -91,5 +91,21 @@ class McpeRandom implements RandomSource{
 
 	public function nextBoolean(){
 		return ($this->nextInt() & 1) !== 0;
+	}
+
+	/**
+	 * 供仍按 JavaRandom 类型声明的装饰代码使用。
+	 * 两个 32 位 MT 输出拼成有符号 64 位值。
+	 */
+	public function nextLong(){
+		$hi = $this->nextInt();
+		$lo = $this->nextInt();
+		if($hi >= 0x80000000){
+			$hi -= 0x100000000;
+		}
+		if($lo >= 0x80000000){
+			$lo -= 0x100000000;
+		}
+		return Int64::add(Int64::mul($hi, 0x100000000), $lo);
 	}
 }

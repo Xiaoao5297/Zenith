@@ -52,11 +52,24 @@ class MapGenStronghold extends MapGenStructure{
 
 		while(count($this->positions) < 3 && $attempts < 128){
 			$attempts++;
-			$cx = (int) round(cos($angle) * $radius);
-			$cz = (int) round(sin($angle) * $radius);
+			// MCPE 使用整数截断，不是 round。
+			$centerX = (int) (cos($angle) * $radius);
+			$centerZ = (int) (sin($angle) * $radius);
 
-			if($this->isValidArea($cx, $cz) && !$this->hasPosition($cx, $cz)){
-				$this->positions[] = [$cx, $cz];
+			$found = null;
+			for($dx = -8; $dx <= 7 && $found === null; $dx++){
+				for($dz = -8; $dz <= 7; $dz++){
+					$cx = $centerX + $dx;
+					$cz = $centerZ + $dz;
+					if(!$this->hasPosition($cx, $cz) && $this->isValidArea($cx, $cz)){
+						$found = [$cx, $cz];
+						break;
+					}
+				}
+			}
+
+			if($found !== null){
+				$this->positions[] = $found;
 				$angle += 1.8849555921538759; // 108°
 				$radius += 8;
 			}else{
@@ -78,16 +91,13 @@ class MapGenStronghold extends MapGenStructure{
 	private function isValidArea($chunkX, $chunkZ){
 		$centerX = ($chunkX << 4) + 8;
 		$centerZ = ($chunkZ << 4) + 8;
-		$samples = [
-			[$centerX, $centerZ],
-			[$centerX - 32, $centerZ - 32],
-			[$centerX + 32, $centerZ - 32],
-			[$centerX - 32, $centerZ + 32],
-			[$centerX + 32, $centerZ + 32],
-		];
-		foreach($samples as $p){
-			if(!in_array($this->world->getBiome($p[0], $p[1]), self::LAND_BIOMES, true)){
-				return false;
+
+		// 覆盖要塞可能占用的 64×64 区域，每 4 格采样一次。
+		for($dx = -24; $dx <= 24; $dx += 4){
+			for($dz = -24; $dz <= 24; $dz += 4){
+				if(!in_array($this->world->getBiome($centerX + $dx, $centerZ + $dz), self::LAND_BIOMES, true)){
+					return false;
+				}
 			}
 		}
 		return true;

@@ -11,5 +11,12 @@ interface WorldAccess{
 
 	public function setBlock($x, $y, $z, $id, $meta);
 
+	/**
+	 * @param array $items [[slot, id, meta, count], ...]
+	 */
+	public function setChestContents($x, $y, $z, array $items);
+
+	public function setSpawnerEntity($x, $y, $z, $entityId);
+
 	public function getHeight($x, $z);
 }

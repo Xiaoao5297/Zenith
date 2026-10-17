@@ -424,11 +424,12 @@ class Gorigional extends Generator{
 		$biomeID = $ints[0] & 0xFF;
 		$b = BiomeRegistry::getBiome($biomeID);
 
-		$rnd = new JavaRandom($this->seed);
-		$k = intdiv($rnd->nextLong(), 2) * 2 + 1;
-		$l = intdiv($rnd->nextLong(), 2) * 2 + 1;
-		$seed = Int64::add(Int64::mul($chunkX, $k), Int64::mul($chunkZ, $l)) ^ $this->seed;
-		$rnd->setSeed($seed);
+		// MCPE postProcess：用 MT 从世界种子取两个值，再按 32 位区块种子重置。
+		$seedRnd = new McpeRandom($this->seed);
+		$k = (($seedRnd->nextInt() >> 2) << 1) + 1;
+		$l = (($seedRnd->nextInt() >> 2) << 1) + 1;
+		$seed = (($this->seed & 0xFFFFFFFF) ^ ((($chunkX * $k + $chunkZ * $l) & 0xFFFFFFFF))) & 0xFFFFFFFF;
+		$rnd = new McpeRandom($seed);
 
 		$manager = new ChunkManagerAdapter($this->level);
 

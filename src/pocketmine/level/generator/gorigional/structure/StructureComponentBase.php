@@ -286,16 +286,70 @@ abstract class StructureComponentBase implements StructureComponent{
 		];
 	}
 
-	public function generateChest(WorldAccess $w, BoundingBox $box, JavaRandom $rnd, $x, $y, $z){
+	public function generateChest(WorldAccess $w, BoundingBox $box, JavaRandom $rnd, $x, $y, $z, $loot = null){
 		$worldX = $this->getXWithOffset($x, $z);
 		$worldY = $this->getYWithOffset($y);
 		$worldZ = $this->getZWithOffset($x, $z);
 
 		if($box->resultIsInside($worldX, $worldY, $worldZ) && $w->getBlockId($worldX, $worldY, $worldZ) !== 54){
 			$w->setBlock($worldX, $worldY, $worldZ, 54, 0);
+			if($loot !== null){
+				$w->setChestContents($worldX, $worldY, $worldZ, $this->createLoot($rnd, $loot));
+			}
 			return true;
 		}
 		return false;
+	}
+
+	/**
+	 * 简化版 1.7.10 战利品表，保持原版的物品种类和大致权重。
+	 * @return array [[slot, id, meta, count], ...]
+	 */
+	protected function createLoot(JavaRandom $rnd, $type){
+		if($type === 'stronghold'){
+			$table = [
+				[297, 0, 1, 3, 10],  // bread
+				[260, 0, 1, 3, 10],  // apple
+				[265, 0, 1, 5, 10],  // iron ingot
+				[266, 0, 1, 3, 5],   // gold ingot
+				[368, 0, 1, 1, 2],   // ender pearl
+				[264, 0, 1, 3, 3],   // diamond
+				[331, 0, 4, 9, 5],   // redstone
+				[263, 0, 3, 8, 10],  // coal
+				[267, 0, 1, 1, 5],   // iron sword
+				[257, 0, 1, 1, 5],   // iron pickaxe
+				[322, 0, 1, 1, 1],   // golden apple
+			];
+		}else{
+			return [];
+		}
+
+		$totalWeight = 0;
+		foreach($table as $entry){
+			$totalWeight += $entry[4];
+		}
+
+		$result = [];
+		$usedSlots = [];
+		$stacks = 3 + $rnd->nextBoundedInt(4);
+		for($i = 0; $i < $stacks; $i++){
+			$slot = $rnd->nextBoundedInt(27);
+			if(isset($usedSlots[$slot])){
+				continue;
+			}
+			$usedSlots[$slot] = true;
+
+			$roll = $rnd->nextBoundedInt($totalWeight);
+			foreach($table as $entry){
+				$roll -= $entry[4];
+				if($roll < 0){
+					$count = $entry[2] + $rnd->nextBoundedInt($entry[3] - $entry[2] + 1);
+					$result[] = [$slot, $entry[0], $entry[1], $count];
+					break;
+				}
+			}
+		}
+		return $result;
 	}
 
 	public function generateDispenser(WorldAccess $w, BoundingBox $box, JavaRandom $rnd, $x, $y, $z, $meta){

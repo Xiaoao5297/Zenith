@@ -75,7 +75,7 @@ class StrongholdRoomCrossing extends StrongholdPiece{
 		}
 
 		if($this->roomType === 1){
-			$this->generateChest($w, $box, $rnd, 3, 2, 8);
+			$this->generateChest($w, $box, $rnd, 3, 2, 8, 'stronghold');
 		}
 		return true;
 	}

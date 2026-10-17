@@ -35,6 +35,10 @@ class ChunkManagerAdapter implements ObjectChunkManager{
 		return $this->lastChunk;
 	}
 
+	public function getChunkAt($x, $z){
+		return $this->chunkAt($x, $z);
+	}
+
 	public function getBlockId($x, $y, $z){
 		if($y < 0 || $y >= 128){
 			return 0;
