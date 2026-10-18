@@ -108,7 +108,8 @@ class PopulationTask extends AsyncTask{
 			$zz = -1 + (int) ($i / 3);
 			$ck = $this->{"chunk$i"};
 			if($ck === null){
-				$chunks[$i] = $chunkC::getEmptyChunk($chunk->getX() + $xx, $chunk->getZ() + $zz);
+				// 未加载的邻居区块稍后也不会写回 Level，生成它纯属浪费。
+				$chunks[$i] = null;
 			}else{
 				$chunks[$i] = $chunkC::fromFastBinary($ck);
 			}
