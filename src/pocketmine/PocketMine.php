@@ -119,6 +119,9 @@ namespace pocketmine {
 	$autoloader->addPath(\pocketmine\PATH . "src" . DIRECTORY_SEPARATOR . "spl");
 	$autoloader->register(true);
 
+	// 子线程不会继承 spl_autoload_register，预先加载日志级别接口，避免线程内记录日志时找不到 LogLevel。
+	class_exists("LogLevel");
+
 
 	set_time_limit(0); //Who set it to 30 seconds?!?!
 
