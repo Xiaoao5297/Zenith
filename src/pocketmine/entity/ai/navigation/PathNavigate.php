@@ -31,13 +31,22 @@ class PathNavigate{
 	private $state = self::STATE_IDLE;
 
 	/** @var int */
-	private $stuckTicks = 0;
-
-	/** @var int */
 	private $retryCount = 0;
 
-	/** @var Vector3|null 上一次卡住的位置 */
-	private $lastStuckPos;
+	/** @var int */
+	private $blockedTicks = 0;
+
+	/** @var int */
+	private $recalcCooldown = 0;
+
+	/** @var int */
+	private $tickCounter = 0;
+
+	/** @var Vector3|null 上一次进度检查的位置 */
+	private $lastProgressPos;
+
+	/** @var int */
+	private $lastProgressTick = 0;
 
 	/** @var int */
 	private $horizontalRange;
@@ -63,9 +72,10 @@ class PathNavigate{
 	}
 
 	/**
-	 * 设置寻路目标，由 Behavior 调用
+	 * 设置寻路目标，由 Behavior 调用。
+	 * 目标没有明显移动时不会每 tick 重算路径。
 	 */
-	public function moveTo(Vector3 $target, float $speed): void{
+	public function moveTo(Vector3 $target, float $speed) : void{
 		if(!$this->entity->isBehaviorsEnabled()){
 			return;
 		}
@@ -73,26 +83,52 @@ class PathNavigate{
 		$this->target = $target;
 		$this->speed = $speed;
 
-		if($this->state === self::STATE_PATH_FOLLOWING){
-			// 检查目标是否移动了
-			$currentEnd = $this->path !== null ? $this->path->getEndPoint() : null;
-			if($currentEnd !== null and $currentEnd->distance($target) > 1.5){
-				$this->recalculatePath();
-			}
-		}else{
-			$this->state = self::STATE_PATH_FOLLOWING;
-			$this->retryCount = 0;
-			$this->recalculatePath();
+		if($this->state === self::STATE_FALLBACK){
+			return;
 		}
+
+		if($this->state === self::STATE_PATH_FOLLOWING){
+			if($this->path !== null and !$this->path->isDone()){
+				$end = $this->path->getEndPoint();
+				if($end !== null and $end->distance($target) <= 1.5){
+					return;
+				}
+				if($this->recalcCooldown > 0){
+					--$this->recalcCooldown;
+					return;
+				}
+				$this->recalculatePath();
+				$this->recalcCooldown = 10;
+				return;
+			}
+
+			if($this->entity->distance($target) < 1.0){
+				$this->clearPath();
+				return;
+			}
+			if($this->recalcCooldown > 0){
+				--$this->recalcCooldown;
+				return;
+			}
+			$this->recalculatePath();
+			$this->recalcCooldown = 10;
+			return;
+		}
+
+		$this->state = self::STATE_PATH_FOLLOWING;
+		$this->retryCount = 0;
+		$this->recalculatePath();
 	}
 
 	/**
-	 * �?tick �?Mob::onUpdate() 调用
+	 * 由 Mob::onUpdate() 每 tick 调用
 	 */
-	public function update(): void{
+	public function update() : void{
 		if($this->state === self::STATE_IDLE){
 			return;
 		}
+
+		++$this->tickCounter;
 
 		if($this->state === self::STATE_PATH_FOLLOWING){
 			$this->updatePathFollowing();
@@ -101,15 +137,19 @@ class PathNavigate{
 		}
 	}
 
-	private function updatePathFollowing(): void{
+	private function updatePathFollowing() : void{
 		if($this->path === null or $this->path->isDone()){
-			// path 为 null 且未走完：触发重试逻辑
-			if($this->retryCount < 2){
+			if($this->target !== null and $this->entity->distance($this->target) > 1.0){
 				$this->recalculatePath();
-				return;
+			}else{
+				$this->clearPath();
 			}
-			// 重试 2 次仍失败，走直线兜底
-			$this->fallbackToStraight();
+			return;
+		}
+
+		$pos = $this->entity->getPosition();
+		$this->checkStuck($pos);
+		if($this->state !== self::STATE_PATH_FOLLOWING){
 			return;
 		}
 
@@ -119,41 +159,42 @@ class PathNavigate{
 			return;
 		}
 
-		// 检查是否卡住
-		$pos = $this->entity->getPosition();
-		if($this->lastStuckPos !== null and $pos->distance($this->lastStuckPos) < 0.1){
-			$this->stuckTicks++;
-		}else{
-			$this->stuckTicks = 0;
-			$this->lastStuckPos = new Vector3($pos->x, $pos->y, $pos->z);
+		// 按实体宽度推进路点，而不是固定 0.8
+		$advanceDistance = max(0.6, $this->entity->width);
+		$advanced = false;
+		while(($waypoint = $this->path->getCurrentPoint()) !== null){
+			$horizontal = sqrt(($waypoint->x - $pos->x) ** 2 + ($waypoint->z - $pos->z) ** 2);
+			$vertical = abs($waypoint->y - $pos->y);
+			if($horizontal >= $advanceDistance or $vertical > 1.5){
+				break;
+			}
+			$this->path->advance();
+			$advanced = true;
 		}
 
-		if($this->stuckTicks >= 5){
-			$this->stuckTicks = 0;
-			$this->recalculatePath();
+		if($this->path->isDone()){
+			if($this->target !== null and $this->entity->distance($this->target) > 1.0){
+				$this->recalculatePath();
+			}else{
+				$this->clearPath();
+			}
 			return;
 		}
 
-		// 距离 waypoint 足够近，前进到下一个
-		$dist = $pos->distance($waypoint);
-		if($dist < 0.8){
-			$this->path->advance();
-			if($this->path->isDone()){
-				$this->clearPath();
-				return;
-			}
-			$waypoint = $this->path->getCurrentPoint();
-			if($waypoint === null){
-				$this->clearPath();
-				return;
-			}
+		if($advanced){
+			$this->tryShortcut();
 		}
 
-		// 朝向 waypoint 移动
+		$waypoint = $this->path->getCurrentPoint();
+		if($waypoint === null){
+			$this->clearPath();
+			return;
+		}
+
 		$this->moveToward($waypoint);
 	}
 
-	private function updateFallback(): void{
+	private function updateFallback() : void{
 		if($this->target === null){
 			$this->clearPath();
 			return;
@@ -164,7 +205,7 @@ class PathNavigate{
 		$dz = $this->target->z - $pos->z;
 		$len = sqrt($dx * $dx + $dz * $dz);
 
-		if($len < 0.5){
+		if($len < 0.8){
 			$this->clearPath();
 			return;
 		}
@@ -172,82 +213,200 @@ class PathNavigate{
 		$dx /= $len;
 		$dz /= $len;
 
-		$this->entity->yaw = -atan2($dx, $dz) * (180 / M_PI);
+		if(!$this->entity->isLookControlled()){
+			$this->turnToward(-atan2($dx, $dz) * (180 / M_PI));
+		}
 
-		$dir = new Vector3($dx, 0, $dz);
-		// 步长系数统一：0.7 * (水 0.3 / 陆地 0.6)
-		$mult = 0.7 * ($this->entity->isInsideOfWater() ? 0.3 : 0.6);
+		$mult = $this->entity->isInsideOfWater() ? 0.30 : 0.60;
 		$step = $this->speed * $mult;
+		$dir = new Vector3($dx, 0, $dz);
 
 		if(!$this->entity->moveInDirection($dir, $step)){
-			$this->stuckTicks++;
-			if($this->stuckTicks >= 8){
+			++$this->blockedTicks;
+			if($this->blockedTicks >= 8){
 				$this->clearPath();
 			}
 		}else{
-			$this->stuckTicks = 0;
+			$this->blockedTicks = 0;
 		}
 	}
 
-	private function moveToward(Vector3 $waypoint): void{
+	private function moveToward(Vector3 $waypoint) : void{
 		$pos = $this->entity->getPosition();
 		$dx = $waypoint->x - $pos->x;
 		$dy = $waypoint->y - $pos->y;
 		$dz = $waypoint->z - $pos->z;
 
-		$yaw = -atan2($dx, $dz) * (180 / M_PI);
-		$this->entity->yaw = $yaw;
-
-		// 直接构造水平方向向量，避免 getDirectionVector() 引入 pitch 和污染 shared temporalVector
 		$horizontalDist = sqrt($dx * $dx + $dz * $dz);
 		if($horizontalDist <= 0.001){
 			return;
 		}
+
+		// 平滑转向，每 tick 最多 30 度；有 LOOK 行为时让 lookAt 控制朝向
+		if(!$this->entity->isLookControlled()){
+			$this->turnToward(-atan2($dx, $dz) * (180 / M_PI));
+		}
+
 		$dirX = $dx / $horizontalDist;
 		$dirZ = $dz / $horizontalDist;
 
-		// 步长系数调整：0.7 * 0.3(水)/0.6(陆) ≈ 0.21/0.42，接近原版速度
-		$mult = 0.7 * ($this->entity->isInsideOfWater() ? 0.3 : 0.6);
+		$mult = $this->entity->isInsideOfWater() ? 0.30 : 0.60;
 		$step = $this->speed * $mult;
 
 		$dir = new Vector3($dirX, 0, $dirZ);
 		if(!$this->entity->moveInDirection($dir, $step)){
-			$this->stuckTicks++;
-			if($this->stuckTicks >= 5){
-				$this->stuckTicks = 0;
+			++$this->blockedTicks;
+			if($this->blockedTicks >= 10){
+				$this->blockedTicks = 0;
 				$this->recalculatePath();
 			}
 		}else{
-			$this->stuckTicks = 0;
+			$this->blockedTicks = 0;
 		}
+	}
+
+	private function turnToward(float $targetYaw) : void{
+		$delta = $targetYaw - $this->entity->yaw;
+		while($delta > 180){
+			$delta -= 360;
+		}
+		while($delta < -180){
+			$delta += 360;
+		}
+		if($delta > 30){
+			$delta = 30;
+		}elseif($delta < -30){
+			$delta = -30;
+		}
+		$this->entity->yaw = $this->normalizeAngle($this->entity->yaw + $delta);
+	}
+
+	private function normalizeAngle(float $angle) : float{
+		while($angle > 180){
+			$angle -= 360;
+		}
+		while($angle < -180){
+			$angle += 360;
+		}
+		return $angle;
+	}
+
+	/**
+	 * 每 100 tick 检查一次是否真的在前进。
+	 * 比“5 tick 位移小于 0.1 就重算”稳定得多。
+	 */
+	private function checkStuck(Vector3 $pos) : void{
+		if($this->lastProgressPos === null){
+			$this->lastProgressPos = new Vector3($pos->x, $pos->y, $pos->z);
+			$this->lastProgressTick = $this->tickCounter;
+			return;
+		}
+
+		if($this->tickCounter - $this->lastProgressTick < 100){
+			return;
+		}
+
+		if($pos->distance($this->lastProgressPos) < 1.5){
+			$this->lastProgressPos = new Vector3($pos->x, $pos->y, $pos->z);
+			$this->lastProgressTick = $this->tickCounter;
+			$this->recalculatePath();
+			return;
+		}
+
+		$this->lastProgressPos = new Vector3($pos->x, $pos->y, $pos->z);
+		$this->lastProgressTick = $this->tickCounter;
+	}
+
+	/**
+	 * 从路径末端往回找最远的可视路点，直接跳过去，避免贴着 A* 折线走。
+	 */
+	private function tryShortcut() : void{
+		if($this->path === null){
+			return;
+		}
+		$points = $this->path->getPoints();
+		$count = count($points);
+		$index = $this->path->getCurrentIndex();
+		if($count < 3 or $index >= $count - 1){
+			return;
+		}
+
+		$from = $points[$index];
+		for($i = $count - 1; $i > $index + 1; --$i){
+			if($this->canMoveDirectly($from, $points[$i])){
+				$this->path->setCurrentIndex($i);
+				return;
+			}
+		}
+	}
+
+	private function canMoveDirectly(Vector3 $from, Vector3 $to) : bool{
+		$dx = $to->x - $from->x;
+		$dy = $to->y - $from->y;
+		$dz = $to->z - $from->z;
+		$horizontal = sqrt($dx * $dx + $dz * $dz);
+		if($horizontal < 0.001){
+			return true;
+		}
+
+		$steps = max(1, (int) ceil($horizontal / 0.5));
+		$height = $this->entity->height;
+
+		for($i = 1; $i <= $steps; ++$i){
+			$t = $i / $steps;
+			$x = (int) floor($from->x + $dx * $t);
+			$y = (int) floor($from->y + $dy * $t);
+			$z = (int) floor($from->z + $dz * $t);
+
+			if(!$this->evaluator->isWalkable($x, $y, $z, $height) and !$this->evaluator->isWalkable($x, $y + 1, $z, $height)){
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**
 	 * A* 寻路计算
 	 */
-	private function recalculatePath(): void{
+	private function recalculatePath() : void{
 		if($this->target === null){
 			$this->fallbackToStraight();
 			return;
 		}
 
-		$this->retryCount++;
+		++$this->retryCount;
 		$this->evaluator->clearCache();
 
 		$from = $this->entity->getPosition()->floor();
 		$to = $this->target->floor();
 		$entityHeight = $this->entity->height;
 
-		$result = $this->findPath($from, $to, $entityHeight);
-
-		if($result !== null){
-			$this->path = $result;
-			$this->stuckTicks = 0;
-			$this->lastStuckPos = null;
+		if($this->posKey($from) === $this->posKey($to) or $this->entity->distance($this->target) < 1.0){
+			$this->clearPath();
 			return;
 		}
 
-		// 第一次失败，重试
+		$result = $this->findPath($from, $to, $entityHeight);
+
+		if($result !== null and $result->getPointCount() > 0){
+			if($result->isPartial() and $this->retryCount >= 2){
+				$this->fallbackToStraight();
+				return;
+			}
+
+			$this->path = $result;
+			$this->state = self::STATE_PATH_FOLLOWING;
+			$this->blockedTicks = 0;
+			if(!$result->isPartial()){
+				$this->retryCount = 0;
+			}
+			$this->lastProgressPos = new Vector3($this->entity->x, $this->entity->y, $this->entity->z);
+			$this->lastProgressTick = $this->tickCounter;
+			$this->tryShortcut();
+			return;
+		}
+
 		if($this->retryCount < 2){
 			return;
 		}
@@ -255,35 +414,48 @@ class PathNavigate{
 		$this->fallbackToStraight();
 	}
 
-	private function fallbackToStraight(): void{
+	private function fallbackToStraight() : void{
 		$this->path = null;
 		$this->state = self::STATE_FALLBACK;
-		$this->stuckTicks = 0;
+		$this->blockedTicks = 0;
 		$this->retryCount = 0;
 	}
 
-	public function clearPath(): void{
+	public function clearPath() : void{
 		$this->path = null;
 		$this->target = null;
 		$this->state = self::STATE_IDLE;
-		$this->stuckTicks = 0;
+		$this->blockedTicks = 0;
 		$this->retryCount = 0;
-		$this->lastStuckPos = null;
+		$this->recalcCooldown = 0;
+		$this->lastProgressPos = null;
+		$this->lastProgressTick = 0;
 	}
 
-	public function hasPath(): bool{
+	public function hasPath() : bool{
 		return $this->path !== null and !$this->path->isDone();
 	}
 
-	public function isDone(): bool{
-		return $this->state === self::STATE_IDLE;
+	public function isDone() : bool{
+		if($this->state === self::STATE_IDLE){
+			return true;
+		}
+		// FALLBACK 状态没有 Path，但仍在直线移动，不能算完成
+		if($this->state === self::STATE_FALLBACK){
+			return false;
+		}
+		return $this->path === null or $this->path->isDone();
+	}
+
+	public function getTarget() : ?Vector3{
+		return $this->target;
 	}
 
 	/**
 	 * A* 搜索算法
 	 * @return Path|null
 	 */
-	private function findPath(Vector3 $from, Vector3 $to, float $entityHeight): ?Path{
+	private function findPath(Vector3 $from, Vector3 $to, float $entityHeight) : ?Path{
 		$startKey = $this->posKey($from);
 		$goalKey = $this->posKey($to);
 
@@ -291,90 +463,99 @@ class PathNavigate{
 			return null;
 		}
 
-		// 目标不可通行
-		if(!$this->evaluator->isWalkable((int)$to->x, (int)$to->y, (int)$to->z, $entityHeight)){
+		if(!$this->evaluator->isWalkable((int) $to->x, (int) $to->y, (int) $to->z, $entityHeight)){
 			return null;
 		}
 
-		$openSet = [];
-		$cameFrom = [];
+		$open = new \SplPriorityQueue();
+		$open->setExtractFlags(\SplPriorityQueue::EXTR_BOTH);
 
 		$gScore = [$startKey => 0.0];
-		$fScore = [$startKey => $this->heuristic($from, $to)];
+		$cameFrom = [];
+		$closed = [];
 
-		$openSet[$startKey] = $fScore[$startKey];
+		$startH = $this->heuristic($from, $to);
+		$open->insert($startKey, -$startH);
 
+		$closestKey = $startKey;
+		$closestH = $startH;
 		$iterations = 0;
 
-		while(!empty($openSet)){
+		while(!$open->isEmpty()){
 			if(++$iterations > $this->maxIterations){
 				break;
 			}
 
-			// 取出 f 值最小的节点
-			$currentKey = array_search(min($openSet), $openSet, true);
-			unset($openSet[$currentKey]);
-
-			if($currentKey === $goalKey){
-				return $this->reconstructPath($cameFrom, $currentKey);
+			$item = $open->extract();
+			$currentKey = $item["data"];
+			if(isset($closed[$currentKey])){
+				continue;
 			}
+			$closed[$currentKey] = true;
 
 			[$cx, $cy, $cz] = $this->keyPos($currentKey);
-			$neighbors = $this->getNeighbors($cx, $cy, $cz, $entityHeight);
+			$currentH = $this->heuristic(new Vector3($cx, $cy, $cz), $to);
+			if($currentH < $closestH){
+				$closestH = $currentH;
+				$closestKey = $currentKey;
+			}
 
-			foreach($neighbors as $neighbor){
+			if($currentKey === $goalKey){
+				return $this->reconstructPath($cameFrom, $currentKey, false);
+			}
+
+			foreach($this->getNeighbors($cx, $cy, $cz, $entityHeight) as $neighbor){
 				[$nx, $ny, $nz] = $neighbor;
 
-				// 超出搜索范围
-				if(abs($nx - (int)$from->x) > $this->horizontalRange or
-				   abs($nz - (int)$from->z) > $this->horizontalRange or
-				   abs($ny - (int)$from->y) > $this->verticalRange){
+				if(abs($nx - (int) $from->x) > $this->horizontalRange or
+				   abs($nz - (int) $from->z) > $this->horizontalRange or
+				   abs($ny - (int) $from->y) > $this->verticalRange){
 					continue;
 				}
 
 				$neighborKey = $this->posKeyFromInt($nx, $ny, $nz);
+				if(isset($closed[$neighborKey])){
+					continue;
+				}
 
-				$moveCost = ($ny > $cy) ? 1.5 : 1.0; // 跳跃代价
-				$blockCost = $this->evaluator->getCost($nx, $ny, $nz) * $this->waterCost;
+				$moveCost = $ny > $cy ? 1.5 : ($ny < $cy ? 1.2 : 1.0);
+				$blockCost = $this->evaluator->getCost($nx, $ny, $nz, $this->waterCost);
 				$tentativeG = $gScore[$currentKey] + $moveCost * $blockCost;
 
 				if(!isset($gScore[$neighborKey]) or $tentativeG < $gScore[$neighborKey]){
 					$cameFrom[$neighborKey] = $currentKey;
 					$gScore[$neighborKey] = $tentativeG;
-					$neighborPos = new Vector3($nx, $ny, $nz);
-					$fScore[$neighborKey] = $tentativeG + $this->heuristic($neighborPos, $to);
-					$openSet[$neighborKey] = $fScore[$neighborKey];
+					$f = $tentativeG + $this->heuristic(new Vector3($nx, $ny, $nz), $to);
+					$open->insert($neighborKey, -$f);
 				}
 			}
+		}
+
+		// 找不到完整路径时，返回通往“离目标最近节点”的部分路径
+		if($closestKey !== $startKey){
+			return $this->reconstructPath($cameFrom, $closestKey, true);
 		}
 
 		return null;
 	}
 
 	/**
-	 * 获取邻居节点（4 方向）
+	 * 获取邻居节点（4 方向 + 上下一格）
 	 */
-	private function getNeighbors(int $x, int $y, int $z, float $entityHeight): array{
+	private function getNeighbors(int $x, int $y, int $z, float $entityHeight) : array{
 		$neighbors = [];
-
-		// 水平方向
-		$dirs = [[1,0], [-1,0], [0,1], [0,-1]];
+		$dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
 		foreach($dirs as [$dx, $dz]){
 			$nx = $x + $dx;
 			$nz = $z + $dz;
 
-			// 同层
 			if($this->evaluator->isWalkable($nx, $y, $nz, $entityHeight)){
 				$neighbors[] = [$nx, $y, $nz];
 			}
-
-			// 上一格（跳跃）
 			if($this->evaluator->isWalkable($nx, $y + 1, $nz, $entityHeight)){
 				$neighbors[] = [$nx, $y + 1, $nz];
 			}
-
-			// 下一格（下落）
 			if($this->evaluator->isWalkable($nx, $y - 1, $nz, $entityHeight)){
 				$neighbors[] = [$nx, $y - 1, $nz];
 			}
@@ -384,8 +565,9 @@ class PathNavigate{
 	}
 
 	/**
-	 * 启发式距离（octile + 垂直�?	 */
-	private function heuristic(Vector3 $a, Vector3 $b): float{
+	 * 启发式距离（octile + 垂直）
+	 */
+	private function heuristic(Vector3 $a, Vector3 $b) : float{
 		$dx = abs($a->x - $b->x);
 		$dz = abs($a->z - $b->z);
 		$dy = abs($a->y - $b->y);
@@ -393,9 +575,9 @@ class PathNavigate{
 	}
 
 	/**
-	 * �?cameFrom 重建路径
+	 * 从 cameFrom 重建路径
 	 */
-	private function reconstructPath(array $cameFrom, string $currentKey): Path{
+	private function reconstructPath(array $cameFrom, string $currentKey, bool $partial = false) : Path{
 		$points = [];
 		$key = $currentKey;
 
@@ -405,25 +587,21 @@ class PathNavigate{
 			$key = $cameFrom[$key];
 		}
 
-		// 移除起点
-		if(!empty($points)){
-			array_shift($points);
-		}
-
-		return new Path($points);
+		// cameFrom 链在起点处结束，循环不会把起点加入 points，
+		// 因此这里不需要再移除第一个路点。
+		return new Path($points, $partial);
 	}
 
-	private function posKey(Vector3 $pos): string{
-		return ((int)$pos->x) . ',' . ((int)$pos->y) . ',' . ((int)$pos->z);
+	private function posKey(Vector3 $pos) : string{
+		return ((int) floor($pos->x)) . ',' . ((int) floor($pos->y)) . ',' . ((int) floor($pos->z));
 	}
 
-	private function posKeyFromInt(int $x, int $y, int $z): string{
+	private function posKeyFromInt(int $x, int $y, int $z) : string{
 		return $x . ',' . $y . ',' . $z;
 	}
 
-	private function keyPos(string $key): array{
+	private function keyPos(string $key) : array{
 		$parts = explode(',', $key);
-		return [(int)$parts[0], (int)$parts[1], (int)$parts[2]];
+		return [(int) $parts[0], (int) $parts[1], (int) $parts[2]];
 	}
 }
-

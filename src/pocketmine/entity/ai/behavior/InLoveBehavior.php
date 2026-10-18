@@ -47,6 +47,10 @@ class InLoveBehavior extends Behavior{
         return 3;
     }
 
+    public function getControlFlags(): int{
+        return self::CONTROL_MOVE | self::CONTROL_LOOK;
+    }
+
     public function getName() : string{
         return "InLove";
     }
@@ -55,27 +59,49 @@ class InLoveBehavior extends Behavior{
 		if(!$this->entity->isInLove()){
 			return false;
 		}
-		$find = false;
-		foreach($this->entity->level->getNearbyEntities($this->entity->boundingBox->grow(10, 3, 10), $this->entity) as $entity){
+
+		$best = null;
+		$bestDistance = 12.0;
+		foreach($this->entity->level->getNearbyEntities($this->entity->boundingBox->grow(12, 3, 12), $this->entity) as $entity){
 			if(get_class($entity) == get_class($this->entity) and $entity->isInLove()){
-				$find = true;
-				$this->timeLeft = 200;
-				$this->inLoveEntity = $entity;
+				$distance = $this->entity->distance($entity);
+				if($distance < $bestDistance){
+					$best = $entity;
+					$bestDistance = $distance;
+				}
 			}
 		}
-		return $find;
-		
+
+		if($best === null){
+			return false;
+		}
+
+		$this->inLoveEntity = $best;
+		$this->timeLeft = 200;
+		return true;
     }
 
     public function canContinue() : bool{
-		return $this->timeLeft-- > 0 and $this->inLoveEntity->isAlive();
-        
+		if($this->inLoveEntity === null or !$this->inLoveEntity->isAlive()){
+			return false;
+		}
+		if(!$this->entity->isInLove() or !$this->inLoveEntity->isInLove()){
+			return false;
+		}
+		if($this->entity->distance($this->inLoveEntity) > 12.0){
+			return false;
+		}
+		return $this->timeLeft-- > 0;
     }
 
     public function onTick(){
+		if($this->inLoveEntity === null or !$this->entity->isInLove()){
+			return;
+		}
 		$this->lookAt($this->inLoveEntity);
 
 		if($this->entity->distance($this->inLoveEntity) < 0.5){
+			$this->entity->getNavigator()->clearPath();
 			$this->inLovetime++;
 			if($this->inLovetime >= 10){
 				$nbt = new CompoundTag("", [
@@ -117,6 +143,9 @@ class InLoveBehavior extends Behavior{
     }
 
     public function onEnd(){
+		$this->inLoveEntity = null;
+		$this->inLovetime = 0;
+		$this->timeLeft = 0;
         $this->entity->getNavigator()->clearPath();
     }
 }

@@ -3,61 +3,82 @@
 namespace pocketmine\entity\ai\behavior;
 
 use pocketmine\entity\Mob;
+use pocketmine\Player;
 
 class LookAtPlayerBehavior extends Behavior{
 
-    public $player;
-    public $lookDistance = 0;
+	/** @var Player|null */
+	public $player = null;
 
-    public function getPriority(): int{
-        return 6;
-    }
+	/** @var float */
+	public $lookDistance = 6.0;
 
-    public function getName() : string{
-        return "LookAtPlayer";
-    }
+	/** @var int */
+	private $duration = 0;
 
-    public function __construct(Mob $entity, float $lookDistance = 6.0){
-        parent::__construct($entity);
+	public function __construct(Mob $entity, float $lookDistance = 6.0){
+		parent::__construct($entity);
+		$this->lookDistance = $lookDistance;
+	}
 
-        $this->lookDistance = $lookDistance;
-    }
+	public function getPriority() : int{
+		return 6;
+	}
 
-    public function shouldStart() : bool{
-        if(rand(0,10) != 0) return false;
+	public function getControlFlags() : int{
+		return self::CONTROL_LOOK;
+	}
 
-        $players = $this->entity->level->getPlayers();
+	public function getName() : string{
+		return "LookAtPlayer";
+	}
 
-        foreach($players as $p){
-            if($this->entity->distance($p) < $this->lookDistance){
-                $this->player = $p;
-                break;
-            }
-        }
+	public function shouldStart() : bool{
+		if(mt_rand(0, 20) !== 0){
+			return false;
+		}
 
-        if($this->player == null) return false;
+		$best = null;
+		$bestDistance = $this->lookDistance;
+		foreach($this->entity->level->getPlayers() as $player){
+			if(!$player->isAlive() or !$player->isConnected()){
+				continue;
+			}
+			$distance = $this->entity->distance($player);
+			if($distance < $bestDistance){
+				$best = $player;
+				$bestDistance = $distance;
+			}
+		}
 
-        $this->duration = 40 + mt_rand(0,40);
+		if($best === null){
+			return false;
+		}
 
-        return true;
-    }
+		$this->player = $best;
+		$this->duration = 40 + mt_rand(0, 40);
+		return true;
+	}
 
-    public function canContinue() : bool{
+	public function canContinue() : bool{
+		if($this->player === null or !$this->player->isAlive() or !$this->player->isConnected()){
+			return false;
+		}
+		if($this->entity->distance($this->player) > $this->lookDistance + 2){
+			return false;
+		}
 		return $this->duration-- > 0;
-    }
+	}
 
-    public function onTick(){
-		$this->lookAt($this->player);
+	public function onTick(){
+		if($this->player !== null){
+			$this->lookAt($this->player);
+		}
 		$this->swimming();
-		$this->entity->level->addEntityMovement($this->entity->chunk->getX(), $this->entity->chunk->getZ(), $this->entity->getID(), $this->entity->x, $this->entity->y + $this->entity->getEyeHeight(), $this->entity->z, $this->entity->yaw, $this->entity->pitch, $this->entity->yaw);
-    }
-	
-    public function onEnd(){
-        $this->player = null;
-        $this->entity->pitch = 0;
-    }
+	}
 
-    public function toDegree($angle){
-        return $angle * (180 / pi());
-    }
+	public function onEnd(){
+		$this->player = null;
+		$this->entity->pitch = 0;
+	}
 }

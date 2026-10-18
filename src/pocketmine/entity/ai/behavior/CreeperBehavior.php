@@ -1,89 +1,120 @@
 <?php
 
-/*
- *
- *    _______                    _
- *   |__   __|                  (_)
- *      | |_   _ _ __ __ _ _ __  _  ___
- *      | | | | | '__/ _` | '_ \| |/ __|
- *      | | |_| | | | (_| | | | | | (__
- *      |_|\__,_|_|  \__,_|_| |_|_|\___|
- *
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * @author TuranicTeam
- * @link https://github.com/TuranicTeam/Turanic
-*/
-
 namespace pocketmine\entity\ai\behavior;
 
 use pocketmine\entity\Mob;
-use pocketmine\math\Vector3;
-use pocketmine\block\Air;
 use pocketmine\Player;
 
 class CreeperBehavior extends Behavior{
 
-    public $lookDistance = 5.0;
-    public $explodeRadius = 2.0;
-    public $speed = 0.30;
-    public $enemy = null;
+	/** @var float */
+	public $lookDistance = 16.0;
 
-    public function getPriority(): int{
-        return 1;
-    }
+	/** @var float */
+	public $explodeRadius = 2.5;
 
-    public function getName() : string{
-        return "CreeperExplode";
-    }
+	/** @var float */
+	public $speed = 0.30;
 
-    public function shouldStart() : bool{
-        $nearest = null;
-        $minDistance = $this->lookDistance;
-        foreach($this->entity->level->getPlayers() as $p){
-            $dist = $this->entity->distance($p);
-            if($p->isSurvival() and $dist < $minDistance){
-                $nearest = $p;
-                $minDistance = $dist;
-            }
-        }
-        $this->enemy = $nearest;
-        return $nearest !== null;
-    }
+	/** @var Player|null */
+	public $enemy = null;
 
-    public function canContinue() : bool{
-        if($this->enemy === null or !$this->enemy->isAlive()){
-            return false;
-        }
-        if($this->enemy instanceof Player and !$this->enemy->isConnected()){
-            return false;
-        }
-        return $this->entity->distance($this->enemy) < $this->lookDistance;
-    }
+	/** @var int */
+	private $searchCooldown = 0;
 
-    public function onTick(){
-        $distance = $this->entity->distance($this->enemy);
-        $this->lookAt($this->enemy, false);
+	/** @var int */
+	private $canSeeCooldown = 0;
 
-        if($distance >= 1.5){
-            $this->entity->getNavigator()->moveTo($this->enemy, $this->speed);
-        }
+	/** @var bool */
+	private $canSeeTarget = false;
 
-        if($distance <= $this->explodeRadius){
-            $this->entity->setSwelled(true);
-        }
+	public function getPriority() : int{
+		return 1;
+	}
 
-        $this->swimming();
-    }
+	public function getControlFlags() : int{
+		return self::CONTROL_MOVE | self::CONTROL_LOOK;
+	}
 
-    public function onEnd(){
-        $this->enemy = null;
-        $this->entity->setSwelled(false);
-        $this->entity->getNavigator()->clearPath();
-    }
+	public function getName() : string{
+		return "CreeperExplode";
+	}
+
+	public function shouldStart() : bool{
+		if($this->isValidTarget($this->enemy)){
+			return true;
+		}
+		$this->enemy = null;
+
+		if($this->searchCooldown > 0){
+			--$this->searchCooldown;
+			return false;
+		}
+		$this->searchCooldown = 10;
+
+		$best = null;
+		$bestDistance = $this->lookDistance;
+		foreach($this->entity->level->getPlayers() as $player){
+			if(!$player->isAlive() or !$player->isConnected() or !$player->isSurvival()){
+				continue;
+			}
+			$distance = $this->entity->distance($player);
+			if($distance < $bestDistance){
+				$best = $player;
+				$bestDistance = $distance;
+			}
+		}
+
+		$this->enemy = $best;
+		return $best !== null;
+	}
+
+	private function isValidTarget($target) : bool{
+		if(!$target instanceof Player or !$target->isAlive() or !$target->isConnected() or !$target->isSurvival()){
+			return false;
+		}
+		return $this->entity->distance($target) <= $this->lookDistance + 4;
+	}
+
+	public function canContinue() : bool{
+		return $this->isValidTarget($this->enemy);
+	}
+
+	public function onTick(){
+		if($this->enemy === null){
+			return;
+		}
+
+		$distance = $this->entity->distance($this->enemy);
+		$this->lookAt($this->enemy);
+
+		if($this->canSeeCooldown > 0){
+			--$this->canSeeCooldown;
+		}else{
+			$this->canSeeCooldown = 5;
+			$this->canSeeTarget = $this->canSee($this->enemy);
+		}
+
+		if($distance > 1.8){
+			$this->entity->getNavigator()->moveTo($this->enemy, $this->speed);
+		}else{
+			$this->entity->getNavigator()->clearPath();
+		}
+
+		// 只有贴近且有视线时才膨胀，玩家跑远或隔墙时回缩
+		$shouldSwell = $distance <= $this->explodeRadius and $this->canSeeTarget;
+		if($shouldSwell !== $this->entity->isSwelled()){
+			$this->entity->setSwelled($shouldSwell);
+		}
+
+		$this->swimming();
+	}
+
+	public function onEnd(){
+		$this->enemy = null;
+		$this->searchCooldown = 0;
+		$this->canSeeTarget = false;
+		$this->entity->setSwelled(false);
+		$this->entity->getNavigator()->clearPath();
+	}
 }
-

@@ -15,6 +15,8 @@ abstract class Creature extends Living{
                 ++$this->deadTicks;
                 if($this->deadTicks >= 20){
                     $this->despawnFromAll();
+                    $this->close();
+                    return false;
                 }
                 return true;
             }

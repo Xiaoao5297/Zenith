@@ -1,62 +1,103 @@
 <?php
+
 namespace pocketmine\entity\ai\behavior;
 
 use pocketmine\entity\Mob;
-use pocketmine\math\Vector3;
-use pocketmine\block\Air;
-use pocketmine\block\Grass;
-use pocketmine\Player;
 use pocketmine\network\protocol\EntityEventPacket;
 
+/**
+ * 羊吃草：只有完整播放完吃草动画才恢复羊毛并消耗草方块。
+ * 被更高优先级行为打断时不会产生“凭空长毛/方块变泥土”的副作用。
+ */
 class EatGrassBehavior extends Behavior{
-	
-	public $lookDistance = 6.0;
-	public $foodID;
-	public $player = null;
-	public $timeLeft;
 
-    public function getPriority(): int{
-        return 4;
-    }
+	/** @var int */
+	public $timeLeft = 0;
 
-    public function getName() : string{
-        return "EatGrass";
-    }
+	/** @var bool */
+	public $completed = false;
 
-    public function shouldStart() : bool{
-		if(!$this->entity->hasWool() and $this->entity->getLevel()->getBlockIdAt($this->entity->x, round($this->entity->y) - 1, $this->entity->z) == 2){
-			if(mt_rand(0, 400) == 22){
-				$this->timeLeft = 30;
-				return true;
-			}
-		}
-		return false;
-		
-    }
+	/** @var bool */
+	public $animationSent = false;
 
-    public function canContinue() : bool{
-		--$this->timeLeft;
-		if($this->timeLeft <= 0){
+	public function getPriority() : int{
+		return 4;
+	}
+
+	public function getControlFlags() : int{
+		return self::CONTROL_MOVE;
+	}
+
+	public function getName() : string{
+		return "EatGrass";
+	}
+
+	public function shouldStart() : bool{
+		if($this->entity->hasWool()){
 			return false;
 		}
-		return true;
-        
-    }
 
-    public function onTick(){
-		if($this->timeLeft == 30){
-			$viewers = $this->entity->getViewers();
-			foreach($viewers as $p){
-				$pk = new EntityEventPacket();
-				$pk->eid = $this->entity->getId();
-				$pk->event = EntityEventPacket::EAT_GRASS_ANIMATION;
-				$p->dataPacket($pk);
-			}
+		$level = $this->entity->getLevel();
+		if($level === null){
+			return false;
 		}
-    }
 
-    public function onEnd(){
+		$x = (int) floor($this->entity->x);
+		$y = (int) floor($this->entity->y) - 1;
+		$z = (int) floor($this->entity->z);
+
+		return $level->getBlockIdAt($x, $y, $z) === 2 and mt_rand(0, 400) === 22;
+	}
+
+	public function onStart() : void{
+		$this->timeLeft = 30;
+		$this->completed = false;
+		$this->animationSent = false;
+		$this->entity->getNavigator()->clearPath();
+	}
+
+	public function canContinue() : bool{
+		if(--$this->timeLeft > 0){
+			return true;
+		}
+
+		$this->completed = true;
+		return false;
+	}
+
+	public function onTick(){
+		if($this->animationSent){
+			return;
+		}
+
+		$this->animationSent = true;
+		$pk = new EntityEventPacket();
+		$pk->eid = $this->entity->getId();
+		$pk->event = EntityEventPacket::EAT_GRASS_ANIMATION;
+		foreach($this->entity->getViewers() as $player){
+			$player->dataPacket($pk);
+		}
+	}
+
+	public function onEnd(){
+		if(!$this->completed){
+			return;
+		}
+
+		$level = $this->entity->getLevel();
+		if($level === null){
+			return;
+		}
+
+		$x = (int) floor($this->entity->x);
+		$y = (int) floor($this->entity->y) - 1;
+		$z = (int) floor($this->entity->z);
+
+		if($level->getBlockIdAt($x, $y, $z) !== 2){
+			return;
+		}
+
 		$this->entity->sethasWool(true);
-		$this->entity->getLevel()->setBlockIdAt($this->entity->x, round($this->entity->y) - 1, $this->entity->z, 3);
-    }
+		$level->setBlockIdAt($x, $y, $z, 3);
+	}
 }

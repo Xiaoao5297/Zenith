@@ -26,6 +26,10 @@ class SlimeBehavior extends Behavior{
         return 7;
     }
 
+    public function getControlFlags(): int{
+        return self::CONTROL_MOVE | self::CONTROL_LOOK;
+    }
+
     public function getName() : string{
         return "SlimeMove";
     }
@@ -84,7 +88,9 @@ class SlimeBehavior extends Behavior{
 		}
 		
 		if($entity->isInsideOfWater()){ //实体游泳
-			$entity->motionY = 0.5;
+			if($entity->motionY < 0.05){
+				$entity->motionY = 0.12;
+			}
 		}
     }
 
