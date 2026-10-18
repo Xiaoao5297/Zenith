@@ -172,6 +172,10 @@ class Gorigional extends Generator{
 			}
 		}
 		$this->stronghold = $generateStronghold ? new MapGenStronghold($this->seed) : null;
+
+		if($level instanceof Level){
+			$level->getServer()->getLogger()->info("[Gorigional] MCPE terrain generator active, seed=" . $this->seed);
+		}
 	}
 
 	public function takeDeferredTiles(){
