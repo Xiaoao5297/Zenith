@@ -46,10 +46,10 @@ class PopulationTask extends AsyncTask{
 	/** @var string|null */
 	public $errorMessage = null;
 
-	/** @var array[] */
-	public $deferredChests = [];
-	/** @var array[] */
-	public $deferredSpawners = [];
+	/** @var string JSON，避免 pthreads 把数组转成不可覆盖的 Threaded */
+	public $deferredChests = "";
+	/** @var string JSON */
+	public $deferredSpawners = "";
 
 	public function __construct(Level $level, FullChunk $chunk){
 		$this->state = true;
@@ -143,8 +143,8 @@ class PopulationTask extends AsyncTask{
 		// 回到主线程、区块重新绑定 provider 后再创建 tile。
 		if(method_exists($generator, 'takeDeferredTiles')){
 			$deferred = $generator->takeDeferredTiles();
-			$this->deferredChests = $deferred[0];
-			$this->deferredSpawners = $deferred[1];
+			$this->deferredChests = json_encode($deferred[0]);
+			$this->deferredSpawners = json_encode($deferred[1]);
 		}
 
 		$chunk = $manager->getChunk($chunk->getX(), $chunk->getZ());
@@ -234,9 +234,12 @@ class PopulationTask extends AsyncTask{
 	}
 
 	private function applyDeferredTiles(Level $level){
-		// 这些数组会被 pthreads 转成 Threaded 容器；Threaded 属性一旦持有
-		// Threaded 对象就不能再整体覆盖，因此这里只消费、不清空。
-		foreach($this->deferredChests as $entry){
+		// 队列以 JSON 字符串跨线程传递；pthreads 不能安全覆盖 Threaded 数组属性。
+		$chests = json_decode($this->deferredChests, true);
+		if(!is_array($chests)){
+			$chests = [];
+		}
+		foreach($chests as $entry){
 			list($x, $y, $z, $items) = $entry;
 			$chunk = $level->getChunk($x >> 4, $z >> 4, false);
 			if($chunk === null || $chunk->getTile($x & 15, $y, $z & 15) !== null){
@@ -256,7 +259,11 @@ class PopulationTask extends AsyncTask{
 			}
 		}
 
-		foreach($this->deferredSpawners as $entry){
+		$spawners = json_decode($this->deferredSpawners, true);
+		if(!is_array($spawners)){
+			$spawners = [];
+		}
+		foreach($spawners as $entry){
 			list($x, $y, $z, $entityId) = $entry;
 			$chunk = $level->getChunk($x >> 4, $z >> 4, false);
 			if($chunk === null || $chunk->getTile($x & 15, $y, $z & 15) !== null){
