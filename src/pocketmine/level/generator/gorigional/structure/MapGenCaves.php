@@ -33,6 +33,13 @@ class MapGenCaves extends MapGenBase{
 	/** @var int */
 	public $maxHeight = 256;
 
+	/** @var array<string, array|null> 洞穴原点缓存：同一套洞穴不重复构造 */
+	private $originCache = [];
+	/** @var int|null */
+	private $multiplierI = null;
+	/** @var int|null */
+	private $multiplierJ = null;
+
 	public function __construct($seed){
 		parent::__construct($seed);
 		// MCPE 的洞穴内部随机流是 MT19937，而不是 Java LCG。
@@ -43,13 +50,45 @@ class MapGenCaves extends MapGenBase{
 		$this->generate($cx, $cz, $chunk);
 	}
 
+	/**
+	 * 与 MapGenBase::generate 相同的播种规则，但增加按原点的缓存。
+	 * 邻近区块会反复扫描同一批洞穴原点，缓存后不再重复重建 MT 和节点。
+	 */
+	public function generate($chunkX, $chunkZ, FullChunk $chunk){
+		if($this->multiplierI === null){
+			$seedRnd = new McpeRandom($this->worldSeed);
+			$this->multiplierI = (($seedRnd->nextInt() >> 2) * 2 + 1) & 0xFFFFFFFF;
+			$this->multiplierJ = (($seedRnd->nextInt() >> 2) * 2 + 1) & 0xFFFFFFFF;
+		}
+
+		for($x = $chunkX - $this->range; $x <= $chunkX + $this->range; $x++){
+			for($z = $chunkZ - $this->range; $z <= $chunkZ + $this->range; $z++){
+				$key = $x . ':' . $z;
+				if(array_key_exists($key, $this->originCache)){
+					if($this->originCache[$key] !== null){
+						$this->applyCaves($this->originCache[$key], $chunkX, $chunkZ, $chunk);
+					}
+					continue;
+				}
+
+				$seed = ($this->worldSeed ^ ((($x * $this->multiplierI) + ($z * $this->multiplierJ)) & 0xFFFFFFFF)) & 0xFFFFFFFF;
+				$this->rand->setSeed($seed);
+				$this->recursiveGenerate($chunkX, $chunkZ, $x, $z, $chunk);
+			}
+		}
+	}
+
 	public function recursiveGenerate($chunkX, $chunkZ, $originX, $originZ, FullChunk $chunk){
+		$key = $originX . ':' . $originZ;
+
 		// MCPE LargeCaveFeature 只在约 1/15 的区块生成洞穴系统。
 		if($this->rand->nextInt() % 15 !== 0){
+			$this->originCache[$key] = null;
 			return;
 		}
 
 		$nodes = $this->rand->nextBoundedInt($this->rand->nextBoundedInt($this->rand->nextBoundedInt(15) + 1) + 1);
+		$descriptors = [];
 
 		for($j = 0; $j < $nodes; $j++){
 			$rx = $originX * 16 + $this->rand->nextBoundedInt(16);
@@ -58,7 +97,12 @@ class MapGenCaves extends MapGenBase{
 
 			$count = 1;
 			if($this->rand->nextBoundedInt(4) === 0){
-				$this->addRoom($this->rand->nextInt() >> 1, $chunkX, $chunkZ, $chunk, $rx, $ry, $rz);
+				$descriptors[] = [
+					'room',
+					$this->rand->nextInt() >> 1,
+					$rx, $ry, $rz,
+					1.0 + $this->rand->nextFloat() * 6.0
+				];
 				$count += $this->rand->nextBoundedInt(4);
 			}
 
@@ -71,7 +115,25 @@ class MapGenCaves extends MapGenBase{
 					$size *= ($this->rand->nextFloat() * $this->rand->nextFloat() * 3.0 + 1.0);
 				}
 
-				$this->addTunnel($this->rand->nextInt() >> 1, $chunkX, $chunkZ, $chunk, $rx, $ry, $rz, $size, $f, $f1, 0, 0, 1.0);
+				$descriptors[] = [
+					'tunnel',
+					$this->rand->nextInt() >> 1,
+					$rx, $ry, $rz,
+					$size, $f, $f1
+				];
+			}
+		}
+
+		$this->originCache[$key] = $descriptors;
+		$this->applyCaves($descriptors, $chunkX, $chunkZ, $chunk);
+	}
+
+	private function applyCaves(array $descriptors, $chunkX, $chunkZ, FullChunk $chunk){
+		foreach($descriptors as $descriptor){
+			if($descriptor[0] === 'room'){
+				$this->addTunnel($descriptor[1], $chunkX, $chunkZ, $chunk, $descriptor[2], $descriptor[3], $descriptor[4], $descriptor[5], 0.0, 0.0, -1, -1, 0.5);
+			}else{
+				$this->addTunnel($descriptor[1], $chunkX, $chunkZ, $chunk, $descriptor[2], $descriptor[3], $descriptor[4], $descriptor[5], $descriptor[6], $descriptor[7], 0, 0, 1.0);
 			}
 		}
 	}

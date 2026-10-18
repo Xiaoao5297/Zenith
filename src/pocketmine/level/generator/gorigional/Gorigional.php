@@ -237,22 +237,32 @@ class Gorigional extends Generator{
 		$i = 0;
 		$j = 0;
 
+		// 10×10 群系 ID 先缓存成高度参数，避免 625 次静态查表。
+		$minHeights = [];
+		$maxHeights = [];
+		for($biomeIndex = 0; $biomeIndex < 100; $biomeIndex++){
+			$biomeID = $biomesForGeneration[$biomeIndex] & 0xFF;
+			if(!isset($minHeights[$biomeID])){
+				$biome = BiomeRegistry::getBiome($biomeID);
+				$minHeights[$biomeID] = $biome->getMinElevation();
+				$maxHeights[$biomeID] = $biome->getMaxElevation();
+			}
+		}
+
 		for($k = 0; $k < $horizontalPoints; $k++){
 			for($l = 0; $l < $horizontalPoints; $l++){
 				$f2 = 0.0;
 				$f3 = 0.0;
 				$f4 = 0.0;
 
-				$centerBiomeID = $biomesForGeneration[$k + 2 + ($l + 2) * 10];
-				$centerBiome = BiomeRegistry::getBiome($centerBiomeID);
-				$centerBaseHeight = $centerBiome->getMinElevation();
+				$centerBiomeID = $biomesForGeneration[$k + 2 + ($l + 2) * 10] & 0xFF;
+				$centerBaseHeight = $minHeights[$centerBiomeID];
 
 				for($j1 = -2; $j1 <= 2; $j1++){
 					for($k1 = -2; $k1 <= 2; $k1++){
-						$biomeID = $biomesForGeneration[$k + $j1 + 2 + ($l + $k1 + 2) * 10];
-						$neighborBiome = BiomeRegistry::getBiome($biomeID);
-						$baseHeight = $neighborBiome->getMinElevation();
-						$heightVar = $neighborBiome->getMaxElevation();
+						$biomeID = $biomesForGeneration[$k + $j1 + 2 + ($l + $k1 + 2) * 10] & 0xFF;
+						$baseHeight = $minHeights[$biomeID];
+						$heightVar = $maxHeights[$biomeID];
 
 						$f5 = self::BIOME_DEPTH_OFFSET + $baseHeight * self::BIOME_DEPTH_WEIGHT;
 						$f6 = self::BIOME_SCALE_OFFSET + $heightVar * self::BIOME_SCALE_WEIGHT;
@@ -412,12 +422,18 @@ class Gorigional extends Generator{
 		$noiseArray = [];
 		$noiseArray = $this->surfaceNoise->getRegion($noiseArray, $chunkX, $chunkZ, 16, 16, 0.125, 0.125, 1.0);
 
+		$biomeCache = [];
+		$colorCache = [];
 		for($i = 0; $i < 16; $i++){
 			for($j = 0; $j < 16; $j++){
 				$idx = $j * 16 + $i;
 				$biomeID = $biomeIDs[$idx] & 0xFF;
 
-				$b = BiomeRegistry::getBiome($biomeID);
+				if(!isset($biomeCache[$biomeID])){
+					$biomeCache[$biomeID] = BiomeRegistry::getBiome($biomeID);
+					$colorCache[$biomeID] = $biomeCache[$biomeID]->getColor();
+				}
+				$b = $biomeCache[$biomeID];
 
 				$nv = $noiseArray[$idx];
 
@@ -426,7 +442,7 @@ class Gorigional extends Generator{
 
 				$b->genTerrainBlocks($c, $rnd, $gx, $gz, $nv);
 
-				$biomeColor = $b->getColor();
+				$biomeColor = $colorCache[$biomeID];
 				$c->setBiomeColor($i, $j, ($biomeColor >> 16) & 0xFF, ($biomeColor >> 8) & 0xFF, $biomeColor & 0xFF);
 				$c->setBiomeId($i, $j, $b->getID());
 			}
