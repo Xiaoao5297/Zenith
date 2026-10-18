@@ -167,40 +167,40 @@ final class BiomeRegistry{
 	}
 
 	private static function configureDecorators(){
-		self::cfg(1, ['trees' => 0, 'extraTree' => 0.05, 'flowers' => 4, 'grass' => 10]);
+		self::cfg(1, ['trees' => 0, 'extraTree' => 0.05, 'flowers' => 4, 'grass' => 16]);
 		self::cfg(2, ['trees' => -999, 'deadBush' => 2, 'reeds' => 50, 'cacti' => 10]);
-		self::cfg(3, ['trees' => 3]);
-		self::cfg(4, ['trees' => 10, 'grass' => 2, 'flowers' => 4]);
-		self::cfg(5, ['trees' => 10, 'grass' => 1, 'mushrooms' => 1]);
-		self::cfg(6, ['trees' => 2, 'flowers' => 1, 'deadBush' => 1, 'mushrooms' => 8, 'reeds' => 10, 'clay' => 1, 'waterlily' => 4, 'sand' => 0, 'gravel' => 0, 'grass' => 5]);
+		self::cfg(3, ['trees' => 3, 'grass' => 3]);
+		self::cfg(4, ['trees' => 10, 'grass' => 4, 'flowers' => 4]);
+		self::cfg(5, ['trees' => 10, 'grass' => 2, 'mushrooms' => 1]);
+		self::cfg(6, ['trees' => 2, 'flowers' => 1, 'deadBush' => 1, 'mushrooms' => 8, 'reeds' => 10, 'clay' => 1, 'waterlily' => 4, 'sand' => 0, 'gravel' => 0, 'grass' => 8]);
 		self::cfg(12, ['trees' => 0, 'extraTree' => 0.05, 'flowers' => 0, 'grass' => 0]);
 		self::cfg(13, ['trees' => 0, 'extraTree' => 0.05, 'flowers' => 0, 'grass' => 0]);
 		self::cfg(14, ['trees' => 0, 'extraTree' => 0, 'flowers' => 0, 'grass' => 0, 'mushrooms' => 1, 'bigMush' => 1]);
 		self::cfg(15, ['trees' => 0, 'extraTree' => 0, 'flowers' => 0, 'grass' => 0, 'mushrooms' => 1, 'bigMush' => 1]);
 		self::cfg(16, ['trees' => -999, 'deadBush' => 0, 'reeds' => 0, 'cacti' => 0]);
 		self::cfg(17, ['trees' => -999, 'deadBush' => 2, 'reeds' => 50, 'cacti' => 10]);
-		self::cfg(18, ['trees' => 10, 'grass' => 2, 'flowers' => 4]);
-		self::cfg(19, ['trees' => 10, 'grass' => 1, 'mushrooms' => 1]);
-		self::cfg(20, ['trees' => 3]);
-		self::cfg(21, ['trees' => 50, 'grass' => 25, 'flowers' => 4]);
-		self::cfg(22, ['trees' => 50, 'grass' => 25, 'flowers' => 4]);
-		self::cfg(23, ['trees' => 2, 'grass' => 3, 'flowers' => 2]);
+		self::cfg(18, ['trees' => 10, 'grass' => 4, 'flowers' => 4]);
+		self::cfg(19, ['trees' => 10, 'grass' => 2, 'mushrooms' => 1]);
+		self::cfg(20, ['trees' => 3, 'grass' => 3]);
+		self::cfg(21, ['trees' => 50, 'grass' => 30, 'flowers' => 4]);
+		self::cfg(22, ['trees' => 50, 'grass' => 30, 'flowers' => 4]);
+		self::cfg(23, ['trees' => 2, 'grass' => 5, 'flowers' => 2]);
 		self::cfg(25, ['trees' => -999]);
 		self::cfg(26, ['trees' => -999]);
-		self::cfg(27, ['trees' => 10, 'grass' => 2, 'flowers' => 4]);
-		self::cfg(28, ['trees' => 10, 'grass' => 2, 'flowers' => 4]);
-		self::cfg(29, ['trees' => -999, 'grass' => 2, 'flowers' => 0]);
-		self::cfg(30, ['trees' => 10, 'grass' => 1, 'mushrooms' => 1]);
-		self::cfg(31, ['trees' => 10, 'grass' => 1, 'mushrooms' => 1]);
-		self::cfg(32, ['trees' => 10, 'grass' => 7, 'deadBush' => 1, 'mushrooms' => 3]);
-		self::cfg(33, ['trees' => 10, 'grass' => 7, 'deadBush' => 1, 'mushrooms' => 3]);
-		self::cfg(34, ['trees' => 3]);
-		self::cfg(35, ['trees' => 1, 'flowers' => 4, 'grass' => 20]);
-		self::cfg(36, ['trees' => 1, 'flowers' => 4, 'grass' => 20]);
+		self::cfg(27, ['trees' => 10, 'grass' => 4, 'flowers' => 4]);
+		self::cfg(28, ['trees' => 10, 'grass' => 4, 'flowers' => 4]);
+		self::cfg(29, ['trees' => -999, 'grass' => 4, 'flowers' => 0]);
+		self::cfg(30, ['trees' => 10, 'grass' => 2, 'mushrooms' => 1]);
+		self::cfg(31, ['trees' => 10, 'grass' => 2, 'mushrooms' => 1]);
+		self::cfg(32, ['trees' => 10, 'grass' => 10, 'deadBush' => 1, 'mushrooms' => 3]);
+		self::cfg(33, ['trees' => 10, 'grass' => 10, 'deadBush' => 1, 'mushrooms' => 3]);
+		self::cfg(34, ['trees' => 3, 'grass' => 3]);
+		self::cfg(35, ['trees' => 1, 'flowers' => 4, 'grass' => 26]);
+		self::cfg(36, ['trees' => 1, 'flowers' => 4, 'grass' => 26]);
 		self::cfg(37, ['trees' => -999, 'deadBush' => 20, 'cacti' => 5, 'flowers' => 0]);
 		self::cfg(38, ['trees' => 5, 'deadBush' => 20, 'cacti' => 5]);
 		self::cfg(39, ['trees' => -999, 'deadBush' => 20, 'cacti' => 5]);
-		self::cfg(129, ['trees' => 0, 'extraTree' => 0.05, 'flowers' => 4, 'grass' => 10]);
+		self::cfg(129, ['trees' => 0, 'extraTree' => 0.05, 'flowers' => 4, 'grass' => 16]);
 		self::cfg(140, ['trees' => 0, 'extraTree' => 0.05, 'flowers' => 0, 'grass' => 0]);
 	}
 
