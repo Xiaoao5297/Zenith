@@ -45,6 +45,9 @@ class SpruceTree extends Tree{
 		}
 
 		$this->treeHeight = $random->nextBoundedInt(4) + 6;
+		if($y + $this->treeHeight + 1 > 128){
+			return false;
+		}
 
 		$topSize = $this->treeHeight - (1 + $random->nextBoundedInt(2));
 		$lRadius = 2 + $random->nextBoundedInt(2);

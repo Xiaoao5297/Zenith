@@ -75,7 +75,7 @@ class Dungeon implements Feature{
 									$w->setBlock($target->x, $target->y, $target->z, 0, 0);
 								}
 							}
-						}elseif($target->y >= 0 && $w->getBlockId($target->x, $target->y - 1, $target->z) === 0){
+						}elseif($target->y >= 1 && $w->getBlockId($target->x, $target->y - 1, $target->z) === 0){
 							$w->setBlock($target->x, $target->y, $target->z, 0, 0);
 						}elseif($w->getBlockId($target->x, $target->y, $target->z) !== 0 && $w->getBlockId($target->x, $target->y, $target->z) !== Block::CHEST){
 							if($i4 === -1 && $r->nextBoundedInt(4) !== 0){

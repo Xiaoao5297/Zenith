@@ -56,6 +56,9 @@ class MegaPineTree implements Feature{
 		}
 
 		$height = 13 + $random->nextBoundedInt(15);
+		if($groundY + $height + 1 > 128){
+			return false;
+		}
 
 		if($this->hasPodzol){
 			$this->placePodzol($level, $random, $x, $groundY, $z);
@@ -115,7 +118,7 @@ class MegaPineTree implements Feature{
 				$checkY = $y - 1;
 				$id = $level->getBlockId($x + $dx, $checkY, $z + $dz);
 				if($id === Block::GRASS || $id === Block::DIRT){
-					$level->setBlock($x + $dx, $checkY, $z + $dz, Block::DIRT, 2);
+					$level->setBlock($x + $dx, $checkY, $z + $dz, Block::PODZOL, 0);
 				}
 			}
 		}

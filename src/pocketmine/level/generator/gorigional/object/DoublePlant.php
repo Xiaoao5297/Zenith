@@ -50,7 +50,7 @@ class DoublePlant implements Feature{
 			$y = $pos->y + $random->nextBoundedInt(4) - $random->nextBoundedInt(4);
 			$z = $pos->z + $random->nextBoundedInt(8) - $random->nextBoundedInt(8);
 
-			if($y >= 254 || $y < 0){
+			if($y >= 127 || $y < 0){
 				continue;
 			}
 

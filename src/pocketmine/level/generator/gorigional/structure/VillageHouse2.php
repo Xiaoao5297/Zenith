@@ -113,7 +113,7 @@ class VillageHouse2 extends VillagePiece{
 			$k = $this->getZWithOffset(5, 5);
 			if($box->resultIsInside($j, $i, $k)){
 				$this->hasChest = true;
-				$this->generateChest($w, $box, $rnd, 5, 1, 5);
+				$this->generateChest($w, $box, $rnd, 5, 1, 5, 'village');
 			}
 		}
 

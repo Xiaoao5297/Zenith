@@ -245,6 +245,28 @@ class GenLayerBiomeEdge extends GenLayer{
 			case self::BIOME_DEEP_OCEAN:
 			case self::BIOME_FROZEN_OCEAN:
 				return 1004;
+			case 3:
+			case 20:
+			case 34:
+				return 1006;
+			case 2:
+			case 17:
+				return 1007;
+			case 12:
+			case 13:
+				return 1008;
+			case 14:
+			case 15:
+				return 1009;
+			case 16:
+			case 26:
+				return 1010;
+			case 35:
+			case 36:
+				return 1011;
+			case 7:
+			case 11:
+				return 1012;
 		}
 		return $id;
 	}

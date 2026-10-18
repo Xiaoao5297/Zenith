@@ -123,6 +123,15 @@ abstract class StructureComponentBase implements StructureComponent{
 			}
 		}
 
+		if($id === 64 || $id === 71){
+			switch($this->coordBaseMode){
+				case 0: return $meta;
+				case 1: return ($meta + 1) & 3;
+				case 2: return ($meta + 2) & 3;
+				case 3: return ($meta + 3) & 3;
+			}
+		}
+
 		if($id === 54 || $id === 130 || $id === 146 || $id === 65 || $id === 61 || $id === 62){
 			switch($this->coordBaseMode){
 				case 0: return $meta;
@@ -373,6 +382,29 @@ abstract class StructureComponentBase implements StructureComponent{
 				[297, 0, 1, 3, 10],  // bread
 				[367, 0, 1, 5, 10],  // rotten flesh
 			];
+		}elseif($type === 'village'){
+			$table = [
+				[264, 0, 1, 3, 3],   // diamond
+				[265, 0, 1, 5, 10],  // iron ingot
+				[266, 0, 1, 3, 5],   // gold ingot
+				[297, 0, 1, 3, 15],  // bread
+				[260, 0, 1, 3, 15],  // apple
+				[257, 0, 1, 1, 5],   // iron pickaxe
+				[263, 0, 3, 8, 10],  // coal
+				[322, 0, 1, 1, 1],   // golden apple
+			];
+		}elseif($type === 'mineshaft'){
+			$table = [
+				[66, 0, 4, 8, 20],   // rail
+				[50, 0, 1, 4, 15],   // torch
+				[265, 0, 1, 5, 10],  // iron ingot
+				[266, 0, 1, 3, 5],   // gold ingot
+				[263, 0, 3, 8, 10],  // coal
+				[351, 4, 4, 8, 5],   // lapis
+				[264, 0, 1, 2, 3],   // diamond
+				[257, 0, 1, 1, 3],   // iron pickaxe
+				[270, 0, 1, 1, 3],   // wooden pickaxe
+			];
 		}else{
 			return [];
 		}
@@ -437,10 +469,13 @@ abstract class StructureComponentBase implements StructureComponent{
 		$worldZ = $this->getZWithOffset($x, $z);
 
 		if($box->resultIsInside($worldX, $worldY, $worldZ)){
-			$bId = $w->getBlockId($worldX, $worldY, $worldZ);
-
-			if($bId === 0 || ($bId >= 8 && $bId <= 11)){
+			while($worldY > 1){
+				$bId = $w->getBlockId($worldX, $worldY, $worldZ);
+				if($bId !== 0 && ($bId < 8 || $bId > 11)){
+					break;
+				}
 				$w->setBlock($worldX, $worldY, $worldZ, $id, $meta);
+				$worldY--;
 			}
 		}
 	}

@@ -52,7 +52,7 @@ class StrongholdCorridor extends StrongholdPiece{
 	}
 
 	public function addComponentParts(WorldAccess $w, JavaRandom $rnd, BoundingBox $box){
-		$maxZ = $this->boundingBox->getZSize() - 1;
+		$maxZ = ($this->coordBaseMode === 1 || $this->coordBaseMode === 3 ? $this->boundingBox->getXSize() : $this->boundingBox->getZSize()) - 1;
 		$this->generateShell($w, $rnd, $box, 4, 4, $maxZ);
 		$this->generateDoor($w, $box, 1, 1, 0, 0);
 		$this->generateDoor($w, $box, 1, 1, $maxZ, 0);

@@ -2,12 +2,18 @@
 namespace pocketmine\level\generator;
 
 
+use pocketmine\item\Item;
 use pocketmine\level\format\FullChunk;
-
 use pocketmine\level\Level;
 use pocketmine\level\SimpleChunkManager;
+use pocketmine\nbt\tag\CompoundTag;
+use pocketmine\nbt\tag\IntTag;
+use pocketmine\nbt\tag\StringTag;
 use pocketmine\scheduler\AsyncTask;
 use pocketmine\Server;
+use pocketmine\tile\Chest;
+use pocketmine\tile\MobSpawner;
+use pocketmine\tile\Tile;
 
 
 class PopulationTask extends AsyncTask{
@@ -39,6 +45,11 @@ class PopulationTask extends AsyncTask{
 	public $chunkZ;
 	/** @var string|null */
 	public $errorMessage = null;
+
+	/** @var array[] */
+	public $deferredChests = [];
+	/** @var array[] */
+	public $deferredSpawners = [];
 
 	public function __construct(Level $level, FullChunk $chunk){
 		$this->state = true;
@@ -127,6 +138,14 @@ class PopulationTask extends AsyncTask{
 
 		$generator->populateChunk($chunk->getX(), $chunk->getZ());
 
+		// 异步 populate 阶段区块没有 LevelProvider，箱子/刷怪笼先记录下来，
+		// 回到主线程、区块重新绑定 provider 后再创建 tile。
+		if(method_exists($generator, 'takeDeferredTiles')){
+			$deferred = $generator->takeDeferredTiles();
+			$this->deferredChests = $deferred[0];
+			$this->deferredSpawners = $deferred[1];
+		}
+
 		$chunk = $manager->getChunk($chunk->getX(), $chunk->getZ());
 		$chunk->recalculateHeightMap();
 		$chunk->populateSkyLight();
@@ -209,6 +228,49 @@ class PopulationTask extends AsyncTask{
 			}
 
 			$level->generateChunkCallback($chunk->getX(), $chunk->getZ(), $chunk, $this->chunkChanged[4]);
+			$this->applyDeferredTiles($level);
 		}
+	}
+
+	private function applyDeferredTiles(Level $level){
+		foreach($this->deferredChests as $entry){
+			list($x, $y, $z, $items) = $entry;
+			$chunk = $level->getChunk($x >> 4, $z >> 4, false);
+			if($chunk === null || $chunk->getTile($x & 15, $y, $z & 15) !== null){
+				continue;
+			}
+			$nbt = new CompoundTag("", [
+				"id" => new StringTag("id", Tile::CHEST),
+				"x" => new IntTag("x", $x),
+				"y" => new IntTag("y", $y),
+				"z" => new IntTag("z", $z)
+			]);
+			$tile = Tile::createTile(Tile::CHEST, $chunk, $nbt);
+			if($tile instanceof Chest){
+				foreach($items as $item){
+					$tile->setItem($item[0], Item::get($item[1], $item[2], $item[3]));
+				}
+			}
+		}
+		$this->deferredChests = [];
+
+		foreach($this->deferredSpawners as $entry){
+			list($x, $y, $z, $entityId) = $entry;
+			$chunk = $level->getChunk($x >> 4, $z >> 4, false);
+			if($chunk === null || $chunk->getTile($x & 15, $y, $z & 15) !== null){
+				continue;
+			}
+			$nbt = new CompoundTag("", [
+				"id" => new StringTag("id", Tile::MOB_SPAWNER),
+				"x" => new IntTag("x", $x),
+				"y" => new IntTag("y", $y),
+				"z" => new IntTag("z", $z)
+			]);
+			$tile = Tile::createTile(Tile::MOB_SPAWNER, $chunk, $nbt);
+			if($tile instanceof MobSpawner){
+				$tile->setEntityId($entityId);
+			}
+		}
+		$this->deferredSpawners = [];
 	}
 }

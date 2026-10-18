@@ -38,7 +38,7 @@ class Vines implements Feature{
 				$random->nextBoundedInt(8) - $random->nextBoundedInt(8)
 			);
 
-			if($target->y < 0 || $target->y >= 256){
+			if($target->y < 0 || $target->y >= 128){
 				continue;
 			}
 

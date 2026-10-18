@@ -38,7 +38,7 @@ class Waterlily implements Feature{
 				$r->nextBoundedInt(8) - $r->nextBoundedInt(8)
 			);
 
-			if($target->y < 0 || $target->y >= 256){
+			if($target->y < 0 || $target->y >= 128){
 				continue;
 			}
 

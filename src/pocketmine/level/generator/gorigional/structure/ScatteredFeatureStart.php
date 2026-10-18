@@ -48,6 +48,7 @@ class ScatteredFeatureStart extends StructureStart{
 				$this->components[] = new JunglePyramid($rnd, $x, $z);
 				break;
 			case 6:
+			case 134:
 				$this->components[] = new SwampHut($rnd, $x, $z);
 				break;
 			default:

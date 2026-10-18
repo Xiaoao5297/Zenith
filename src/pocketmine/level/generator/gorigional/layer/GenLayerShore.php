@@ -134,6 +134,7 @@ class GenLayerShore extends GenLayer{
 	}
 
 	private static function isJungle($id){
+		$id &= 0x7F;
 		return $id === self::BIOME_JUNGLE || $id === self::BIOME_JUNGLE_HILLS || $id === self::BIOME_JUNGLE_EDGE;
 	}
 
@@ -142,6 +143,7 @@ class GenLayerShore extends GenLayer{
 	}
 
 	private static function isSnowy($id){
+		$id &= 0x7F;
 		return $id === self::BIOME_ICE_PLAINS || $id === self::BIOME_ICE_MOUNTAINS || $id === self::BIOME_COLD_TAIGA || $id === self::BIOME_COLD_TAIGA_HILLS;
 	}
 

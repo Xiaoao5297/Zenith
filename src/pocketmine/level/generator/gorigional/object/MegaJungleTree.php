@@ -139,7 +139,7 @@ class MegaJungleTree implements Feature{
 
 	private function createCrown(ObjectChunkManager $level, BlockPos $pos, $width){
 		for($j = -2; $j <= 0; $j++){
-			$this->growLeavesLayerStrict($level, $pos->up($j), $width + 1 - (-$j));
+			$this->growLeavesLayerStrict($level, $pos->up($j), $width + 1 - $j);
 		}
 	}
 

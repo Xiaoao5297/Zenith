@@ -78,8 +78,8 @@ class StrongholdPortalRoom extends StrongholdPiece{
 		$this->fillWithBlocks($w, $box, 3, 1, 10, 7, 1, 13, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
 		$this->fillWithBlocks($w, $box, 4, 1, 11, 6, 1, 12, self::LAVA, 0, self::LAVA, 0, false);
 
-		// 刷怪笼放在传送门一侧（蠹虫，EntityId=54）。
-		$this->placeSpawner($w, $box, 2, 1, 12, 54);
+		// 刷怪笼放在传送门一侧（蠹虫，PMMP 网络实体 ID=39）。
+		$this->placeSpawner($w, $box, 2, 1, 12, 39);
 		return true;
 	}
 }

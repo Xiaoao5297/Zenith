@@ -43,6 +43,10 @@ class MutatedBiome implements Biome{
 	private $maxElevation;
 	/** @var bool */
 	private $decorateParent;
+	/** @var float */
+	public $temperature;
+	/** @var float */
+	public $rainfall;
 
 	public function __construct(Biome $parent, $minElevation = null, $maxElevation = null, $decorateParent = false){
 		$this->parent = $parent;
@@ -50,6 +54,8 @@ class MutatedBiome implements Biome{
 		$this->minElevation = $minElevation !== null ? $minElevation : $parent->getMinElevation() + 0.1;
 		$this->maxElevation = $maxElevation !== null ? $maxElevation : $parent->getMaxElevation() + 0.2;
 		$this->decorateParent = $decorateParent;
+		$this->temperature = $parent->temperature;
+		$this->rainfall = $parent->rainfall;
 	}
 
 	public function getID(){

@@ -46,6 +46,10 @@ class GeneratorWorld implements World{
 	private $biomeManager;
 	/** @var JavaRandom */
 	private $rand;
+	/** @var array[] */
+	private $deferredChests = [];
+	/** @var array[] */
+	private $deferredSpawners = [];
 
 	public function __construct(ChunkManager $manager, $seed, WorldChunkManager $biomeManager){
 		$this->blocks = new ChunkManagerAdapter($manager);
@@ -70,10 +74,12 @@ class GeneratorWorld implements World{
 		$chunk = $this->blocks->getChunkAt($x, $z);
 		$provider = $chunk === null ? null : $chunk->getProvider();
 		if(!($provider instanceof \pocketmine\level\format\LevelProvider)){
+			$this->deferredChests[] = [$x, $y, $z, $items];
 			return;
 		}
 		$level = $provider->getLevel();
 		if(!($level instanceof Level)){
+			$this->deferredChests[] = [$x, $y, $z, $items];
 			return;
 		}
 
@@ -96,10 +102,12 @@ class GeneratorWorld implements World{
 		$chunk = $this->blocks->getChunkAt($x, $z);
 		$provider = $chunk === null ? null : $chunk->getProvider();
 		if(!($provider instanceof \pocketmine\level\format\LevelProvider)){
+			$this->deferredSpawners[] = [$x, $y, $z, $entityId];
 			return;
 		}
 		$level = $provider->getLevel();
 		if(!($level instanceof Level)){
+			$this->deferredSpawners[] = [$x, $y, $z, $entityId];
 			return;
 		}
 
@@ -113,6 +121,13 @@ class GeneratorWorld implements World{
 		if($tile instanceof MobSpawner){
 			$tile->setEntityId($entityId);
 		}
+	}
+
+	public function takeDeferredTiles(){
+		$result = [$this->deferredChests, $this->deferredSpawners];
+		$this->deferredChests = [];
+		$this->deferredSpawners = [];
+		return $result;
 	}
 
 	public function getHeight($x, $z){

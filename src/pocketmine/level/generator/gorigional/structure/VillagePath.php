@@ -111,7 +111,7 @@ class VillagePath extends VillageRoad{
 		for($i = $this->boundingBox->minX; $i <= $this->boundingBox->maxX; $i++){
 			for($j = $this->boundingBox->minZ; $j <= $this->boundingBox->maxZ; $j++){
 				if($box->resultIsInside($i, 64, $j)){
-					$k = $w->getHeight($i, $j) - 1;
+					$k = $w->getHeight($i, $j);
 					$w->setBlock($i, $k, $j, $block, 0);
 				}
 			}

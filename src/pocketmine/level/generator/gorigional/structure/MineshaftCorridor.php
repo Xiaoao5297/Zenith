@@ -22,6 +22,7 @@
 
 namespace pocketmine\level\generator\gorigional\structure;
 
+use pocketmine\entity\CaveSpider;
 use pocketmine\level\generator\gorigional\JavaRandom;
 
 /**
@@ -212,6 +213,7 @@ class MineshaftCorridor extends MineshaftPiece{
 				if($box->resultIsInside($j1, $l, $i1)){
 					$this->placedSpawner = true;
 					$w->setBlock($j1, $l, $i1, self::SPAWNER, 0);
+					$w->setSpawnerEntity($j1, $l, $i1, CaveSpider::NETWORK_ID);
 				}
 			}
 		}
@@ -242,8 +244,7 @@ class MineshaftCorridor extends MineshaftPiece{
 		$worldZ = $this->getZWithOffset($x, $z);
 
 		if($box->resultIsInside($worldX, $worldY, $worldZ) && $w->getBlockId($worldX, $worldY, $worldZ) === self::AIR){
-			$meta = $rnd->nextBoolean() ? 1 : 0;
-			$w->setBlock($worldX, $worldY, $worldZ, self::RAIL, $this->getMetadataWithOffset(self::RAIL, $meta));
+			$this->generateChest($w, $box, $rnd, $x, $y, $z, 'mineshaft');
 		}
 	}
 }

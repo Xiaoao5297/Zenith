@@ -113,8 +113,8 @@ class MapGenStronghold extends MapGenStructure{
 		$centerZ = ($chunkZ << 4) + 8;
 
 		// 覆盖要塞可能占用的 64×64 区域，每 4 格采样一次。
-		for($dx = -24; $dx <= 24; $dx += 4){
-			for($dz = -24; $dz <= 24; $dz += 4){
+		for($dx = -32; $dx <= 32; $dx += 4){
+			for($dz = -32; $dz <= 32; $dz += 4){
 				if(!in_array($this->world->getBiome($centerX + $dx, $centerZ + $dz), self::LAND_BIOMES, true)){
 					return false;
 				}

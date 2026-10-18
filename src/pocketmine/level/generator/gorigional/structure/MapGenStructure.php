@@ -67,7 +67,7 @@ abstract class MapGenStructure extends MapGenBase{
 
 		$k = $chunkX << 4;
 		$l = $chunkZ << 4;
-		$box = new BoundingBox($k, 0, $l, $k + 15, 255, $l + 15);
+		$box = new BoundingBox($k, 0, $l, $k + 15, 127, $l + 15);
 
 		$flag = false;
 		foreach($this->structureMap as $start){

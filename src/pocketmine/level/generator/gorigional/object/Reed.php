@@ -38,7 +38,7 @@ class Reed implements Feature{
 				$r->nextBoundedInt(4) - $r->nextBoundedInt(4)
 			);
 
-			if($target->y < 0 || $target->y >= 256){
+			if($target->y < 0 || $target->y >= 128){
 				continue;
 			}
 

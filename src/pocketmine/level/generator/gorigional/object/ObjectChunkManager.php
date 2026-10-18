@@ -32,4 +32,6 @@ interface ObjectChunkManager{
 	public function setBlock($x, $y, $z, $id, $meta);
 
 	public function getHeight($x, $z);
+
+	public function getTopSolidOrLiquidBlock($x, $z);
 }

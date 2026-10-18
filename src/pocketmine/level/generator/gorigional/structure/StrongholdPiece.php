@@ -101,13 +101,13 @@ abstract class StrongholdPiece extends StructureComponentBase{
 		}
 
 		if($doorType === 1){
-			for($dy = 0; $dy < 2; $dy++){
-				$this->placeBlock($w, 64, 0, $x + 1, $y + $dy, $z, $box);
-			}
+			$doorMeta = $this->getMetadataWithOffset(64, 1);
+			$this->placeBlock($w, 64, $doorMeta, $x + 1, $y, $z, $box);
+			$this->placeBlock($w, 64, $doorMeta | 8, $x + 1, $y + 1, $z, $box);
 		}elseif($doorType === 2){
-			for($dy = 0; $dy < 2; $dy++){
-				$this->placeBlock($w, 71, 0, $x + 1, $y + $dy, $z, $box);
-			}
+			$doorMeta = $this->getMetadataWithOffset(71, 1);
+			$this->placeBlock($w, 71, $doorMeta, $x + 1, $y, $z, $box);
+			$this->placeBlock($w, 71, $doorMeta | 8, $x + 1, $y + 1, $z, $box);
 		}elseif($doorType === 3){
 			for($dx = 0; $dx < 3; $dx++){
 				for($dy = 0; $dy < 2; $dy++){

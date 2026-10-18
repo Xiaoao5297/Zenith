@@ -56,7 +56,9 @@ class Gorigional extends Generator{
 
 	const COORDINATE_SCALE = 684.412;
 	const HEIGHT_SCALE = 684.412;
-	const LOWER_LIMIT_SCALE = 512.0;
+	// MCPE 的高度 128 修正：min limit 的 Y 缩放为 855.515，输出除以 256。
+	const MIN_LIMIT_HEIGHT_SCALE = 855.515;
+	const LOWER_LIMIT_SCALE = 256.0;
 	const UPPER_LIMIT_SCALE = 512.0;
 	const DEPTH_NOISE_SCALE_X = 200.0;
 	const DEPTH_NOISE_SCALE_Z = 200.0;
@@ -172,6 +174,10 @@ class Gorigional extends Generator{
 		$this->stronghold = $generateStronghold ? new MapGenStronghold($this->seed) : null;
 	}
 
+	public function takeDeferredTiles(){
+		return $this->world->takeDeferredTiles();
+	}
+
 	public function getName(){
 		return self::NAME;
 	}
@@ -191,7 +197,7 @@ class Gorigional extends Generator{
 		if($this->level !== null){
 			$chunk = $this->level->getChunk(0, 0);
 			if($chunk !== null){
-				for($y = 255; $y >= 0; $y--){
+				for($y = self::MAX_HEIGHT - 1; $y >= 0; $y--){
 					$blockId = $chunk->getBlockId(0, $y, 0);
 
 					if($blockId === 0 || $blockId === 8 || $blockId === 9 || $blockId === 10 || $blockId === 11 || $blockId === 18 || $blockId === 161){
@@ -200,7 +206,7 @@ class Gorigional extends Generator{
 
 					$hasSpace = true;
 					for($check = 1; $check <= 2; $check++){
-						if($chunk->getBlockId(0, $y + $check, 0) !== 0){
+						if($y + $check >= self::MAX_HEIGHT || $chunk->getBlockId(0, $y + $check, 0) !== 0){
 							$hasSpace = false;
 							break;
 						}
@@ -225,7 +231,7 @@ class Gorigional extends Generator{
 		$f1 = self::HEIGHT_SCALE;
 
 		$mainNoiseRegion = $this->mainPerlinNoise->generateNoiseOctaves($mainNoiseRegion, $x, $y, $z, $horizontalPoints, $verticalPoints, $horizontalPoints, $f / self::MAIN_NOISE_SCALE_X, $f1 / self::MAIN_NOISE_SCALE_Y, $f / self::MAIN_NOISE_SCALE_Z);
-		$minLimitRegion = $this->minLimitPerlinNoise->generateNoiseOctaves($minLimitRegion, $x, $y, $z, $horizontalPoints, $verticalPoints, $horizontalPoints, $f, $f1, $f);
+		$minLimitRegion = $this->minLimitPerlinNoise->generateNoiseOctaves($minLimitRegion, $x, $y, $z, $horizontalPoints, $verticalPoints, $horizontalPoints, $f, self::MIN_LIMIT_HEIGHT_SCALE, $f);
 		$maxLimitRegion = $this->maxLimitPerlinNoise->generateNoiseOctaves($maxLimitRegion, $x, $y, $z, $horizontalPoints, $verticalPoints, $horizontalPoints, $f, $f1, $f);
 
 		$i = 0;
@@ -435,8 +441,9 @@ class Gorigional extends Generator{
 
 		GenLayer::newEpoch();
 
-		$seed = Int64::add(Int64::mul($chunkX, 341873128712), Int64::mul($chunkZ, 132897987541));
-		$rnd = new JavaRandom($seed);
+		// MCPE loadChunk 使用 32 位区块种子，喂给 MT19937；不是 Java 的 64 位 LCG。
+		$seed = (($chunkX * 0x14609048) + ($chunkZ * 0x7EBE2D5)) & 0xFFFFFFFF;
+		$rnd = new McpeRandom($seed);
 
 		$this->setBlocksInChunk($chunkX, $chunkZ, $chunk);
 		$this->replaceBiomeBlocks($chunkX, $chunkZ, $chunk, $rnd);
@@ -479,6 +486,9 @@ class Gorigional extends Generator{
 		if(!$isOceanOrRiver){
 			$this->generateLakes($manager, $rnd, $x, $z, $b->getID());
 		}
+
+		// MCPE 在湖泊之后、结构之前重新播种同一个区块 MT。
+		$rnd->setSeed($seed);
 
 		$this->village->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 		$this->mineshaft->generateStructure($this->world, $rnd, $chunkX, $chunkZ);

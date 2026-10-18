@@ -143,8 +143,10 @@ class MesaBiome extends BaseBiome{
 				}
 			}elseif($run > 0){
 				$run--;
-				if($hasTop && $y >= 62){
-					$chunk->setBlock($chunkX, $y, $chunkZ, Block::SAND, 1);
+				if($y < 62){
+					$chunk->setBlock($chunkX, $y, $chunkZ, Block::HARDENED_CLAY, 0);
+				}elseif($hasTop){
+					$chunk->setBlock($chunkX, $y, $chunkZ, Block::STAINED_CLAY, 1);
 				}else{
 					$band = $this->clayBands[$y & 63];
 					if($band < 16){

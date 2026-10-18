@@ -91,7 +91,7 @@ class Ore implements Feature{
 								$d14 = ($j2 + 0.5 - $d8) / ($d10 / 2.0);
 
 								if($d12 * $d12 + $d13 * $d13 + $d14 * $d14 < 1.0){
-									if($i2 >= 0 && $i2 <= 255){
+									if($i2 >= 0 && $i2 < 128){
 										if($w->getBlockId($l1, $i2, $j2) === Block::STONE){
 											$w->setBlock($l1, $i2, $j2, $this->blockID, $this->blockMeta);
 										}

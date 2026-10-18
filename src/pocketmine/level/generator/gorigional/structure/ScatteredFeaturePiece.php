@@ -22,6 +22,8 @@
 
 namespace pocketmine\level\generator\gorigional\structure;
 
+use pocketmine\block\Block;
+
 /**
  * 移植自 SCAXE-GO-CE structure.ScatteredFeaturePiece。
  */
@@ -83,10 +85,10 @@ abstract class ScatteredFeaturePiece extends StructureComponentBase{
 	}
 
 	private function getTopSolidBlockY(WorldAccess $w, $x, $z){
-		for($y = 255; $y >= 0; $y--){
+		for($y = 127; $y >= 0; $y--){
 			$id = $w->getBlockId($x, $y, $z);
-			if($id !== 0 && $id !== 9 && $id !== 11 && $id !== 10 && $id !== 8){
-				return $y;
+			if($id !== 0 && $id !== 8 && $id !== 9 && $id !== 10 && $id !== 11 && Block::get($id)->isSolid()){
+				return $y + 1;
 			}
 		}
 		return 0;

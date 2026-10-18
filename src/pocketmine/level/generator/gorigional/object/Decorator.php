@@ -165,22 +165,22 @@ class Decorator{
 		for($i = 0; $i < $this->sandPatchesPerChunk; $i++){
 			$x = $r->nextBoundedInt(16);
 			$z = $r->nextBoundedInt(16);
-			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$this->sandGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
+			$terrainHeight = $w->getTopSolidOrLiquidBlock($pos->x + $x, $pos->z + $z);
+			$this->sandGen->generate($w, $r, $pos->add($x, $terrainHeight, $z));
 		}
 
 		for($i = 0; $i < $this->clayPerChunk; $i++){
 			$x = $r->nextBoundedInt(16);
 			$z = $r->nextBoundedInt(16);
-			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$this->clayGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
+			$terrainHeight = $w->getTopSolidOrLiquidBlock($pos->x + $x, $pos->z + $z);
+			$this->clayGen->generate($w, $r, $pos->add($x, $terrainHeight, $z));
 		}
 
 		for($i = 0; $i < $this->gravelPatchesPerChunk; $i++){
 			$x = $r->nextBoundedInt(16);
 			$z = $r->nextBoundedInt(16);
-			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$this->gravelGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
+			$terrainHeight = $w->getTopSolidOrLiquidBlock($pos->x + $x, $pos->z + $z);
+			$this->gravelGen->generate($w, $r, $pos->add($x, $terrainHeight, $z));
 		}
 
 		$trees = $this->treesPerChunk;
@@ -245,6 +245,14 @@ class Decorator{
 				$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
 				$this->mushroomRdGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
 			}
+		}
+
+		for($i = 0; $i < $this->bigMushroomsPerChunk; $i++){
+			$x = $r->nextBoundedInt(16);
+			$z = $r->nextBoundedInt(16);
+			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
+			$mushroom = new BigMushroom($r->nextBoolean());
+			$mushroom->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
 		}
 
 		for($i = 0; $i < $this->reedsPerChunk; $i++){

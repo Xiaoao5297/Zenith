@@ -88,4 +88,21 @@ class ChunkManagerAdapter implements ObjectChunkManager{
 		}
 		return $chunk->getHighestBlockAt($x & 15, $z & 15);
 	}
+
+	/**
+	 * Java getTopSolidOrLiquidBlock：返回最高的非空气方块（水/岩浆也算），
+	 * 供水下沙/黏土/砂砾斑块定位。
+	 */
+	public function getTopSolidOrLiquidBlock($x, $z){
+		$chunk = $this->chunkAt($x, $z);
+		if($chunk === null){
+			return 0;
+		}
+		for($y = 127; $y >= 0; $y--){
+			if($chunk->getBlockId($x & 15, $y, $z & 15) !== 0){
+				return $y;
+			}
+		}
+		return 0;
+	}
 }

@@ -63,6 +63,9 @@ class BigOakTree implements Feature{
 		$this->rand = new JavaRandom($seed);
 
 		$this->heightLimit = 5 + $this->rand->nextBoundedInt($this->heightLimitLimit);
+		if($this->basePos->y + $this->heightLimit >= 128){
+			return false;
+		}
 
 		if(!$this->validTreeLocation()){
 			return false;

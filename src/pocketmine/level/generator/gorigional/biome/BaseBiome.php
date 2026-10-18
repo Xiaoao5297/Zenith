@@ -313,6 +313,7 @@ class BaseBiome implements Biome{
 	public function getTreeFeature(JavaRandom $r){
 		switch($this->id){
 			case 4:
+			case 18:
 				if($r->nextBoundedInt(5) === 0){
 					return new BirchTree(false);
 				}

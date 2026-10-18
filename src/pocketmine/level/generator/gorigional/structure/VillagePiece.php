@@ -86,7 +86,7 @@ abstract class VillagePiece extends StructureComponentBase{
 		for($z = $this->boundingBox->minZ; $z <= $this->boundingBox->maxZ; $z++){
 			for($x = $this->boundingBox->minX; $x <= $this->boundingBox->maxX; $x++){
 				if($box->resultIsInside($x, 64, $z)){
-					$total += max($w->getHeight($x, $z), 63);
+					$total += max($w->getHeight($x, $z) + 1, 63);
 					$count++;
 				}
 			}

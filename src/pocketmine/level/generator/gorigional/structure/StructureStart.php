@@ -44,10 +44,12 @@ class StructureStart{
 	}
 
 	public function generateStructure(WorldAccess $w, JavaRandom $rnd, BoundingBox $box){
-		foreach($this->components as $c){
+		foreach($this->components as $index => $c){
 			$bb = $c->getBoundingBox();
 			if($bb !== null && $bb->intersectsWith($box)){
-				$c->addComponentParts($w, $rnd, $box);
+				if(!$c->addComponentParts($w, $rnd, $box)){
+					unset($this->components[$index]);
+				}
 			}
 		}
 	}
