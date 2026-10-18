@@ -233,6 +233,8 @@ class PopulationTask extends AsyncTask{
 	}
 
 	private function applyDeferredTiles(Level $level){
+		// 这些数组会被 pthreads 转成 Threaded 容器；Threaded 属性一旦持有
+		// Threaded 对象就不能再整体覆盖，因此这里只消费、不清空。
 		foreach($this->deferredChests as $entry){
 			list($x, $y, $z, $items) = $entry;
 			$chunk = $level->getChunk($x >> 4, $z >> 4, false);
@@ -252,7 +254,6 @@ class PopulationTask extends AsyncTask{
 				}
 			}
 		}
-		$this->deferredChests = [];
 
 		foreach($this->deferredSpawners as $entry){
 			list($x, $y, $z, $entityId) = $entry;
@@ -271,6 +272,5 @@ class PopulationTask extends AsyncTask{
 				$tile->setEntityId($entityId);
 			}
 		}
-		$this->deferredSpawners = [];
 	}
 }
