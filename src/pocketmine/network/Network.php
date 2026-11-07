@@ -77,6 +77,21 @@ class Network {
 
 	public static $BATCH_THRESHOLD = 512;
 
+	/** 单包解压上限见 BatchCodec::MAX_PAYLOAD (4MB) */
+	const BATCH_MAX_PAYLOAD = BatchCodec::MAX_PAYLOAD;
+
+	/** 每玩家每秒解压配额（解压后字节数）。正常客户端入站批包远小于此（单包理论上限约 180KB），8MB/s 已非常宽松 */
+	const BATCH_DECOMPRESS_RATE_LIMIT = 8388608; // 8MB/s
+
+	/** 60 秒窗口内解压违规达到该次数则踢出 */
+	const BATCH_RATE_KICK_THRESHOLD = 3;
+
+	/** 解压违规计数窗口（秒） */
+	const BATCH_VIOLATION_WINDOW = 60;
+
+	/** @var array[] 每玩家批包解压速率桶，键为 spl_object_hash(Player) */
+	private $batchDecompressBuckets = [];
+
 	/** @deprecated */
 	const CHANNEL_NONE = 0;
 	/** @deprecated */
@@ -238,7 +253,7 @@ class Network {
 			return;
 		}
 
-		$str = BatchCodec::decompress($packet->payload);
+		$str = $this->decompressBatchPayload($packet->payload, $p);
 		if($str === false){
 			return;
 		}
@@ -283,7 +298,7 @@ class Network {
 			return;
 		}
 
-		$str = BatchCodec::decompress($packet->payload);
+		$str = $this->decompressBatchPayload($packet->payload, $p);
 		if($str === false){
 			return;
 		}
@@ -327,6 +342,80 @@ class Network {
 		}
 
 		return $decodedOffset;
+	}
+
+	/**
+	 * 流式解压批包负载，带每玩家速率限制（压缩炸弹防护）。
+	 *
+	 * 单包解压输出超过 BatchCodec::MAX_PAYLOAD（4MB）或该玩家当秒解压配额
+	 * （BATCH_DECOMPRESS_RATE_LIMIT，8MB/s）时立即中止解压、丢弃该包并计一次违规；
+	 * BATCH_VIOLATION_WINDOW（60 秒）内违规达到 BATCH_RATE_KICK_THRESHOLD（3 次）则踢出。
+	 *
+	 * @param string $payload
+	 * @param Player $p
+	 * @return string|bool 成功返回解压结果，超限或解压失败返回 false
+	 */
+	private function decompressBatchPayload(string $payload, Player $p){
+		$hash = spl_object_hash($p);
+		$now = time();
+		if(!isset($this->batchDecompressBuckets[$hash])){
+			$this->batchDecompressBuckets[$hash] = [
+				"second" => $now,
+				"bytes" => 0,
+				"violations" => 0,
+				"firstViolation" => 0,
+				"lastActive" => $now,
+			];
+		}
+		$bucket = &$this->batchDecompressBuckets[$hash];
+		$bucket["lastActive"] = $now;
+		if(count($this->batchDecompressBuckets) > 256){
+			foreach($this->batchDecompressBuckets as $k => $b){
+				if($now - $b["lastActive"] > 120){
+					unset($this->batchDecompressBuckets[$k]);
+				}
+			}
+		}
+
+		if($bucket["second"] !== $now){
+			$bucket["second"] = $now;
+			$bucket["bytes"] = 0;
+		}
+		$budget = self::BATCH_DECOMPRESS_RATE_LIMIT - $bucket["bytes"];
+		if($budget < 4096){
+			// 本秒配额已用尽，直接拒绝
+			$this->onBatchDecompressViolation($p, $bucket);
+			return false;
+		}
+
+		$limit = min(self::BATCH_MAX_PAYLOAD, $budget);
+		$str = BatchCodec::streamingDecompress($payload, $limit);
+		if($str === false){
+			$this->onBatchDecompressViolation($p, $bucket);
+			return false;
+		}
+		$bucket["bytes"] += strlen($str);
+		return $str;
+	}
+
+	/**
+	 * 记一次解压违规；窗口内累计达到阈值则踢出该玩家。
+	 *
+	 * @param Player $p
+	 * @param array  $bucket
+	 */
+	private function onBatchDecompressViolation(Player $p, array &$bucket){
+		$now = time();
+		if($bucket["firstViolation"] === 0 or $now - $bucket["firstViolation"] > self::BATCH_VIOLATION_WINDOW){
+			$bucket["firstViolation"] = $now;
+			$bucket["violations"] = 0;
+		}
+		++$bucket["violations"];
+		if($bucket["violations"] >= self::BATCH_RATE_KICK_THRESHOLD){
+			$bucket["violations"] = 0;
+			$bucket["firstViolation"] = 0;
+			$p->kick("批包解压速率超限");
+		}
 	}
 
 	/**

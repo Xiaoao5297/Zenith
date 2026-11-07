@@ -32,13 +32,62 @@ use pocketmine\utils\Binary;
  */
 final class BatchCodec{
 
-	const MAX_PAYLOAD = 67108864; // 64MB
+	// 单包解压输出上限 4MB：raklib 单包 MTU 上限 1432 字节、单包最多 128 分片
+	// （Session::MAX_SPLIT_SIZE），理论批包上限约 180KB，正常批包远小于此，4MB 已非常宽松
+	const MAX_PAYLOAD = 4194304; // 4MB
 
 	private function __construct(){
 	}
 
 	public static function decompress(string $payload){
 		return zlib_decode($payload, self::MAX_PAYLOAD);
+	}
+
+	/**
+	 * 流式解压 zlib/deflate/gzip 负载，成功结果与 zlib_decode($payload, $max) 一致，
+	 * 但输出超过 $max 时立即中止，避免一次性分配超限内存（压缩炸弹防护）。
+	 *
+	 * @param string $payload
+	 * @param int    $max 解压输出上限（字节）
+	 * @return string|bool 成功返回解压结果，失败或超限返回 false
+	 */
+	public static function streamingDecompress(string $payload, int $max){
+		if($payload === ""){
+			return false;
+		}
+		$first = ord($payload[0]);
+		if(($first & 0x0f) === 0x08){
+			$encoding = ZLIB_ENCODING_DEFLATE;
+		}elseif($first === 0x1f){
+			$encoding = ZLIB_ENCODING_GZIP;
+		}else{
+			$encoding = ZLIB_ENCODING_RAW;
+		}
+		$context = @inflate_init($encoding);
+		if($context === false){
+			return false;
+		}
+		$out = "";
+		$length = strlen($payload);
+		for($offset = 0; $offset < $length; $offset += 65536){
+			$result = @inflate_add($context, substr($payload, $offset, 65536));
+			if($result === false){
+				return false;
+			}
+			$out .= $result;
+			if(strlen($out) > $max){
+				return false;
+			}
+		}
+		$tail = @inflate_add($context, "", ZLIB_FINISH);
+		if($tail === false){
+			return false;
+		}
+		$out .= $tail;
+		if(strlen($out) > $max){
+			return false;
+		}
+		return $out;
 	}
 
 	public static function compress(string $raw) : string{
