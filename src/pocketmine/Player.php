@@ -4040,7 +4040,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					break;
 				*/
 				$recipe = $this->server->getCraftingManager()->getRecipe($packet->id);
-				if($this->usingAnvil == true){
+				if($this->usingAnvil and ($this->windowIndex[$packet->windowId] ?? null) instanceof AnvilInventory){
 					$anvilInventory = $this->windowIndex[$packet->windowId] ?? null;
 					if($anvilInventory === null){
 						foreach($this->windowIndex as $window){
@@ -4352,7 +4352,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 						break;
 					}
 
-					if($this->usingAnvil == true){
+					if($this->usingAnvil and ($this->windowIndex[$packet->windowid] ?? null) instanceof AnvilInventory){
 						$anvilInventory = $this->windowIndex[$packet->windowid] ?? null;
 						if($anvilInventory === null){
 							foreach($this->windowIndex as $window){
@@ -5333,7 +5333,14 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		}
 
 		if($forceId === null){
-			$this->windowCnt = $cnt = max(2, ++$this->windowCnt % 99);
+			$cnt = max(2, ++$this->windowCnt % 99);
+			for($i = 0; $i < 98 and isset($this->windowIndex[$cnt]); ++$i){
+				$this->windowCnt = $cnt = max(2, ++$this->windowCnt % 99);
+			}
+			if(isset($this->windowIndex[$cnt])){ //all 98 window ids in use: reuse the smallest free id instead of clobbering a live window
+				for($cnt = 2; $cnt < 100 and isset($this->windowIndex[$cnt]); ++$cnt);
+			}
+			$this->windowCnt = $cnt;
 		}else{
 			$cnt = (int) $forceId;
 		}
