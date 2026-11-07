@@ -3751,6 +3751,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					if($target instanceof Animal){
 						$item = $this->getInventory()->getItemInHand();
 						if($target instanceof Sheep and $item instanceof Shears){
+							if(!$target->hasWool()){
+								break;
+							}
 							if($this->isSurvival()){
 								$item->useOn($target);
 							}
@@ -3759,9 +3762,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 								$target->getLevel()->dropItem($target, $item);
 							}
 							break;
-						}
-						if($this->isSurvival()){
-							$item->setDamage($item->getDamage() - 1);
 						}
 						if($target->isBaby()){
 							$target->setBaby(false);
