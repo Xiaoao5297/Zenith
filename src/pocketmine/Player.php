@@ -3966,6 +3966,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 								Timings::$playerCommandTimer->startTiming();
 								$this->server->dispatchCommand($ev->getPlayer(), substr($ev->getMessage(), 1));
 								Timings::$playerCommandTimer->stopTiming();
+								if(!$this->connected){
+									break;
+								}
 							}else{
 								$this->server->getPluginManager()->callEvent($ev = new PlayerChatEvent($this, $ev->getMessage()));
 								if(!$ev->isCancelled()){
