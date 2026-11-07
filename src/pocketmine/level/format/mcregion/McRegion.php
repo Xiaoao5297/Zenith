@@ -105,7 +105,8 @@ class McRegion extends BaseLevelProvider{
 			"Data" => $levelData
 		]));
 		$buffer = $nbt->writeCompressed();
-		file_put_contents($path . "level.dat", $buffer);
+		//MISS-004：原子写 level.dat，避免崩溃窗口内文件被截断导致整个世界无法加载
+		\pocketmine\utils\Utils::atomicWriteFile($path . "level.dat", $buffer);
 	}
 
 	public static function getRegionIndex($chunkX, $chunkZ, &$x, &$z){

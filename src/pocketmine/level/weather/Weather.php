@@ -95,14 +95,19 @@ class Weather{
 					}
 				}
 			}
-			if(($this->weatherNow > 0) and ($this->level->getServer()->lightningTime > 0) and is_int($this->duration / $this->level->getServer()->lightningTime)){
+			if(($this->weatherNow > 0) and ($this->level->getServer()->lightningTime > 0) and ($this->duration % $this->level->getServer()->lightningTime === 0)){ //BUG-029a：浮点除判整除永假，改取模
 				$players = $this->level->getPlayers();
 				if(count($players) > 0){
 					$p = $players[array_rand($players)];
 					$x = $p->x + mt_rand(-64, 64);
 					$z = $p->z + mt_rand(-64, 64);
-					$y = $this->level->getHighestBlockAt($x, $z);
-					$this->level->spawnLightning($this->temporalVector->setComponents($x, $y, $z));
+					//BUG-029a：getHighestBlockAt 内部 getChunk(create=true) 会同步强制生成区块，
+					//雷击落点可能落在未生成区块上造成主线程卡顿。改为只读已加载区块，未加载则跳过本次落点。
+					$chunk = $this->level->getChunk(((int) $x) >> 4, ((int) $z) >> 4, false);
+					if($chunk !== null){
+						$y = $chunk->getHighestBlockAt(((int) $x) & 0x0f, ((int) $z) & 0x0f);
+						$this->level->spawnLightning($this->temporalVector->setComponents($x, $y, $z));
+					}
 				}
 				/*foreach($this->level->getPlayers() as $p){
 					if(mt_rand(0, 1) == 1){

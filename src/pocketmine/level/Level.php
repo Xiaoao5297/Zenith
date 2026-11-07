@@ -3160,9 +3160,20 @@ class Level implements ChunkManager, Metadatable{
 					continue;
 				}
 				$this->timings->syncChunkSendPrepareTimer->startTiming();
-				$task = $this->provider->requestChunkTask($x, $z);
-				if($task !== null){
-					$this->server->getScheduler()->scheduleAsyncTask($task);
+				//BUG-029b：区块入队后可能被卸载且磁盘读取失败，provider 的 requestChunkTask
+				//会抛 ChunkException("Invalid Chunk sent")。若不捕获会穿透 doTick 崩服，且
+				//chunkSendTasks[$index] 残留导致该区块永远无法重发。捕获后清理标记，让
+				//processChunkRequest 下次 tick 可以重新对该区块发起请求。
+				try{
+					$task = $this->provider->requestChunkTask($x, $z);
+					if($task !== null){
+						$this->server->getScheduler()->scheduleAsyncTask($task);
+					}
+				}catch(\pocketmine\utils\ChunkException $e){
+					$this->timings->syncChunkSendPrepareTimer->stopTiming();
+					unset($this->chunkSendTasks[$index]);
+					$this->server->getLogger()->debug("Chunk request for [$x, $z] failed, will retry: " . $e->getMessage());
+					continue;
 				}
 				$this->timings->syncChunkSendPrepareTimer->stopTiming();
 			}
