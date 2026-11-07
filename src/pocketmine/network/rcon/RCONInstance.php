@@ -10,6 +10,8 @@ class RCONInstance extends Thread{
 	public $stop;
 	public $cmd;
 	public $response;
+	/** @var bool true once the main thread has filled $response for the pending command */
+	public $responseReady;
 	private $socket;
 	private $password;
 	private $maxClients;
@@ -30,6 +32,7 @@ class RCONInstance extends Thread{
 		$this->stop = false;
 		$this->cmd = "";
 		$this->response = "";
+		$this->responseReady = false;
 		$this->socket = $socket;
 		$this->password = $password;
 		$this->maxClients = (int) $maxClients;
@@ -127,8 +130,6 @@ class RCONInstance extends Thread{
 									continue;
 								}
 								$this->writePacket($client, $requestID, 0, RCON::PROTOCOL_VERSION);
-								$this->response = "";
-
 								if($payload == RCON::PROTOCOL_VERSION) $this->logger->setSendMsg(true); //GeniRCON output
 								break;
 							case 4: //Logger
@@ -141,17 +142,14 @@ class RCONInstance extends Thread{
 									"logger" => str_replace("\n", "\r\n", trim($this->logger->getMessages()))
 								];
 								$this->writePacket($client, $requestID, 0, serialize($res));
-								$this->response = "";
 								break;
 							case 3: //Login
 								if($this->{"status" . $n} !== 0){
 									$this->{"status" . $n} = -1;
 									continue;
 								}
-								if($payload === $this->password){
+								if(hash_equals($this->password, $payload)){
 									socket_getpeername($client, $addr, $port);
-									$this->response = "[INFO] Successful Rcon connection from: /$addr:$port";
-									$this->response = "";
 									$this->writePacket($client, $requestID, 2, "");
 									$this->{"status" . $n} = 1;
 								}else{
@@ -166,15 +164,26 @@ class RCONInstance extends Thread{
 									continue;
 								}
 								if(strlen($payload) > 0){
-									$this->cmd = ltrim($payload);
-									$this->synchronized(function(){
+									/*
+									 * Whole handshake under the object monitor: only one command may be
+									 * pending per worker at a time, and the response slot can only be
+									 * consumed by the instance that submitted it, so responses can never
+									 * be delivered to a different client (or contain a stale one).
+									 */
+									$this->synchronized(function() use (&$client, &$requestID, $payload){
+										$this->cmd = ltrim($payload);
+										$this->response = "";
+										$this->responseReady = false;
 										$this->waiting = true;
-										$this->wait();
+										//Bounded wait: a dead or wedged main thread must not block us forever
+										$notified = $this->wait(5000);
+										$this->waiting = false;
+										$out = $notified === true ? $this->response : "Server busy, try again later";
+										$this->writePacket($client, $requestID, 0, str_replace("\n", "\r\n", trim($out)));
+										$this->cmd = "";
+										$this->response = "";
+										$this->responseReady = false;
 									});
-									$this->waiting = false;
-									$this->writePacket($client, $requestID, 0, str_replace("\n", "\r\n", trim($this->response)));
-									$this->response = "";
-									$this->cmd = "";
 								}
 								break;
 						}
@@ -191,7 +200,7 @@ class RCONInstance extends Thread{
 				}
 			}
 		}
-		unset($this->socket, $this->cmd, $this->response, $this->stop);
+		unset($this->socket, $this->cmd, $this->response, $this->responseReady, $this->stop);
 		exit(0);
 	}
 
