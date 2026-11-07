@@ -1063,8 +1063,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		if($this->server->foodEnabled) $this->setFood($this->getFood());
 		else $this->setFood(20);
 
-		if($this->server->dserverConfig["enable"] and $this->server->dserverConfig["queryAutoUpdate"]) $this->server->updateQuery();
-
 		/*if($this->server->getUpdater()->hasUpdate() and $this->hasPermission(Server::BROADCAST_CHANNEL_ADMINISTRATIVE)){
 			$this->server->getUpdater()->showPlayerUpdate($this);
 		}*/
@@ -4802,8 +4800,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			$this->hasSpawned = [];
 			$this->spawnPosition = null;
 			unset($this->buffer);
-
-			if($this->server->dserverConfig["enable"] and $this->server->dserverConfig["queryAutoUpdate"]) $this->server->updateQuery();
 		}
 
 		if($this->perm !== null){
