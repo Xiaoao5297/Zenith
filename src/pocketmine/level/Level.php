@@ -1755,9 +1755,7 @@ class Level implements ChunkManager, Metadatable{
 			if($player->isAdventure() or $player->isSpectator() or ($player->isSurvival() and $item instanceof Item and !$target->isBreakable($item))){
 				$ev->setCancelled();
 			}elseif(!$player->isOp() and ($distance = $this->server->getSpawnRadius()) > -1){
-				$t = new Vector2($target->x, $target->z);
-				$s = new Vector2($this->getSpawnLocation()->x, $this->getSpawnLocation()->z);
-				if(count($this->server->getOps()->getAll()) > 0 and $t->distance($s) <= $distance){ //set it to cancelled so plugins can bypass this
+				if($this->isSpawnProtectedLocation($target)){ //set it to cancelled so plugins can bypass this
 					$ev->setCancelled();
 				}
 			}
@@ -1932,9 +1930,7 @@ class Level implements ChunkManager, Metadatable{
 		if($player !== null){
 			$ev = new PlayerInteractEvent($player, $item, $target, $face, $target->getId() === 0 ? PlayerInteractEvent::RIGHT_CLICK_AIR : PlayerInteractEvent::RIGHT_CLICK_BLOCK);
 			if(!$player->isOp() and ($distance = $this->server->getSpawnRadius()) > -1){
-				$t = new Vector2($target->x, $target->z);
-				$s = new Vector2($this->getSpawnLocation()->x, $this->getSpawnLocation()->z);
-				if(count($this->server->getOps()->getAll()) > 0 and $t->distance($s) <= $distance){ //set it to cancelled so plugins can bypass this
+				if($this->isSpawnProtectedLocation($target)){ //set it to cancelled so plugins can bypass this
 					$ev->setCancelled();
 				}
 			}
@@ -2044,9 +2040,7 @@ class Level implements ChunkManager, Metadatable{
 		if($player !== null){
 			$ev = new BlockPlaceEvent($player, $hand, $block, $target, $item);
 			if(!$player->isOp() and ($distance = $this->server->getSpawnRadius()) > -1){
-				$t = new Vector2($target->x, $target->z);
-				$s = new Vector2($this->getSpawnLocation()->x, $this->getSpawnLocation()->z);
-				if(count($this->server->getOps()->getAll()) > 0 and $t->distance($s) <= $distance){ //set it to cancelled so plugins can bypass this
+				if($this->isSpawnProtectedLocation($target)){ //set it to cancelled so plugins can bypass this
 					$ev->setCancelled();
 				}
 			}
@@ -2527,6 +2521,15 @@ class Level implements ChunkManager, Metadatable{
 		return $this->getChunk($x, $z, $create);
 	}
 
+	/**
+	 * @param int          $x
+	 * @param int          $z
+	 * @param FullChunk    $chunk
+	 * @param int|null     $skipIfChanged BUG-026/028：异步任务构造时记录的区块 mutationCounter 快照
+	 *                                    （BaseFullChunk::getMutationCounter()）。回调时若当前区块计数器
+	 *                                    与快照不一致，说明异步期间主线程修改过区块，跳过整块覆盖。
+	 *                                    null 表示不做比对（保持旧行为）。
+	 */
 	public function generateChunkCallback($x, $z, FullChunk $chunk, $skipIfChanged = null){
 		Timings::$generationCallbackTimer->startTiming();
 		if(isset($this->chunkPopulationQueue[$index = Level::chunkHash($x, $z)])){
@@ -2538,7 +2541,7 @@ class Level implements ChunkManager, Metadatable{
 			}
 			unset($this->chunkPopulationQueue[$index]);
 			//Do not overwrite the chunk if it has been modified after the async task took its snapshot
-			if($skipIfChanged !== null and $oldChunk !== null and $oldChunk->hasChanged() !== $skipIfChanged){
+			if($skipIfChanged !== null and $oldChunk !== null and $oldChunk->getMutationCounter() !== $skipIfChanged){
 				Timings::$generationCallbackTimer->stopTiming();
 				return;
 			}
@@ -2556,7 +2559,7 @@ class Level implements ChunkManager, Metadatable{
 			$oldChunk = $this->getChunk($x, $z, false);
 			unset($this->chunkGenerationQueue[$index]);
 			unset($this->chunkPopulationLock[$index]);
-			if($skipIfChanged !== null and $oldChunk !== null and $oldChunk->hasChanged() !== $skipIfChanged){
+			if($skipIfChanged !== null and $oldChunk !== null and $oldChunk->getMutationCounter() !== $skipIfChanged){
 				Timings::$generationCallbackTimer->stopTiming();
 				return;
 			}
@@ -2564,7 +2567,7 @@ class Level implements ChunkManager, Metadatable{
 			$this->setChunk($x, $z, $chunk, false);
 		}else{
 			$oldChunk = $this->getChunk($x, $z, false);
-			if($skipIfChanged !== null and $oldChunk !== null and $oldChunk->hasChanged() !== $skipIfChanged){
+			if($skipIfChanged !== null and $oldChunk !== null and $oldChunk->getMutationCounter() !== $skipIfChanged){
 				Timings::$generationCallbackTimer->stopTiming();
 				return;
 			}
@@ -3083,6 +3086,28 @@ class Level implements ChunkManager, Metadatable{
 	 */
 	public function getSpawnLocation(){
 		return Position::fromObject($this->provider->getSpawn(), $this);
+	}
+
+	/**
+	 * BUG-027：出生点保护半径判定（三处共用：useBreakOn / useItemOn / 方块放置）。
+	 * - 无 OP 在线也保护（旧实现 count(ops) > 0 导致公开服保护完全失效，语义反转）；
+	 * - 半径统一取 Server::getSpawnRadius()（spawn-protection 为主配置，
+	 *   player.spawn-protection-radius 为可选覆盖值，见 Server::getSpawnRadius() 注释）；
+	 * - spawn-protection = -1 时禁用保护。
+	 *
+	 * @param Vector3 $pos 判定的方块位置
+	 *
+	 * @return bool true = 该位置处于出生点保护半径内
+	 */
+	public function isSpawnProtectedLocation(Vector3 $pos){
+		$distance = $this->server->getSpawnRadius();
+		if($distance <= -1){
+			return false; //spawn-protection = -1：禁用保护
+		}
+		$t = new Vector2($pos->x, $pos->z);
+		$s = new Vector2($this->getSpawnLocation()->x, $this->getSpawnLocation()->z);
+
+		return $t->distance($s) <= $distance;
 	}
 
 	/**

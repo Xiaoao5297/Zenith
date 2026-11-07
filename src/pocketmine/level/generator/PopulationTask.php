@@ -36,8 +36,8 @@ class PopulationTask extends AsyncTask{
 
 	/** @var bool[] whether each of the 9 positions was loaded when the task was created */
 	public $chunkLoaded = [];
-	/** @var bool[] hasChanged() snapshot of each loaded position */
-	public $chunkChanged = [];
+	/** @var int[] getMutationCounter() 快照，见 BaseFullChunk；比 hasChanged 布尔更可靠（不会被中途保存重置） */
+	public $chunkMutationCounter = [];
 
 	/** @var int */
 	public $chunkX;
@@ -62,14 +62,14 @@ class PopulationTask extends AsyncTask{
 		for($i = 0; $i < 9; ++$i){
 			if($i === 4){
 				$this->chunkLoaded[4] = true;
-				$this->chunkChanged[4] = $chunk->hasChanged();
+				$this->chunkMutationCounter[4] = $chunk->getMutationCounter();
 				continue;
 			}
 			$xx = -1 + $i % 3;
 			$zz = -1 + (int) ($i / 3);
 			$ck = $level->getChunk($chunk->getX() + $xx, $chunk->getZ() + $zz, false);
 			$this->chunkLoaded[$i] = $ck !== null;
-			$this->chunkChanged[$i] = $ck !== null ? $ck->hasChanged() : false;
+			$this->chunkMutationCounter[$i] = $ck !== null ? $ck->getMutationCounter() : 0;
 			$this->{"chunk$i"} = $ck !== null ? $ck->toFastBinary() : null;
 		}
 	}
@@ -211,24 +211,26 @@ class PopulationTask extends AsyncTask{
 				}
 				//The async side filled this position with an empty chunk (it was not loaded
 				//when the task was created). Writing it back could swallow the real chunk the
-				//main thread has loaded since. Only write back chunks that were loaded and
-				//have not been modified on the main thread after the snapshot was taken.
+				//main thread has loaded since. Only write back chunks whose mutation counter
+				//has not advanced since the snapshot was taken (any change increments it,
+				//and it is never reset, not even by an intermediate save).
 				if(!$this->chunkLoaded[$i]){
 					continue;
 				}
 				$cx = $chunk->getX() - 1 + $i % 3;
 				$cz = $chunk->getZ() - 1 + (int) ($i / 3);
 				$current = $level->getChunk($cx, $cz, false);
-				if($current !== null and $current->hasChanged() !== $this->chunkChanged[$i]){
+				if($current !== null and $current->getMutationCounter() !== $this->chunkMutationCounter[$i]){
 					continue;
 				}
 				$c = $chunkC::fromFastBinary($c, $level->getProvider());
 				if($c !== null){
-					$level->generateChunkCallback($c->getX(), $c->getZ(), $c, $this->chunkChanged[$i]);
+					$level->generateChunkCallback($c->getX(), $c->getZ(), $c, $current === null ? null : $this->chunkMutationCounter[$i]);
 				}
 			}
 
-			$level->generateChunkCallback($chunk->getX(), $chunk->getZ(), $chunk, $this->chunkChanged[4]);
+			$currentCenter = $level->getChunk($chunk->getX(), $chunk->getZ(), false);
+			$level->generateChunkCallback($chunk->getX(), $chunk->getZ(), $chunk, $currentCenter === null ? null : $this->chunkMutationCounter[4]);
 			$this->applyDeferredTiles($level);
 		}
 	}

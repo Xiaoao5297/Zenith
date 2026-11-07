@@ -350,6 +350,16 @@ interface FullChunk{
 	public function setChanged($changed = true);
 
 	/**
+	 * Monotonic mutation counter for the lifetime of this object.
+	 * Unlike hasChanged() it is never reset (not even by saving),
+	 * so async tasks can use it to detect any modification since
+	 * their snapshot was taken.
+	 *
+	 * @return int
+	 */
+	public function getMutationCounter();
+
+	/**
 	 * @param string        $data
 	 * @param LevelProvider $provider
 	 *

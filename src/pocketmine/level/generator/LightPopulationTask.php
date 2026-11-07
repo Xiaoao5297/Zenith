@@ -18,10 +18,14 @@ class LightPopulationTask extends AsyncTask{
 	public $chunk;
 	public $chunkClass;
 
+	/** @var int BUG-026：构造时（主线程）区块的 mutationCounter 快照，回写时与当前区块比对 */
+	public $skipIfChanged = null;
+
 	public function __construct(Level $level, FullChunk $chunk){
 		$this->levelId = $level->getId();
 		$this->chunk = $chunk->toFastBinary();
 		$this->chunkClass = get_class($chunk);
+		$this->skipIfChanged = $chunk->getMutationCounter();
 	}
 
 	public function onRun(){
@@ -50,7 +54,7 @@ class LightPopulationTask extends AsyncTask{
 				//TODO error
 				return;
 			}
-			$level->generateChunkCallback($chunk->getX(), $chunk->getZ(), $chunk);
+			$level->generateChunkCallback($chunk->getX(), $chunk->getZ(), $chunk, $this->skipIfChanged);
 		}
 	}
 }
