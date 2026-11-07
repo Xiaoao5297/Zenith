@@ -401,6 +401,10 @@ class Session{
 		return $this->isTemporal;
 	}
 
+	public function isActive(){
+		return $this->isActive;
+	}
+
 	private function handleEncapsulatedPacketRoute(EncapsulatedPacket $packet){
 		if($this->sessionManager === null){
 			return;
