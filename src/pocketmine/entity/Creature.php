@@ -39,7 +39,6 @@ abstract class Creature extends Living{
                 // updateMovement() 由 Entity::onUpdate 统一调用
             }
         }
-        parent::entityBaseTick();
         return parent::onUpdate($currentTick);
     }
 
