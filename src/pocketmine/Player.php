@@ -3070,8 +3070,18 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				$item = null;
 
 				if($this->isCreative()){ //Creative mode match
-					$item = $packet->item;
-					$slot = Item::getCreativeItemIndex($item);
+					// SEC-008: 不信任客户端上报的 Item（可携带任意 NBT/count）。
+					// 仅用 id/damage 在创意物品表中匹配，命中后采用服务端权威副本。
+					$slot = Item::getCreativeItemIndex($packet->item);
+					if($slot >= 0){
+						$serverItem = Item::getCreativeItem($slot);
+						if($serverItem !== null){
+							$item = clone $serverItem;
+							// 保留客户端请求的数量，但钳制到合法堆叠上限
+							$item->setCount(max(1, min($packet->item->getCount(), $item->getMaxStackSize())));
+						}
+					}
+					// $slot < 0（不在创意列表）保持 $item === null，由下方错误分支拒绝
 				}else{
 					$item = $this->inventory->getItem($packet->slot);
 					$slot = $packet->slot;
@@ -4421,42 +4431,49 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				$this->craftingType = 0;
 
 				$pos = new Vector3($packet->x, $packet->y, $packet->z);
-				if($pos->distanceSquared($this) > 10000){
+				if($pos->distanceSquared($this) > $this->server->interactDistance ** 2){
 					break;
 				}
 
 				$t = $this->level->getTile($pos);
 				if($t instanceof Sign){
-					$nbt = new NBT(NBT::LITTLE_ENDIAN);
-					$nbt->read($packet->namedtag);
-					$nbt = $nbt->getData();
-					if($nbt["id"] !== Tile::SIGN){
-						$t->spawnTo($this);
-					}else{
-						$ev = new SignChangeEvent($t->getBlock(), $this, [
-							TextFormat::clean($nbt["Text1"], $this->removeFormat),
-							TextFormat::clean($nbt["Text2"], $this->removeFormat),
-							TextFormat::clean($nbt["Text3"], $this->removeFormat),
-							TextFormat::clean($nbt["Text4"], $this->removeFormat)
-						]);
-
-						if(!isset($t->namedtag->Creator) or $t->namedtag["Creator"] !== $this->getRawUniqueId()){
-							$ev->setCancelled();
+					if(strlen($packet->namedtag) > 1024){ //sign NBT is at most 4 lines x 16 chars; reject oversized payloads
+						break;
+					}
+					try{
+						$nbt = new NBT(NBT::LITTLE_ENDIAN);
+						$nbt->read($packet->namedtag);
+						$nbt = $nbt->getData();
+						if($nbt["id"] !== Tile::SIGN){
+							$t->spawnTo($this);
 						}else{
-							foreach($ev->getLines() as $line){
-								if(mb_strlen($line, "UTF-8") > 16){
-									$ev->setCancelled();
+							$ev = new SignChangeEvent($t->getBlock(), $this, [
+								TextFormat::clean($nbt["Text1"], $this->removeFormat),
+								TextFormat::clean($nbt["Text2"], $this->removeFormat),
+								TextFormat::clean($nbt["Text3"], $this->removeFormat),
+								TextFormat::clean($nbt["Text4"], $this->removeFormat)
+							]);
+
+							if(!isset($t->namedtag->Creator) or $t->namedtag["Creator"] !== $this->getRawUniqueId()){
+								$ev->setCancelled();
+							}else{
+								foreach($ev->getLines() as $line){
+									if(mb_strlen($line, "UTF-8") > 16){
+										$ev->setCancelled();
+									}
 								}
 							}
-						}
 
-						$this->server->getPluginManager()->callEvent($ev);
+							$this->server->getPluginManager()->callEvent($ev);
 
-						if(!$ev->isCancelled()){
-							$t->setText($ev->getLine(0), $ev->getLine(1), $ev->getLine(2), $ev->getLine(3));
-						}else{
-							$t->spawnTo($this);
+							if(!$ev->isCancelled()){
+								$t->setText($ev->getLine(0), $ev->getLine(1), $ev->getLine(2), $ev->getLine(3));
+							}else{
+								$t->spawnTo($this);
+							}
 						}
+					}catch(\Throwable $e){ //malformed NBT: don't spam logs; outer malformed-packet handling provides the backstop
+						break;
 					}
 				}
 				break;
