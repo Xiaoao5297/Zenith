@@ -55,6 +55,8 @@ class BanListCommand extends VanillaCommand{
 
 				return \false;
 			}
+		}else{
+			$args[0] = "players";
 		}
 
 		$message = "";
@@ -62,15 +64,20 @@ class BanListCommand extends VanillaCommand{
 		foreach($list as $entry){
 			$message .= $entry->getName() . ", ";
 		}
-		
-		if(!isset($args[0])) return \false;
+
 		if($args[0] === "ips"){
 			$sender->sendMessage(Server::getInstance()->getLanguage()->translateString("commands.banlist.ips", [\count($list)]));
 		}elseif($args[0] === "players"){
 			$sender->sendMessage(Server::getInstance()->getLanguage()->translateString("commands.banlist.players", [\count($list)]));
-		}else $sender->sendMessage("共有 ".\count($list)."被ban");
+		}elseif($args[0] === "cids"){
+			$sender->sendMessage("共有 " . \count($list) . " 个被封锁的客户端 ID：");
+		}else{
+			$sender->sendMessage("共有 " . \count($list) . " 条 CID 封禁记录");
+		}
 
-		$sender->sendMessage(\substr($message, 0, -2));
+		if(\strlen($message) > 0){
+			$sender->sendMessage(\substr($message, 0, -2));
+		}
 
 		return \true;
 	}

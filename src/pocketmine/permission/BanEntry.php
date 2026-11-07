@@ -47,7 +47,10 @@ class BanEntry{
 		return $this->creationDate;
 	}
 
-	public function setCreated(\DateTime $date){
+	public function setCreated($date){
+		if(!$date instanceof \DateTime){
+			return;
+		}
 		$this->creationDate = $date;
 	}
 
@@ -92,15 +95,15 @@ class BanEntry{
 
 	public function getString(){
 		$str = "";
-		$str .= $this->getName();
+		$str .= str_replace(["|", "\n", "\r"], ["\\|", " ", " "], $this->getName());
 		$str .= "|";
 		$str .= $this->getCreated()->format(self::$format);
 		$str .= "|";
-		$str .= $this->getSource();
+		$str .= str_replace(["|", "\n", "\r"], ["\\|", " ", " "], $this->getSource());
 		$str .= "|";
 		$str .= $this->getExpires() === null ? "Forever" : $this->getExpires()->format(self::$format);
 		$str .= "|";
-		$str .= $this->getReason();
+		$str .= str_replace(["|", "\n", "\r"], ["\\|", " ", " "], $this->getReason());
 
 		return $str;
 	}
@@ -114,19 +117,19 @@ class BanEntry{
 		if(strlen($str) < 2){
 			return null;
 		}else{
-			$str = explode("|", trim($str));
-			$entry = new BanEntry(trim(array_shift($str)));
+			$str = preg_split('/(?<!\\\\)\|/', trim($str));
+			$entry = new BanEntry(str_replace("\\|", "|", trim(array_shift($str))));
 			if(count($str) > 0){
 				$entry->setCreated(\DateTime::createFromFormat(self::$format, array_shift($str)));
 				if(count($str) > 0){
-					$entry->setSource(trim(array_shift($str)));
+					$entry->setSource(str_replace("\\|", "|", trim(array_shift($str))));
 					if(count($str) > 0){
 						$expire = trim(array_shift($str));
 						if(strtolower($expire) !== "forever" and strlen($expire) > 0){
 							$entry->setExpires(\DateTime::createFromFormat(self::$format, $expire));
 						}
 						if(count($str) > 0){
-							$entry->setReason(trim(array_shift($str)));
+							$entry->setReason(str_replace("\\|", "|", trim(array_shift($str))));
 						}
 					}
 				}
