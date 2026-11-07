@@ -169,9 +169,18 @@ class Session{
 			foreach($this->packetToSend as $k => $pk){
 				$pk->sendTime = $time;
 				$pk->encode();
-				$this->recoveryQueue[$pk->seqNumber] = $pk;
 				unset($this->packetToSend[$k]);
 				$this->sendPacket($pk);
+				//发送完成，清除 NACK 路径设置的幂等标记，允许后续 NACK/超时再次触发重传
+				$pk->pendingRetransmit = false;
+
+				//retryCount>5 的包已在 NACK 路径被放弃（giveup），此处不再回填 recoveryQueue，
+				//防止其经 packetToSend 路径重新进入恢复队列而撤销放弃上限
+				if(($pk->retryCount ?? 0) > 5){
+					continue;
+				}
+
+				$this->recoveryQueue[$pk->seqNumber] = $pk;
 
 				if(--$limit <= 0){
 					break;
@@ -195,6 +204,12 @@ class Session{
 
 		foreach($this->recoveryQueue as $seq => $pk){
 			if($pk->sendTime < (time() - 8)){
+				//与 NACK 路径共用幂等标记：该包已因 NACK 在 packetToSend 中等待重传时不再重复入队
+				//（NACK 路径保留条目在 recoveryQueue，若本轮 packetToSend 超出 16 包上限未及发送，
+				//sendTime 仍为旧值，此处若无保护会重复 push）
+				if(!empty($pk->pendingRetransmit)){
+					continue;
+				}
 				$this->packetToSend[] = $pk;
 				unset($this->recoveryQueue[$seq]);
 			}else{
@@ -515,12 +530,15 @@ class Session{
 
 				$diff = $packet->seqNumber - $this->lastSeqNumber;
 
-				if($diff > (self::$WINDOW_SIZE >> 1)){
-					//SEC-022 洞 A：seqNumber 相对 lastSeqNumber 的正向跳跃超过窗口一半（WINDOW_SIZE=2048 时即 >1024）
-					//属于异常现象：正常客户端的乱序重排只差几个包，1024+ 的连续缺失只可能是攻击或极端异常。
-					//若放行，下方循环会为每个缺失序号生成一条 NACK 记录（单包最多 ~2048 条，应答体 ~14KB），
-					//攻击者可循环触发形成稳态反射放大。此处直接断开连接，与现有 disconnect() 用法一致
-					//（同线程上下文内调用 removeSession()，与 update() 超时路径相同）。
+				//SEC-022 洞 A：seqNumber 相对 lastSeqNumber 的正向跳跃超过窗口一半（WINDOW_SIZE=2048 时即 >1024）
+				//属于异常现象：正常客户端的乱序重排只差几个包，1024+ 的连续缺失只可能是攻击或极端异常。
+				//若放行，下方循环会为每个缺失序号生成一条 NACK 记录（单包最多 ~2048 条，应答体 ~14KB），
+				//攻击者可循环触发形成稳态反射放大。此处直接断开连接，与现有 disconnect() 用法一致
+				//（同线程上下文内调用 removeSession()，与 update() 超时路径相同）。
+				//发送侧 seqNumber 为 32-bit 无取模自增，接收侧 unpack 3 字节为 24-bit：
+				//客户端 seq 跨 0x1000000 回绕时 diff 会表现为接近 2^24 的巨大正值，
+				//这属于正常回绕而非异常跳跃，需排除（长连接高流量会话约 1600 万包后必然触发）。
+				if($diff > (self::$WINDOW_SIZE >> 1) and $diff < (0x1000000 - (self::$WINDOW_SIZE >> 1))){
 					$this->disconnect("abnormal sequence jump");
 
 					return;
@@ -575,9 +593,16 @@ class Session{
 							//原实现以旧 seq 为键的 recoveryRetry 计数器在重传后立即被 unset，从未存活，
 							//且换新 seq 导致客户端重复投递、计数失效。
 							$pk = $this->recoveryQueue[$seq];
+							//幂等保护：同一包在两次 update() 之间可能被多次 NACK，
+							//已在 packetToSend 中等待重传的包不再重复入队，避免重复重传
+							if(!empty($pk->pendingRetransmit)){
+								continue;
+							}
+							$pk->pendingRetransmit = true;
 							$pk->retryCount = ($pk->retryCount ?? 0) + 1;
 							if($pk->retryCount > 5){
 								//重传超过 5 次仍未被 ACK：移出恢复队列并放弃该包
+								//（update() 回填 recoveryQueue 时同样跳过 retryCount>5 的包，放弃不可撤销）
 								unset($this->recoveryQueue[$seq]);
 								continue;
 							}
