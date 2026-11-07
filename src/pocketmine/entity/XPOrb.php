@@ -46,15 +46,21 @@ class XPOrb extends Entity{
 			$hasUpdate = true;
 		}
 		
-		$minDistance = PHP_INT_MAX;
-		$expectedPos = null;
-		foreach($this->getLevel()->getEntities() as $e){
-			if($e instanceof Player){
-				if($e->distance($this) <= $minDistance) {
-					$expectedPos = $e;
-					$minDistance = $e->distance($this);
+		if($this->age % 4 === 0){
+			$minDistance = PHP_INT_MAX;
+			$expectedPos = null;
+			foreach($this->getLevel()->getNearbyEntities($this->boundingBox->grow(8, 8, 8)) as $e){
+				if($e instanceof Player){
+					$dist = $e->distance($this);
+					if($dist <= $minDistance){
+						$expectedPos = $e;
+						$minDistance = $dist;
+					}
 				}
-			} 
+			}
+		}else{
+			$minDistance = PHP_INT_MAX;
+			$expectedPos = null;
 		}
 
 		if($minDistance < PHP_INT_MAX){
@@ -97,7 +103,7 @@ class XPOrb extends Entity{
 		
 		$this->timings->stopTiming();
 
-		return $hasUpdate or !$this->onGround or abs($this->motionX) > 0.00001 or abs($this->motionY) > 0.00001 or abs($this->motionZ) > 0.00001;
+		return $this->age < 1200 or $hasUpdate or !$this->onGround or abs($this->motionX) > 0.00001 or abs($this->motionY) > 0.00001 or abs($this->motionZ) > 0.00001;
 	}
 
 	public function canCollideWith(Entity $entity){
