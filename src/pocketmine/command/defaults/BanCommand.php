@@ -55,7 +55,8 @@ class BanCommand extends VanillaCommand{
 			$sender->getServer()->getNameBans()->addBan($name, $reason, null, $sender->getName());
 		}else{
 			$until = null;
-			if(is_numeric($args[count($args) - 1])){
+			//BUG-009：天数参数必须为正整数；`/ban x 0` 或 `/ban x -1` 视为 reason 的一部分（永久封禁）
+			if(is_numeric($args[count($args) - 1]) and (int) $args[count($args) - 1] > 0){
 				$until = new \DateTime("@" . ((int) array_pop($args) * 86400 + time()));
 			}
 			$reason = implode(" ", $args);

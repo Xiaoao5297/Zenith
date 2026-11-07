@@ -223,14 +223,17 @@ class McRegion extends BaseLevelProvider{
 				if(is_file($regionFile)){
 					$tag = date("Ymd-His") . "_r." . $regionX . "." . $regionZ;
 					$qpath = $quarantine . $tag . ".mcr";
+					//Drop the corrupted entry from the location table so subsequent loads treat it as
+					//non-generated, then fall through to an empty chunk instead of returning false
+					//(which used to propagate null to the level thread and crash the server in a loop).
+					//This must happen on BOTH branches: if the copy succeeds the data still lives in
+					//the original region file, and without removeChunk every reload would quarantine
+					//a new timestamped copy until the disk filled up (BUG-022 follow-up).
+					$region->removeChunk($chunkX - $regionX * 32, $chunkZ - $regionZ * 32);
 					if(@copy($regionFile, $qpath)){
-						$this->getServer()->getLogger()->error("已隔离: " . $qpath);
+						$this->getServer()->getLogger()->error("已隔离损坏的 region 文件: " . $qpath . "，该区块已从索引中剔除并重建空区块");
 					}else{
 						$this->getServer()->getLogger()->error("无法隔离损坏的 region 文件，已将该区块从索引中剔除并重建空区块: " . $regionFile);
-						//Drop the corrupted entry from the location table so subsequent loads treat it as
-						//non-generated, then fall through to an empty chunk instead of returning false
-						//(which used to propagate null to the level thread and crash the server in a loop)
-						$region->removeChunk($chunkX - $regionX * 32, $chunkZ - $regionZ * 32);
 					}
 				}
 			}

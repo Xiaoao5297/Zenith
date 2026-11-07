@@ -36,8 +36,8 @@ player:
  keep-experience: true
  #如果玩家加入时崩溃，请将此值设置为10以下。禁用=-1
  chunk-radius: -1
- #附魔等级上限（默认 32767，与原版一致；设为较小值如 10 可防止 32k 武器）
- max-enchant-level: 32767
+ #附魔等级上限（默认 30，与原版一致；Item.php 会以此钳制非法附魔）
+ max-enchant-level: 30
  #攻击冷却时间（秒，默认 0.15）
  attack-cooldown: 0.15
  #背包事务超时时间（秒，默认 2）

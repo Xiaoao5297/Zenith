@@ -175,10 +175,14 @@ class RCONInstance extends Thread{
 										$this->response = "";
 										$this->responseReady = false;
 										$this->waiting = true;
-										//Bounded wait: a dead or wedged main thread must not block us forever
-										$notified = $this->wait(5000);
+										//Bounded wait: a dead or wedged main thread must not block us forever.
+										//wait()'s return value does not reliably distinguish notify from
+										//timeout on all pthreads builds, so the responseReady sentinel
+										//(set by the main thread under the lock in RCON's check handler)
+										//is the authoritative predicate.
+										$this->wait(5000);
 										$this->waiting = false;
-										$out = $notified === true ? $this->response : "Server busy, try again later";
+										$out = $this->responseReady ? $this->response : "Server busy, try again later";
 										$this->writePacket($client, $requestID, 0, str_replace("\n", "\r\n", trim($out)));
 										$this->cmd = "";
 										$this->response = "";

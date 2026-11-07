@@ -95,7 +95,9 @@ class Weather{
 					}
 				}
 			}
-			if(($this->weatherNow > 0) and ($this->level->getServer()->lightningTime > 0) and ($this->duration % $this->level->getServer()->lightningTime === 0)){ //BUG-029a：浮点除判整除永假，改取模
+			//BUG-029b：负 duration 被 WeatherChangeEvent 取消后无法归位，会每 tick 走进本分支；
+			//加 duration > 0 守卫避免连续触发落雷。
+			if(($this->weatherNow > 0) and ($this->duration > 0) and ($this->level->getServer()->lightningTime > 0) and ($this->duration % $this->level->getServer()->lightningTime === 0)){
 				$players = $this->level->getPlayers();
 				if(count($players) > 0){
 					$p = $players[array_rand($players)];

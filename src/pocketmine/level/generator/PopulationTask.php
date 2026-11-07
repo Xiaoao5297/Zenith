@@ -38,6 +38,13 @@ class PopulationTask extends AsyncTask{
 	public $chunkLoaded = [];
 	/** @var int[] getMutationCounter() 快照，见 BaseFullChunk；比 hasChanged 布尔更可靠（不会被中途保存重置） */
 	public $chunkMutationCounter = [];
+	/**
+	 * @var string[] spl_object_hash 快照，用于识别区块对象是否被卸载重载。
+	 * 卸载重载会产生 counter 从 0 重新开始的新对象，单靠 counter 比对可能恰好相等；
+	 * 对象身份不一致时放弃回写（宁可丢邻居回写，也不能用陈旧快照覆盖重载区块）。
+	 * spl_object_hash 返回字符串，pthreads 属性必须是标量，字符串安全。
+	 */
+	public $chunkIdentity = [];
 
 	/** @var int */
 	public $chunkX;
@@ -63,6 +70,7 @@ class PopulationTask extends AsyncTask{
 			if($i === 4){
 				$this->chunkLoaded[4] = true;
 				$this->chunkMutationCounter[4] = $chunk->getMutationCounter();
+				$this->chunkIdentity[4] = spl_object_hash($chunk);
 				continue;
 			}
 			$xx = -1 + $i % 3;
@@ -70,6 +78,7 @@ class PopulationTask extends AsyncTask{
 			$ck = $level->getChunk($chunk->getX() + $xx, $chunk->getZ() + $zz, false);
 			$this->chunkLoaded[$i] = $ck !== null;
 			$this->chunkMutationCounter[$i] = $ck !== null ? $ck->getMutationCounter() : 0;
+			$this->chunkIdentity[$i] = $ck !== null ? spl_object_hash($ck) : "";
 			$this->{"chunk$i"} = $ck !== null ? $ck->toFastBinary() : null;
 		}
 	}
@@ -220,7 +229,14 @@ class PopulationTask extends AsyncTask{
 				$cx = $chunk->getX() - 1 + $i % 3;
 				$cz = $chunk->getZ() - 1 + (int) ($i / 3);
 				$current = $level->getChunk($cx, $cz, false);
-				if($current !== null and $current->getMutationCounter() !== $this->chunkMutationCounter[$i]){
+				//Identity check first: if the chunk was unloaded and reloaded while the task was
+				//running, the new object's counter restarts at 0 and may coincide with the
+				//snapshot. Only the counter check would then let a stale snapshot overwrite the
+				//reloaded chunk (BUG-028). A different object means the write-back is abandoned.
+				if($current === null or !isset($this->chunkIdentity[$i]) or !is_string($this->chunkIdentity[$i]) or $this->chunkIdentity[$i] === "" or spl_object_hash($current) !== $this->chunkIdentity[$i]){
+					continue;
+				}
+				if($current->getMutationCounter() !== $this->chunkMutationCounter[$i]){
 					continue;
 				}
 				$c = $chunkC::fromFastBinary($c, $level->getProvider());
@@ -230,7 +246,15 @@ class PopulationTask extends AsyncTask{
 			}
 
 			$currentCenter = $level->getChunk($chunk->getX(), $chunk->getZ(), false);
-			$level->generateChunkCallback($chunk->getX(), $chunk->getZ(), $chunk, $currentCenter === null ? null : $this->chunkMutationCounter[4]);
+			//Center chunk follows the same identity rule as the neighbors (BUG-028): a reload
+			//during the task window creates a fresh object whose counter may coincide with the
+			//snapshot. Skip the write-back and cancel the population instead of overwriting the
+			//reloaded chunk with stale data.
+			if($currentCenter !== null and isset($this->chunkIdentity[4]) and is_string($this->chunkIdentity[4]) and $this->chunkIdentity[4] !== "" and spl_object_hash($currentCenter) === $this->chunkIdentity[4] and $currentCenter->getMutationCounter() === $this->chunkMutationCounter[4]){
+				$level->generateChunkCallback($chunk->getX(), $chunk->getZ(), $chunk, $this->chunkMutationCounter[4]);
+			}else{
+				$level->cancelChunkPopulation($chunk->getX(), $chunk->getZ());
+			}
 			$this->applyDeferredTiles($level);
 		}
 	}
