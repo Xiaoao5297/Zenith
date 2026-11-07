@@ -117,7 +117,12 @@ class EnchantingTable extends Transparent{
 			$enchantTable = Tile::createTile(Tile::ENCHANT_TABLE, $this->getLevel()->getChunk($this->x >> 4, $this->z >> 4), $nbt);
 		}
 
-		$player->addWindow($enchantTable->getInventory());
+		//SEC-019: 每个玩家独立一份 EnchantInventory(per-viewer), 不再共享
+		//tile 上的单一实例, 防止后打开的玩家偷取/误掉落先打开者放入的物品.
+		//参照 Anvil::onActivate 的做法. tile 的 getInventory() 不再被打开
+		//路径使用; 台子 slot 本就不持久化(tile 构造与 getSpawnCompound 均不
+		//读写 Items NBT), per-viewer 后语义不变.
+		$player->addWindow(new EnchantInventory($enchantTable));
 
 		return true;
 	}

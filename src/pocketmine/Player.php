@@ -1856,14 +1856,16 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 			}
 
-			if(!$this->isSpectator()){
-				$this->checkNearEntities($tickDiff);
-			}
-
 			$this->speed = $from->subtract($to);
 		}elseif($distanceSquared == 0){
 			$this->speed = new Vector3(0, 0, 0);
 			$this->setMoving(false);
+		}
+
+		//BUG-015: 拾取检测(掉落物/箭)不依赖玩家移动, 每 tick 无条件执行,
+		//否则静止玩家永远捡不起脚下的物品.
+		if(!$this->isSpectator()){
+			$this->checkNearEntities($tickDiff);
 		}
 
 		if($revert && !$this->isSpectator()){
@@ -3018,7 +3020,14 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				if($this->linkedEntity instanceof Entity){
 					$entity = $this->linkedEntity;
 					if($entity instanceof Boat){
-						$entity->setPosition($this->temporalVector->setComponents($packet->x, $packet->y - 0.3, $packet->z));
+						//SEC-018: 不信任乘客上报的坐标, 限制船与乘客的位移距离,
+						//防止恶意包瞬移船跨区块强加载. 超限则忽略该坐标(不回弹:
+						//船坐标由船自身 onUpdate 广播, 下一 tick 自然纠正).
+						$maxBoatMoveDistSq = 100.0; //10 格钳制阈值(平方)
+						$target = $this->temporalVector->setComponents($packet->x, $packet->y - 0.3, $packet->z);
+						if($entity->distanceSquared($target) <= $maxBoatMoveDistSq){
+							$entity->setPosition($target);
+						}
 					}
 					//原注释
 					if($entity instanceof Minecart){

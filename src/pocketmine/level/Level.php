@@ -3183,13 +3183,14 @@ class Level implements ChunkManager, Metadatable{
 			throw new LevelException("Invalid Entity level");
 		}
 
+		//BUG-016: removeEntity 只负责从本世界注销索引, 不 kill 也不 close.
+		//Entity::switchLevel() 与 Entity::close() 都会调用本方法: 前者随后会向
+		//新世界 addEntity(), 后者自身已处理 despawn/chunk 摘除, 在这里 kill/close
+		//会导致跨世界传送的非玩家实体被误杀(并掉经验球), 以及 chunk unload 时
+		//对实体做死亡结算. 需要销毁实体的调用方应显式调用 kill()/close().
 		if($entity instanceof Player){
 			unset($this->players[$entity->getId()]);
 			$this->checkSleep();
-		}elseif($entity instanceof XPOrb){
-			$entity->close();
-		}else{
-			$entity->kill();
 		}
 
 		unset($this->entities[$entity->getId()]);
