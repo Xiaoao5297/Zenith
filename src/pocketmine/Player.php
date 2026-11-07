@@ -132,6 +132,7 @@ use pocketmine\nbt\tag\ShortTag;
 use pocketmine\nbt\tag\StringTag;
 use pocketmine\network\DataPacketManager;
 use pocketmine\network\Network;
+use pocketmine\network\compat\BatchCodec;
 use pocketmine\network\protocol\ProtocolCompatibility;
 use pocketmine\network\protocol\SetEntityDataPacket;
 use pocketmine\network\protocol\v84\DataPacketV84;
@@ -2646,8 +2647,10 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			return false;
 		}
 
-		$str = @zlib_decode($packet->payload, 1024 * 1024 * 64);
+		$str = BatchCodec::streamingDecompress($packet->payload, BatchCodec::MAX_PAYLOAD);
 		if(!is_string($str)){
+			//SEC-001: decompression failed or exceeded BatchCodec::MAX_PAYLOAD (zip bomb) —
+			//same semantics as a failed zlib_decode in the original probe.
 			return false;
 		}
 
@@ -4207,10 +4210,16 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 				foreach($ingredients as $ingredient){
 					$slot = -1;
+					//SEC-006: respect the ingredient's own count. Single-cell multi-count
+					//recipes (e.g. SNOW_LAYER = one cell of 3x SNOW_BLOCK) must consume
+					//the full count, otherwise 1 placed item yields N crafted results.
+					//Server recipe is authoritative; the client grid only needs to match
+					//type (deepEquals does not compare counts), so deduct $need per cell.
+					$need = max(1, (int) $ingredient->getCount());
 					foreach($this->inventory->getContents() as $index => $i){
-						if($ingredient->getId() !== 0 and $ingredient->deepEquals($i, $ingredient->getDamage() !== null) and ($i->getCount() - $used[$index]) >= 1){
+						if($ingredient->getId() !== 0 and $ingredient->deepEquals($i, $ingredient->getDamage() !== null) and ($i->getCount() - $used[$index]) >= $need){
 							$slot = $index;
-							$used[$index]++;
+							$used[$index] += $need;
 							break;
 						}
 					}
