@@ -45,6 +45,9 @@ class OPEN_CONNECTION_REQUEST_2 extends Packet
     public function decode()
     {
         parent::decode();
+        if(\substr($this->buffer, $this->offset, 16) !== RakLib::MAGIC){
+            throw new PacketDecodeException("Magic mismatch");
+        }
         $this->offset += 16; //Magic
         $this->getAddress($this->serverAddress, $this->serverPort);
         $this->mtuSize = \unpack("n", $this->get(2))[1];

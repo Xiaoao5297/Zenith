@@ -41,6 +41,10 @@ class UNCONNECTED_PING extends Packet
     {
         parent::decode();
         $this->pingID = Binary::readLong($this->get(8));
-        //magic
+        //1 (ID) + 8 (pingID) + 16 (magic) = minimum 25 bytes; magic check rejects short/forged packets
+        if(\substr($this->buffer, $this->offset, 16) !== RakLib::MAGIC){
+            throw new PacketDecodeException("Magic mismatch");
+        }
+        $this->offset += 16;
     }
 }
