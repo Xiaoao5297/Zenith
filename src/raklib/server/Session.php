@@ -51,6 +51,7 @@ class Session{
 
 	const MAX_SPLIT_SIZE = 128;
 	const MAX_SPLIT_COUNT = 4;
+	const MAX_RELIABLE_WINDOW_BUFFER = 1024;
 
 	public static $WINDOW_SIZE = 2048;
 
@@ -90,6 +91,8 @@ class Session{
 	/** @var DataPacket[][] */
 	private $splitPackets = [];
 	private $splitTime = [];
+	/** @var int[] */
+	private $splitCounts = [];
 
 	/** @var int[][] */
 	private $needACK = [];
@@ -318,7 +321,7 @@ class Session{
 	}
 
 	private function handleSplit(EncapsulatedPacket $packet){
-		if($packet->splitCount >= self::MAX_SPLIT_SIZE or $packet->splitIndex >= self::MAX_SPLIT_SIZE or $packet->splitIndex < 0){
+		if($packet->splitCount < 1 or $packet->splitCount >= self::MAX_SPLIT_SIZE or $packet->splitIndex >= self::MAX_SPLIT_SIZE or $packet->splitIndex < 0){
 			return;
 		}
 
@@ -331,6 +334,7 @@ class Session{
 					if(($now - ($this->splitTime[$id] ?? $now)) > 30){
 						unset($this->splitPackets[$id]);
 						unset($this->splitTime[$id]);
+						unset($this->splitCounts[$id]);
 					}
 				}
 				if(count($this->splitPackets) >= self::MAX_SPLIT_COUNT){
@@ -339,19 +343,36 @@ class Session{
 			}
 			$this->splitPackets[$packet->splitID] = [$packet->splitIndex => $packet];
 			$this->splitTime[$packet->splitID] = time();
+			$this->splitCounts[$packet->splitID] = $packet->splitCount;
 		}else{
+			if($this->splitCounts[$packet->splitID] !== $packet->splitCount){
+				// 同一 splitID 的 splitCount 不一致，视为恶意/损坏数据，丢弃整组
+				unset($this->splitPackets[$packet->splitID]);
+				unset($this->splitTime[$packet->splitID]);
+				unset($this->splitCounts[$packet->splitID]);
+				return;
+			}
 			$this->splitPackets[$packet->splitID][$packet->splitIndex] = $packet;
 		}
 
-		if(count($this->splitPackets[$packet->splitID]) === $packet->splitCount){
+		if(isset($this->splitPackets[$packet->splitID]) and count($this->splitPackets[$packet->splitID]) === $packet->splitCount){
 			$pk = new EncapsulatedPacket();
 			$pk->buffer = "";
 			for($i = 0; $i < $packet->splitCount; ++$i){
+				if(!isset($this->splitPackets[$packet->splitID][$i])){
+					// 组不完整，丢弃整组，避免对 null 解引用
+					unset($this->splitPackets[$packet->splitID]);
+					unset($this->splitTime[$packet->splitID]);
+					unset($this->splitCounts[$packet->splitID]);
+					return;
+				}
 				$pk->buffer .= $this->splitPackets[$packet->splitID][$i]->buffer;
 			}
 
 			$pk->length = strlen($pk->buffer);
 			unset($this->splitPackets[$packet->splitID]);
+			unset($this->splitTime[$packet->splitID]);
+			unset($this->splitCounts[$packet->splitID]);
 
 			$this->handleEncapsulatedPacketRoute($pk);
 		}
@@ -386,6 +407,17 @@ class Session{
 					}
 				}
 			}else{
+				//SEC-025：reliableWindow 缓存条目无上限，攻击者发送 messageIndex 大幅跳跃且
+				//缺口永不补齐的可靠包时，条目会滞留至断线（窗口跨度 2048 × ~1.4KB ≈ 2.8MB/会话）。
+				//此处限制缓存条目数为窗口一半（1024）：正常客户端的乱序重排只差几个包，
+				//远达不到该上限；达到上限即视为异常，断开连接。
+				//disconnect() → removeSession() → close() 与 update() 超时路径一致，
+				//同线程上下文内调用安全；close() 置空 sessionManager 后本函数入口即短路返回。
+				if(count($this->reliableWindow) >= self::MAX_RELIABLE_WINDOW_BUFFER){
+					$this->disconnect("reliable window overflow");
+
+					return;
+				}
 				$this->reliableWindow[$packet->messageIndex] = $packet;
 			}
 		}
