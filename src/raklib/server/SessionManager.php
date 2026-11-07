@@ -46,6 +46,7 @@ use raklib\protocol\OPEN_CONNECTION_REPLY_2;
 use raklib\protocol\OPEN_CONNECTION_REQUEST_1;
 use raklib\protocol\OPEN_CONNECTION_REQUEST_2;
 use raklib\protocol\Packet;
+use raklib\protocol\PacketDecodeException;
 use raklib\protocol\UNCONNECTED_PING;
 use raklib\protocol\UNCONNECTED_PING_OPEN_CONNECTIONS;
 use raklib\protocol\UNCONNECTED_PONG;
@@ -76,6 +77,9 @@ class SessionManager{
 
 	protected $block = [];
 	protected $ipSec = [];
+
+	/** @var bool[] address => true, addresses with at least one fully handshaked (non-temporal) session */
+	protected $verifiedAddresses = [];
 
 	public $portChecking = true;
 
@@ -129,7 +133,11 @@ class SessionManager{
 
 		foreach($this->ipSec as $address => $count){
 			if($count >= $this->packetLimit){
-				$this->blockAddress($address);
+				// SEC-023: $address 来自可伪造的 UDP 源地址，只对完成过握手（openSession 已回调）的地址
+				// 自动封禁；未验证地址仅限流（ipSec 衰减继续生效），防止伪造源 IP 封禁无辜玩家。
+				if(isset($this->verifiedAddresses[$address])){
+					$this->blockAddress($address);
+				}
 			}
 			// 衰减而非清空：每 tick 减半，平滑速率限制
 			$this->ipSec[$address] = (int) ($count * 0.75);
@@ -188,7 +196,12 @@ class SessionManager{
 					//No need to create a session for just pings
 					$packet = new UNCONNECTED_PING;
 					$packet->buffer = $buffer;
-					$packet->decode();
+					try{
+						$packet->decode();
+					}catch(PacketDecodeException $e){
+						//SEC-021: forged/malformed ping (bad or missing magic) — drop silently
+						return true;
+					}
 					$pk = new UNCONNECTED_PONG();
 					$pk->serverID = $this->getID();
 					$pk->pingID = $packet->pingID;
@@ -196,7 +209,12 @@ class SessionManager{
 					$this->sendPacket($pk, $source, $port);
 				}elseif(($packet = $this->getPacketFromPool($pid)) !== null){
 					$packet->buffer = $buffer;
-					$this->getSession($source, $port)->handlePacket($packet);
+					try{
+						$this->getSession($source, $port)->handlePacket($packet);
+					}catch(PacketDecodeException $e){
+						//SEC-021: offline handshake packet with bad magic — drop silently
+						return true;
+					}
 				}else{
 					$this->streamRaw($source, $port, $buffer);
 				}
@@ -401,13 +419,24 @@ class SessionManager{
 	public function removeSession(Session $session, $reason = "unknown"){
 		$id = $session->getAddress() . ":" . $session->getPort();
 		if(isset($this->sessions[$id])){
+			$address = $session->getAddress();
 			$this->sessions[$id]->close();
 			unset($this->sessions[$id]);
 			$this->streamClose($id, $reason);
+			//若无同地址的其他会话，清理已验证标记（可选维护，量级可控）
+			foreach($this->sessions as $s){
+				if($s->getAddress() === $address){
+					return;
+				}
+			}
+			unset($this->verifiedAddresses[$address]);
 		}
 	}
 
 	public function openSession(Session $session){
+		//SEC-023: handshake fully completed (Session is non-temporal here) —
+		//only these addresses are eligible for automatic ipSec blocking.
+		$this->verifiedAddresses[$session->getAddress()] = true;
 		$this->streamOpen($session);
 	}
 

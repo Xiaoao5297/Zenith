@@ -86,7 +86,6 @@ class Session{
 
 	/** @var DataPacket[] */
 	private $recoveryQueue = [];
-	private $recoveryRetry = [];
 
 	/** @var DataPacket[][] */
 	private $splitPackets = [];
@@ -484,6 +483,17 @@ class Session{
 
 				$diff = $packet->seqNumber - $this->lastSeqNumber;
 
+				if($diff > (self::$WINDOW_SIZE >> 1)){
+					//SEC-022 洞 A：seqNumber 相对 lastSeqNumber 的正向跳跃超过窗口一半（WINDOW_SIZE=2048 时即 >1024）
+					//属于异常现象：正常客户端的乱序重排只差几个包，1024+ 的连续缺失只可能是攻击或极端异常。
+					//若放行，下方循环会为每个缺失序号生成一条 NACK 记录（单包最多 ~2048 条，应答体 ~14KB），
+					//攻击者可循环触发形成稳态反射放大。此处直接断开连接，与现有 disconnect() 用法一致
+					//（同线程上下文内调用 removeSession()，与 update() 超时路径相同）。
+					$this->disconnect("abnormal sequence jump");
+
+					return;
+				}
+
 				unset($this->NACKQueue[$packet->seqNumber]);
 				$this->ACKQueue[$packet->seqNumber] = $packet->seqNumber;
 				$this->receivedWindow[$packet->seqNumber] = $packet->seqNumber;
@@ -528,19 +538,21 @@ class Session{
 					$packet->decode();
 					foreach($packet->packets as $seq){
 						if(isset($this->recoveryQueue[$seq])){
-							// 限制重传次数，防止 NACK 放大攻击
-							$retry = ($this->recoveryRetry[$seq] ?? 0) + 1;
-							if($retry > 5){
+							//SEC-022 洞 B：重传时保持原 seqNumber 不变（与 update() 超时重传路径行为一致），
+							//重试计数挂在 EncapsulatedPacket 对象上（retryCount），跨 NACK 事件累计生效；
+							//原实现以旧 seq 为键的 recoveryRetry 计数器在重传后立即被 unset，从未存活，
+							//且换新 seq 导致客户端重复投递、计数失效。
+							$pk = $this->recoveryQueue[$seq];
+							$pk->retryCount = ($pk->retryCount ?? 0) + 1;
+							if($pk->retryCount > 5){
+								//重传超过 5 次仍未被 ACK：移出恢复队列并放弃该包
 								unset($this->recoveryQueue[$seq]);
-								unset($this->recoveryRetry[$seq]);
 								continue;
 							}
-							$this->recoveryRetry[$seq] = $retry;
-							$pk = $this->recoveryQueue[$seq];
-							$pk->seqNumber = $this->sendSeqNumber++;
+							//条目保留在 recoveryQueue 中（键即原 seqNumber）：update() 发送 packetToSend
+							//时会以相同键回填 recoveryQueue 并刷新 sendTime，ACK 确认处负责最终移除；
+							//保留后同一包可被后续 NACK/超时再次触发重传并受 retryCount 限制。
 							$this->packetToSend[] = $pk;
-							unset($this->recoveryQueue[$seq]);
-							unset($this->recoveryRetry[$seq]);
 						}
 					}
 				}
