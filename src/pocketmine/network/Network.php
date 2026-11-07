@@ -89,8 +89,17 @@ class Network {
 	/** 解压违规计数窗口（秒） */
 	const BATCH_VIOLATION_WINDOW = 60;
 
+	/** MISS-002: 60 秒窗口内畸形包处理异常达到该次数则踢出。正常客户端不会触发包解码异常 */
+	const MALFORMED_PACKET_KICK_THRESHOLD = 10;
+
+	/** MISS-002: 畸形包计数窗口（秒） */
+	const MALFORMED_PACKET_WINDOW = 60;
+
 	/** @var array[] 每玩家批包解压速率桶，键为 spl_object_hash(Player) */
 	private $batchDecompressBuckets = [];
+
+	/** @var array[] MISS-002: 每玩家畸形包计数，键为 spl_object_hash(Player) */
+	private $malformedPacketCounters = [];
 
 	/** @deprecated */
 	const CHANNEL_NONE = 0;
@@ -290,6 +299,7 @@ class Network {
 					$logger->logException($e);
 				}
 			}
+			$this->countMalformedPacket($p);
 		}
 	}
 
@@ -321,6 +331,7 @@ class Network {
 					$logger->logException($e);
 				}
 			}
+			$this->countMalformedPacket($p);
 		}
 	}
 
@@ -415,6 +426,47 @@ class Network {
 			$bucket["violations"] = 0;
 			$bucket["firstViolation"] = 0;
 			$p->kick("批包解压速率超限");
+		}
+	}
+
+	/**
+	 * MISS-002: 记一次畸形包处理异常；窗口内累计达到阈值则踢出该玩家。
+	 *
+	 * 计数表按 spl_object_hash(Player) 存放，超过 256 条时清理 120 秒不活跃的条目，
+	 * 防止内存无限增长（与 batchDecompressBuckets 相同的清理模式）。
+	 *
+	 * @param Player $p
+	 */
+	private function countMalformedPacket(Player $p){
+		$hash = spl_object_hash($p);
+		$now = time();
+		if(!isset($this->malformedPacketCounters[$hash])){
+			$this->malformedPacketCounters[$hash] = [
+				"first" => $now,
+				"count" => 0,
+				"lastActive" => $now,
+			];
+		}
+		$counter = &$this->malformedPacketCounters[$hash];
+		$counter["lastActive"] = $now;
+		if($now - $counter["first"] > self::MALFORMED_PACKET_WINDOW){
+			$counter["first"] = $now;
+			$counter["count"] = 0;
+		}
+
+		if(count($this->malformedPacketCounters) > 256){
+			foreach($this->malformedPacketCounters as $k => $c){
+				if($now - $c["lastActive"] > 120){
+					unset($this->malformedPacketCounters[$k]);
+				}
+			}
+		}
+
+		++$counter["count"];
+		if($counter["count"] >= self::MALFORMED_PACKET_KICK_THRESHOLD){
+			$counter["count"] = 0;
+			$counter["first"] = $now;
+			$p->kick("malformed packets");
 		}
 	}
 

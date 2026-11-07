@@ -110,6 +110,24 @@ class RakLibInterface implements ServerInstance, AdvancedSourceInterface{
 	}
 
 	public function openSession($identifier, $address, $port, $clientID){
+		// MISS-002: 同 IP 并发未登录（!loggedIn）连接数上限，防止未验证连接洪水。
+		// 在创建 Player 之前拒绝，直接关闭该会话；不进入 PlayerCreationEvent 流程，
+		// 之后 RakLib 回调 closeSession 时 $this->players 中无此 identifier，为安全 no-op。
+		$maxPerIp = (int) $this->server->getConfigInt("network.max-connections-per-ip", 3);
+		if($maxPerIp > 0){
+			$unloggedCount = 0;
+			foreach($this->players as $player){
+				if(!$player->loggedIn and $player->getAddress() === $address){
+					++$unloggedCount;
+				}
+			}
+			if($unloggedCount >= $maxPerIp){
+				$this->server->getLogger()->notice("[Security] 拒绝来自 $address 的新连接：同 IP 未登录连接数已达上限 $maxPerIp");
+				$this->interface->closeSession($identifier, "Too many connections from your IP");
+				return;
+			}
+		}
+
 		$ev = new PlayerCreationEvent($this, Player::class, Player::class, null, $address, $port);
 		$this->server->getPluginManager()->callEvent($ev);
 		$class = $ev->getPlayerClass();

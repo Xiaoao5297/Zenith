@@ -380,7 +380,7 @@ class Server{
 	public $regenerationInterval = 80;
 	public $regenerationFoodThreshold = 18;
 	public $interactDistance = 13;
-	public $spawnProtectionRadius = 16;
+	public $spawnProtectionRadius = null;
 	public $version;
 	public $allowSnowGolem;
 	public $allowIronGolem;
@@ -750,10 +750,24 @@ class Server{
 	}
 
 	/**
+	 * 出生点保护半径（方块）。
+	 *
+	 * 配置来源（按优先级）：
+	 * 1. spawn-protection（主 server.properties）：-1 表示禁用保护；调用方以 "> -1" 判断开关。
+	 * 2. player.spawn-protection-radius（advanced config）：过去是死配置（读入后零引用）。
+	 *    BUG-027 将其并入此处作为覆盖值：只有当它显式设置且 >= 0 时才覆盖主配置的半径。
+	 *    设为 -1 可恢复跟随 spawn-protection。
+	 *
 	 * @return int
 	 */
 	public function getSpawnRadius(){
-		return $this->getConfigInt("spawn-protection", 16);
+		$radius = $this->getConfigInt("spawn-protection", 16);
+		$advanced = $this->spawnProtectionRadius;
+		if($advanced !== null and $advanced >= 0){
+			$radius = $advanced;
+		}
+
+		return $radius;
 	}
 
 	/**
@@ -1764,7 +1778,9 @@ class Server{
 		$this->regenerationInterval = (int) $this->getAdvancedProperty("player.regeneration-interval", 80);
 		$this->regenerationFoodThreshold = (int) $this->getAdvancedProperty("player.regeneration-food-threshold", 18);
 		$this->interactDistance = (int) $this->getAdvancedProperty("player.interact-distance", 13);
-		$this->spawnProtectionRadius = (int) $this->getAdvancedProperty("player.spawn-protection-radius", 16);
+		//BUG-027：此 advanced 配置曾为死配置；现参与 getSpawnRadius()（见其注释），>=0 时覆盖 spawn-protection 半径。
+		$advancedSpawnRadius = $this->getAdvancedProperty("player.spawn-protection-radius", null);
+		$this->spawnProtectionRadius = $advancedSpawnRadius !== null ? (int) $advancedSpawnRadius : null;
 		$this->aiEnabled = $this->getAdvancedProperty("ai.enable", true);
 		$this->consoleTitle = $this->getAdvancedProperty("server.console-title", true);
 		$this->aiConfig = [
@@ -2010,6 +2026,8 @@ class Server{
 				"player-tp" => false,
 				"player-view-list" => false,
 				"player-view-plugins" => false,
+				// MISS-002: 同 IP 并发未登录连接数上限（0 = 不限制）
+				"network.max-connections-per-ip" => 3,
 			]);
 
 			$this->forceLanguage = $this->getProperty("settings.force-language", false);
