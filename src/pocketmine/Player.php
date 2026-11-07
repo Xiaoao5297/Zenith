@@ -4075,7 +4075,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 									break;
 								}
 
-							}elseif($ingredient !== null and $item->getId() !== 0){
+							}elseif($ingredient !== null and $ingredient->getId() !== Item::AIR){
+								//SEC-006: required ingredient cell present in recipe but client reported AIR/missing
+								//-> cannot craft, prevents the "empty-slot bypass" item dupe
 								$canCraft = false;
 								break;
 							}
@@ -4117,7 +4119,21 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 
 				/** @var Item[] $ingredients */
-				$ingredients = $gridInput;
+				if($recipe instanceof ShapedRecipe and count($gridInput) > 0){
+					//SEC-006 defense in depth: deduct ingredients according to the recipe's
+					//own ingredient map instead of trusting the client-reported grid,
+					//so a crafted item always consumes every material the recipe needs.
+					$ingredients = [];
+					foreach($recipe->getIngredientMap() as $row){
+						foreach($row as $ingredient){
+							if($ingredient->getId() !== Item::AIR){
+								$ingredients[] = $ingredient;
+							}
+						}
+					}
+				}else{
+					$ingredients = $gridInput;
+				}
 				if(count($ingredients) === 0){
 					//Win10/PC 客户端不在合成事件里携带合成格物品, 用配方定义兜底
 					$ingredients = [];
