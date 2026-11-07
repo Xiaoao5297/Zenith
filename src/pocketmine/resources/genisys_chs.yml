@@ -105,6 +105,8 @@ server:
  console-title: true
  #选择是否启用自动反飞行
  anti-fly: true
+ #TPS 平均值低于此值时输出超载警告（默认 15，最小 1）
+ #tick-overload-threshold: 15
  #选择是否启用异步区块请求
  async-chunk-request: true
  #选择玩家加入时的提醒方式

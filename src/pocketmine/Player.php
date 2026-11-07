@@ -274,6 +274,8 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	protected $chunkLoadCount = 0;
 	protected $loadQueue = [];
 	protected $nextChunkOrderRun = 5;
+	//WEAK-005: last tick orderChunks() actually ran, for throttling its per-run O(n) recalculation
+	protected $lastOrderChunks = -1;
 
 	/** @var Player[] */
 	protected $hiddenPlayers = [];
@@ -2040,7 +2042,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 								$this->setMotion($this->temporalVector->setComponents(0, $expectedVelocity, 0));
 								if($this->inAirTicks < 1000){
 
-								}elseif($this->kick("本服务器禁止飞行！")){
+								}elseif($this->kick($this->server->getLanguage()->translateString("player.kick.flying"))){
 									$this->timings->stopTiming();
 									return false;
 								}
@@ -2319,7 +2321,12 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		}
 
 		if($this->nextChunkOrderRun-- <= 0 or $this->chunk === null){
-			$this->orderChunks();
+			//WEAK-005: throttle orderChunks() to every 4 ticks; first call and force-runs ($this->chunk === null,
+			//or nextChunkOrderRun reset to 0 by spawn/teleport/movement checks) still execute immediately.
+			if($this->chunk === null or $this->lastOrderChunks < 0 or ($this->server->getTick() - $this->lastOrderChunks) >= 4){
+				$this->orderChunks();
+				$this->lastOrderChunks = $this->server->getTick();
+			}
 		}
 
 		if(count($this->loadQueue) > 0 or !$this->spawned){
@@ -2940,7 +2947,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 				$this->username = TextFormat::clean($packet->username);
 				if(!\pocketmine\utils\Utils::isValidPlayerName($this->username)){
-					$this->kick("玩家名包含非法字符，请更换名称后重试", false);
+					$this->kick($this->server->getLanguage()->translateString("player.kick.invalidName"), false);
 					break;
 				}
 				$this->displayName = $this->username;
@@ -3931,7 +3938,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					case EntityEventPacket::USE_ITEM: //Eating
 						$EatTime =  microtime(true) - $this->lastEat;
 						if($this->lastEat != PHP_INT_MAX and $EatTime <= 1.15 and $this->server->antiFastEat){
-							$this->kick("秒吃在此服务器中不被允许，你吃饭只用".number_format($EatTime, 6)."秒？");
+							$this->kick($this->server->getLanguage()->translateString("player.kick.fastEat", [number_format($EatTime, 6)]));
 						}else{
 							$this->eatFoodInHand();
 						}

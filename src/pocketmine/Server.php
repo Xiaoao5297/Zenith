@@ -373,6 +373,8 @@ class Server{
 	public $regenerationInterval = 80;
 	public $regenerationFoodThreshold = 18;
 	public $interactDistance = 13;
+	//WEAK-003: configurable tick overload warning threshold (TPS average below this triggers the warning)
+	public $tickOverloadThreshold = 15;
 	public $spawnProtectionRadius = null;
 	public $version;
 	public $allowSnowGolem;
@@ -1767,6 +1769,8 @@ class Server{
 		//BUG-027：此 advanced 配置曾为死配置；现参与 getSpawnRadius()（见其注释），>=0 时覆盖 spawn-protection 半径。
 		$advancedSpawnRadius = $this->getAdvancedProperty("player.spawn-protection-radius", null);
 		$this->spawnProtectionRadius = $advancedSpawnRadius !== null ? (int) $advancedSpawnRadius : null;
+		//WEAK-003: configurable tick overload threshold, clamped to a minimum of 1
+		$this->tickOverloadThreshold = max(1, (int) $this->getAdvancedProperty("server.tick-overload-threshold", 15));
 		$this->aiEnabled = $this->getAdvancedProperty("ai.enable", true);
 		$this->consoleTitle = $this->getAdvancedProperty("server.console-title", true);
 		$this->aiConfig = [
@@ -3825,7 +3829,8 @@ private function lookupAddress($address) {
 				$level->clearCache();
 			}
 
-			if($this->getTicksPerSecondAverage() < 1){
+			//WEAK-003: use configurable threshold instead of hard-coded 1 (warn before the server is fully stalled)
+			if($this->getTicksPerSecondAverage() < $this->tickOverloadThreshold){
 				$this->logger->warning($this->getLanguage()->translateString("pocketmine.server.tickOverload"));
 			}
 		}
