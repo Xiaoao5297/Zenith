@@ -2347,12 +2347,22 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	}
 
 	public function onPlayerPreLogin(){
-		//TODO: implement auth
+		//SEC-003 方案A: 本服务器为离线模式, 不尝试也不宣称验证 JWT 签名.
 		$this->tryAuthenticate();
 	}
 
 	public function tryAuthenticate(){
-		//TODO: implement authentication after it is available
+		//SEC-003 方案A: 离线模式认证路径. 仅做基本健全性检查 (username 非空且长度合法),
+		//不验证 JWT 签名, 检查通过即视为离线认证成功. 用户名的字符合法性已由
+		//handleDataPacket 中 LOGIN_PACKET 分支的 isValidPlayerName 保证.
+		$username = (string) $this->getName();
+		$length = strlen($username);
+		if($username === "" or $length < 3 or $length > 16){
+			$this->authenticateCallback(false);
+			return;
+		}
+
+		$this->server->getLogger()->debug("Offline-mode authentication for " . $username . " (no JWT signature verification, SEC-003 option A)");
 		$this->authenticateCallback(true);
 	}
 
