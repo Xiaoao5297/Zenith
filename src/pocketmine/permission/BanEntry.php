@@ -67,18 +67,19 @@ class BanEntry{
 	 * @param \DateTime $date
 	 */
 	public function setExpires($date){
+		if(!$date instanceof \DateTime){
+			return;
+		}
 		$this->expirationDate = $date;
 	}
 
 	public function hasExpired(){
-		$now = new \DateTime();
-		
 		if($this->expirationDate === null){
 			return false;
-		}else{
-			$this->expirationDate = $now;
-			return $now;
 		}
+
+		$now = new \DateTime();
+		return $this->expirationDate <= $now;
 	}
 
 	public function getReason(){
