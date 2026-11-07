@@ -31,12 +31,14 @@ class RegionLoader extends \pocketmine\level\format\mcregion\RegionLoader{
 		$this->z = $regionZ;
 		$this->levelProvider = $level;
 		$this->filePath = $this->levelProvider->getPath() . "region/r.$regionX.$regionZ.mca";
-		$exists = file_exists($this->filePath);
 		touch($this->filePath);
 		$this->filePointer = fopen($this->filePath, "r+b");
 		stream_set_read_buffer($this->filePointer, 1024 * 16); //16KB
 		stream_set_write_buffer($this->filePointer, 1024 * 16); //16KB
-		if(!$exists){
+		$size = filesize($this->filePath);
+		//The location table alone is 8 KiB; a missing or truncated file smaller than that
+		//has no usable location table, so treat it as blank instead of reading garbage
+		if($size === false or $size < 8192){
 			$this->createBlank();
 		}else{
 			$this->loadLocationTable();

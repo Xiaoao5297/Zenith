@@ -1644,7 +1644,12 @@ class Level implements ChunkManager, Metadatable{
 			return false;
 		}
 
-		if($this->getChunk($pos->x >> 4, $pos->z >> 4, true)->setBlock($pos->x & 0x0f, $pos->y & 0x7f, $pos->z & 0x0f, $block->getId(), $block->getDamage())){
+		$chunk = $this->getChunk($pos->x >> 4, $pos->z >> 4, true);
+		if($chunk === null){
+			return false;
+		}
+
+		if($chunk->setBlock($pos->x & 0x0f, $pos->y & 0x7f, $pos->z & 0x0f, $block->getId(), $block->getDamage())){
 			if(!($pos instanceof Position)){
 				$pos = $this->temporalPosition->setComponents($pos->x, $pos->y, $pos->z);
 			}
@@ -2278,7 +2283,12 @@ class Level implements ChunkManager, Metadatable{
 	 * @return int 0-255
 	 */
 	public function getBlockIdAt(int $x, int $y, int $z) :int{
-		return $this->getChunk($x >> 4, $z >> 4, true)->getBlockId($x & 0x0f, $y & 0x7f, $z & 0x0f);
+		$chunk = $this->getChunk($x >> 4, $z >> 4, true);
+		if($chunk === null){
+			return 0;
+		}
+
+		return $chunk->getBlockId($x & 0x0f, $y & 0x7f, $z & 0x0f);
 	}
 
 	/**
@@ -2290,8 +2300,13 @@ class Level implements ChunkManager, Metadatable{
 	 * @param int $id 0-255
 	 */
 	public function setBlockIdAt(int $x, int $y, int $z, int $id){
+		$chunk = $this->getChunk($x >> 4, $z >> 4, true);
+		if($chunk === null){
+			return;
+		}
+
 		unset($this->blockCache[Level::blockHash($x, $y, $z)]);
-		$this->getChunk($x >> 4, $z >> 4, true)->setBlockId($x & 0x0f, $y & 0x7f, $z & 0x0f, $id & 0xff);
+		$chunk->setBlockId($x & 0x0f, $y & 0x7f, $z & 0x0f, $id & 0xff);
 
 		if(!isset($this->changedBlocks[$index = Level::chunkHash($x >> 4, $z >> 4)])){
 			$this->changedBlocks[$index] = [];
@@ -3253,27 +3268,21 @@ class Level implements ChunkManager, Metadatable{
 		$chunk = $this->provider->getChunk($x, $z, $generate);
 		if($chunk === null){
 			if($generate){
-				throw new \InvalidStateException("Could not create new Chunk");
-			}
-			return false;
-		}
-		// 区块数据基本合法性检查：确保区块包含正确的 section 数量
-		if(method_exists($chunk, 'getBlockId') and $chunk instanceof \pocketmine\level\format\FullChunk){
-			$testId = $chunk->getBlockId(0, 0, 0);
-			if($testId < 0 or $testId > 255){
-				$this->server->getLogger()->warning("区块 [$x, $z] 数据异常，跳过加载");
+				$this->server->getLogger()->error("Could not create new Chunk [$x, $z]");
+				$this->timings->syncChunkLoadTimer->stopTiming();
 				return false;
 			}
+			return false;
 		}
 
 		if($this->provider->getProviderName() == "mcregion"){
 			if($chunk->getBiomeColor(0, 0) == [0, 0, 0]){
-				for($x = 0; $x < 16; ++$x){
-					for($z = 0; $z < 16; ++$z){
+				for($bx = 0; $bx < 16; ++$bx){
+					for($bz = 0; $bz < 16; ++$bz){
 						$biome = Biome::getBiome(Biome::PLAINS);
-						$chunk->setBiomeId($x, $z, $biome->getId());
+						$chunk->setBiomeId($bx, $bz, $biome->getId());
 						$c = $biome->getColor();
-						$chunk->setBiomeColor($x, $z, $c >> 16, ($c >> 8) & 0xff, $c & 0xff);
+						$chunk->setBiomeColor($bx, $bz, $c >> 16, ($c >> 8) & 0xff, $c & 0xff);
 					}
 				}
 			}

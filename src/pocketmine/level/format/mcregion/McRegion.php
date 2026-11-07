@@ -225,9 +225,11 @@ class McRegion extends BaseLevelProvider{
 					if(@copy($regionFile, $qpath)){
 						$this->getServer()->getLogger()->error("已隔离: " . $qpath);
 					}else{
-						$this->getServer()->getLogger()->error("无法隔离损坏的 region 文件，已拒绝重建该区块以保留原始数据: " . $regionFile);
-						$this->level->timings->syncChunkLoadDataTimer->stopTiming();
-						return false;
+						$this->getServer()->getLogger()->error("无法隔离损坏的 region 文件，已将该区块从索引中剔除并重建空区块: " . $regionFile);
+						//Drop the corrupted entry from the location table so subsequent loads treat it as
+						//non-generated, then fall through to an empty chunk instead of returning false
+						//(which used to propagate null to the level thread and crash the server in a loop)
+						$region->removeChunk($chunkX - $regionX * 32, $chunkZ - $regionZ * 32);
 					}
 				}
 			}
@@ -259,6 +261,8 @@ class McRegion extends BaseLevelProvider{
 
 	public function saveChunk($x, $z){
 		if($this->isChunkLoaded($x, $z)){
+			//doGarbageCollection() may have closed the region handle, reload it (loadRegion is idempotent)
+			$this->loadRegion($x >> 5, $z >> 5);
 			$this->getRegion($x >> 5, $z >> 5)->writeChunk($this->getChunk($x, $z));
 
 			return true;
