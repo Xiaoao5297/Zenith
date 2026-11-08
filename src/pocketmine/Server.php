@@ -375,6 +375,8 @@ class Server{
 	public $interactDistance = 13;
 	//WEAK-003: configurable tick overload warning threshold (TPS average below this triggers the warning)
 	public $tickOverloadThreshold = 15;
+	//SEC-014: server-side fast-eat rate limit switch (eatFoodInHand enforces EAT_MIN_INTERVAL when true)
+	public $antiFastEat = true;
 	public $spawnProtectionRadius = null;
 	public $version;
 	public $allowSnowGolem;
@@ -1770,6 +1772,7 @@ class Server{
 		$this->spawnProtectionRadius = $advancedSpawnRadius !== null ? (int) $advancedSpawnRadius : null;
 		//WEAK-003: configurable tick overload threshold, clamped to a minimum of 1
 		$this->tickOverloadThreshold = max(1, (int) $this->getAdvancedProperty("server.tick-overload-threshold", 15));
+		$this->antiFastEat = (bool) $this->getAdvancedProperty("server.anti-fast-eat", true);
 		$this->aiEnabled = $this->getAdvancedProperty("ai.enable", true);
 		$this->consoleTitle = $this->getAdvancedProperty("server.console-title", true);
 		$this->aiConfig = [

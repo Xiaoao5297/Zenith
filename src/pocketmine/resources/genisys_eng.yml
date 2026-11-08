@@ -125,6 +125,7 @@ server:
 # anti-fly: true
  #Warn when the average TPS drops below this value (default 15, minimum 1)
  #tick-overload-threshold: 15
+ #anti-fast-eat: true
  #选择是否启用异步区块请求
  async-chunk-request: true
  #选择玩家加入时的提醒方式

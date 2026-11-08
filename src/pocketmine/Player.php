@@ -224,6 +224,8 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	public $blocked = false;
 	public $achievements = [];
 	public $lastCorrect;
+	/** SEC-014: 进食最小间隔（秒），服务端按包频率强制限速，防快吃 */
+	public const EAT_MIN_INTERVAL = 1.6;
 	public $lastEat = null;
 	/** @var SimpleTransactionGroup */
 	protected $currentTransaction = null;
@@ -2078,10 +2080,8 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		return true;
 	}
 
-	public $eatCoolDown = 0;
-
 	public function eatFoodInHand(){
-		if($this->eatCoolDown + 2000 >= time() || !$this->spawned){
+		if(!$this->spawned){
 			return;
 		}
 
@@ -2126,6 +2126,14 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		$slot = $this->inventory->getItemInHand();
 		if(isset($items[$slot->getId()]) and $this->isAlive()){
 			if($this->getFood() <= 20 and isset($items[$slot->getId()])){
+				//SEC-014: 服务端按包频率强制进食限速，防快吃（不依赖客户端动画包）
+				$now = microtime(true);
+				if($this->lastEat !== null and ($now - $this->lastEat) < self::EAT_MIN_INTERVAL and $this->server->antiFastEat){
+					$this->inventory->sendContents($this);
+					return;
+				}
+				$this->lastEat = $now;
+
 				$this->server->getPluginManager()->callEvent($ev = new PlayerItemConsumeEvent($this, $slot));
 				if($ev->isCancelled()){
 					$this->inventory->sendContents($this);
@@ -2156,8 +2164,10 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					$this->setFood($this->getFood() + $amount);
 				}
 
-				--$slot->count;
-				$this->inventory->setItemInHand($slot);
+				if($this->isSurvival()){
+					--$slot->count;
+					$this->inventory->setItemInHand($slot);
+				}
 				if($slot->getId() === Item::MUSHROOM_STEW or $slot->getId() === Item::BEETROOT_SOUP){
 					$this->inventory->addItem(Item::get(Item::BOWL, 0, 1));
 				}elseif($slot->getId() === Item::PUFFER_FISH){
@@ -3399,7 +3409,8 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 							$thrownPotion->spawnToAll();
 						}
 					}elseif($item instanceof FoodSource){
-						$this->lastEat = microtime(true);
+						//SEC-014: lastEat 由 eatFoodInHand() 按 USE_ITEM 包频率记录，
+						//此处不再作为防快吃计时起点（新机制不依赖动画包）
 					}elseif($item instanceof Map){
 						$item2 = new Item(Item::FILLED_MAP);
 						$mapId = round(microtime(true), 1) * 10;
@@ -3489,7 +3500,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					case PlayerActionPacket::ACTION_RELEASE_ITEM:
 						$item = $this->inventory->getItemInHand();
 						if($item instanceof FoodSource){
-							$this->lastEat = PHP_INT_MAX;
+							//SEC-014: 防快吃改由 eatFoodInHand() 内部限速，此处不再重置
 						}
 						if($this->startAction > -1 and $this->getDataFlag(self::DATA_FLAGS, self::DATA_FLAG_ACTION)){
 							if($this->inventory->getItemInHand()->getId() === Item::BOW){
@@ -3788,10 +3799,35 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 							}
 							break;
 						}
+
 						if($target->isBaby()){
-							$target->setBaby(false);
+							// feeding babies only speeds up growth, not implemented (no instant grow-up)
+							break;
+						}
+
+						// breeding requires holding the matching food (SEC-013)
+						if($target instanceof Sheep or $target instanceof Cow or $target instanceof Mooshroom){
+							$breedFood = Item::WHEAT;
+						}elseif($target instanceof Pig){
+							$breedFood = Item::CARROT;
+						}elseif($target instanceof Chicken){
+							$breedFood = Item::WHEAT_SEEDS;
 						}else{
-							$target->setInLove(true);
+							// no breeding mapping for this Animal subclass: fall through to attack handling (original behavior)
+							break;
+						}
+
+						if($item->getId() !== $breedFood or $item->getCount() < 1){
+							break;
+						}
+
+						$target->setInLove(true);
+						if($this->isSurvival()){
+							if($item->getCount() > 1){
+								$this->inventory->setItemInHand(Item::get($item->getId(), $item->getDamage(), $item->getCount() - 1));
+							}else{
+								$this->inventory->setItemInHand(Item::get(Item::AIR, 0, 1));
+							}
 						}
 					}
 					break;
@@ -3835,10 +3871,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					foreach($item->getEnchantments() as $Enchantment){
 						if($Enchantment->getId() == 9){ //TYPE_WEAPON_SHARPNESS
 							$damageBase += ($Enchantment->getLevel() * 1.25);
-						}elseif($Enchantment->getId() == 13){ //TYPE_WEAPON_FIRE_ASPECT
-							if(!$this->hasEffect(Effect::FIRE_RESISTANCE)){
-								$target->setOnFire(5 * $Enchantment->getLevel());
-							}
 						}
 					}
 					$damage = [
@@ -3852,7 +3884,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					}
 					$this->lastAttackTime = $now;
 
-					if(!$this->canInteract($target, 8)){
+					if(!$this->canInteract($target, 6)){
 						$cancelled = true;
 					}elseif($target instanceof Player){
 						if(($target->getGamemode() & 0x01) > 0){
@@ -3887,6 +3919,16 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 							$this->inventory->sendContents($this);
 						}
 						break;
+					}
+
+					// Fire Aspect: only applied after the attack actually lands
+					// (cooldown drop, distance cancellation and event cancellation all break before this point)
+					foreach($item->getEnchantments() as $Enchantment){
+						if($Enchantment->getId() == 13){ //TYPE_WEAPON_FIRE_ASPECT
+							if(!$this->hasEffect(Effect::FIRE_RESISTANCE)){
+								$target->setOnFire(5 * $Enchantment->getLevel());
+							}
+						}
 					}
 
 					if($item->isTool() and $this->isSurvival()){
@@ -3927,13 +3969,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 				switch($packet->event){
 					case EntityEventPacket::USE_ITEM: //Eating
-						$EatTime =  microtime(true) - $this->lastEat;
-						if($this->lastEat != PHP_INT_MAX and $EatTime <= 1.15 and $this->server->antiFastEat){
-							$this->kick($this->server->getLanguage()->translateString("player.kick.fastEat", [number_format($EatTime, 6)]));
-						}else{
-							$this->eatFoodInHand();
-						}
-						$this->lastEat = PHP_INT_MAX;
+						//SEC-014: 限速检查移入 eatFoodInHand()（按包频率记录 lastEat），
+						//此处不再依赖 lastEat 判定，动画包（START_EATING/RELEASE）缺失也能限速
+						$this->eatFoodInHand();
 						break;
 				}
 				break;
