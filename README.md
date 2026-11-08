@@ -4,7 +4,7 @@
 
 ## 介绍
 
-Zenith 是一个基于 PocketMine-MP 的核心，基于 SCAXE 和 Genisys 以及 Incore。
+Zenith 是一个基于 PocketMine-MP 的核心，基于 SCAXE 和 Genisys 以及 Zenith（原 Incore）。
 
 特点：
 - 支持 `PHP 7.3` - `7.4`
@@ -25,7 +25,7 @@ Zenith 适合希望在 PocketMine-MP 上运行稳定和安全服务器的开发�
 	- 安装并配置好 `Composer`（用于管理依赖，可选）
 	- 建议在 Linux 系统或类 Unix 环境下部署
 
-2. 获取 Incore
+2. 获取 Zenith
 	- 通过 git 克隆仓库：
     ```sh
 	  git clone https://github.com/Xiaoao5297/Zenith.git
@@ -39,7 +39,7 @@ Zenith 适合希望在 PocketMine-MP 上运行稳定和安全服务器的开发�
 	- 若使用自定义启动脚本或 Supervisor，请按各自方式启动。
 
 4. 常见操作
-	- 更新 Incore：在仓库根目录执行 `git pull` 并重启服务器。
+	- 更新 Zenith：在仓库根目录执行 `git pull` 并重启服务器。
 	- 安装插件：将插件放入 `plugins` 目录，重启或使用 `reload`（不推荐在生产服热加载）。
 
 如需示例配置或更详细的部署流程，请查看仓库内其他文档或 issues。
