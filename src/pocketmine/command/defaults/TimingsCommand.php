@@ -62,6 +62,10 @@ class TimingsCommand extends VanillaCommand{
 			$sender->getServer()->getPluginManager()->setUseTimings(false);
 			$sender->sendMessage(new TranslationContainer("pocketmine.command.timings.disable"));
 			return true;
+		}elseif($mode === "paste"){
+			//paste 上传功能（paste.ubuntu.com）已移除，仅保留 report 落盘方式
+			$sender->sendMessage("Timings paste upload has been removed, use /timings report instead.");
+			return true;
 		}
 
 		if(!$sender->getServer()->getPluginManager()->useTimings()){

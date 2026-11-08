@@ -71,8 +71,6 @@ class BanListCommand extends VanillaCommand{
 			$sender->sendMessage(Server::getInstance()->getLanguage()->translateString("commands.banlist.players", [\count($list)]));
 		}elseif($args[0] === "cids"){
 			$sender->sendMessage("共有 " . \count($list) . " 个被封锁的客户端 ID：");
-		}else{
-			$sender->sendMessage("共有 " . \count($list) . " 条 CID 封禁记录");
 		}
 
 		if(\strlen($message) > 0){

@@ -39,6 +39,10 @@ final class BatchCodec{
 	private function __construct(){
 	}
 
+	/**
+	 * @deprecated 已无调用方，请改用 {@see BatchCodec::streamingDecompress()}（流式解压，带压缩炸弹防护）。
+	 * 方法保留作为公共兼容 API。
+	 */
 	public static function decompress(string $payload){
 		return zlib_decode($payload, self::MAX_PAYLOAD);
 	}
