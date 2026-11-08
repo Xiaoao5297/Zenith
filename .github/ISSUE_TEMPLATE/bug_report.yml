@@ -1,0 +1,138 @@
+name: Bug 报告 / Bug Report
+description: 报告 Zenith 核心的 bug 或崩溃问题 / Report a bug or crash in the Zenith core
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你抽出时间报告问题！请尽量详细填写，信息越完整，问题越容易被解决。
+        Thanks for taking the time to report an issue! The more details you provide, the faster it can be resolved.
+
+        > 如果这是安全问题，请勿公开发布，请通过邮件联系维护者。
+        > If this is a security issue, please do not disclose it publicly — contact the maintainers directly.
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: 问题类型 / Issue Type
+      description: 这是一个普通 bug 还是崩溃？/ Is this a regular bug or a crash?
+      options:
+        - 普通 Bug / Regular Bug
+        - 崩溃 Crash（服务器崩溃 / server crashed）
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述 / Description
+      description: 简要描述遇到的问题。/ A clear and concise description of the problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro-steps
+    attributes:
+      label: 复现步骤 / Reproduction Steps
+      description: |
+        如何复现这个问题？例如：
+        1. 启动服务器
+        2. 加入世界
+        3. 触发某个操作
+        How can we reproduce this? e.g. Start server → join world → do X.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为 / Expected Behavior
+      description: 你期望发生什么？/ What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为 / Actual Behavior
+      description: 实际发生了什么？/ What actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: crash-log
+    attributes:
+      label: 崩溃日志 / Crash Log
+      description: |
+        仅崩溃时填写：粘贴 `crash.log` 或控制台堆栈信息的关键部分（可截取，勿贴全文）。
+        Crash only: paste the relevant part of `crash.log` or the console stack trace (excerpt, not the full file).
+      render: shell
+
+  - type: dropdown
+    id: reproducibility
+    attributes:
+      label: 复现频率 / Reproducibility
+      options:
+        - 稳定复现 / Always reproducible
+        - 偶尔出现 / Intermittent
+        - 仅出现一次 / Happened once
+        - 未知 / Unknown
+    validations:
+      required: false
+
+  - type: dropdown
+    id: php-version
+    attributes:
+      label: PHP 版本 / PHP Version
+      options:
+        - "7.3"
+        - "7.4"
+        - 其他 / Other
+    validations:
+      required: true
+
+  - type: input
+    id: server-version
+    attributes:
+      label: 核心版本 / Core Version
+      description: Zenith 的版本或 commit（如 `Zenith-v0.3.1` 或 git commit hash）
+        Zenith version or commit (e.g. `Zenith-v0.3.1` or git commit hash)
+      placeholder: "v0.3.1 / commit abc1234"
+    validations:
+      required: true
+
+  - type: textarea
+    id: plugins
+    attributes:
+      label: 已安装插件 / Installed Plugins
+      description: 列出服务器上启用的插件（可用 `/plugins` 输出）。这有助于排查插件兼容性问题。
+        List the plugins enabled on the server (e.g. output of `/plugins`). Helps rule out plugin compatibility issues.
+      placeholder: |
+        - ExamplePlugin 1.2.3
+        - ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 其他日志 / Additional Logs
+      description: 服务器日志中与问题相关的片段。/ Relevant excerpts from the server log.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 确认 / Checks
+      options:
+        - label: 我已搜索现有 issue，确认没有重复 / I have searched existing issues and found no duplicates
+          required: true
+        - label: 我使用的是最新版本的核心 / I am using the latest version of the core
+          required: true
+        - label: 我能在没有第三方插件的情况下复现，或已注明需要哪些插件 / I can reproduce without third-party plugins, or I noted which plugins are required
+          required: false
