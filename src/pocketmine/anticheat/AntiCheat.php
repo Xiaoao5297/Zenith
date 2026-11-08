@@ -606,6 +606,11 @@ class AntiCheat{
 
 	/**
 	 * 传送/切换世界/加入后的短暂豁免窗口（tick）。
+	 *
+	 * 另含受伤后 10 tick（0.5s）的短豁免：被击退/爆炸推动时的大位移会触发
+	 * Speed/Teleport 误报（KnockbackCheck 有专门检查，但 SpeedCheck/TeleportCheck
+	 * 不感知受伤事件）。窗口刻意很短——更长的窗口会被利用"自伤刷豁免"，
+	 * 但 0.5 秒内自伤（仙人掌等）收益极低且有伤害间隔，权衡后可接受。
 	 */
 	private function isMovementExempt(PlayerData $data, int $tick) : bool{
 		$grace = 40;
@@ -617,6 +622,12 @@ class AntiCheat{
 			return true;
 		}
 		if($data->getLastWorldChangeTick() >= 0 and $tick - $data->getLastWorldChangeTick() < $grace){
+			return true;
+		}
+
+		// 受伤后短窗口：击退/爆炸推动产生的位移不是玩家主动加速
+		$damageGrace = 10;
+		if($data->getLastDamageTick() >= 0 and $tick - $data->getLastDamageTick() < $damageGrace){
 			return true;
 		}
 
