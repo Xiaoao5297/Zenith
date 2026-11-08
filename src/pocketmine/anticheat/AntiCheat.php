@@ -23,6 +23,7 @@ namespace pocketmine\anticheat;
 
 use pocketmine\Server;
 use pocketmine\Player;
+use pocketmine\inventory\Inventory;
 use pocketmine\block\Block;
 use pocketmine\entity\Entity;
 use pocketmine\level\Position;
@@ -597,6 +598,41 @@ class AntiCheat{
 	 */
 	public function onItemHeld(Player $player, \pocketmine\item\Item $item){
 		if(!$this->enabled) return;
+
+		/** @var ItemCheck $itemCheck */
+		if(($itemCheck = $this->getCheck(ItemCheck::class)) !== null){
+			$itemCheck->check($player, $item);
+		}
+	}
+
+	/**
+	 * 库存槽位写入（SEC-009，从 BaseInventory::setItem / PlayerInventory::setItem 调用）。
+	 *
+	 * 覆盖所有 setItem 路径：ContainerSetSlot 事务、创造拿取、插件写入等。
+	 * 仅由库存层在"来源可能为客户端"（holder 是玩家或库存有 viewer）时调用，
+	 * 服务端内部自动化写入不会进入此方法，无需在此再做豁免。
+	 *
+	 * 事件路径无返回值：flag 走 ViolationManager 缓冲（alert/punish 双模式自动生效），
+	 * 不抛异常、不在此踢人。playerException 防御与 onItemHeld 一致。
+	 */
+	public function onItemSet(Inventory $inventory, int $index, \pocketmine\item\Item $item){
+		if(!$this->enabled) return;
+
+		$player = null;
+		$holder = $inventory->getHolder();
+		if($holder instanceof Player){
+			$player = $holder;
+		}else{
+			foreach($inventory->getViewers() as $viewer){
+				if($viewer instanceof Player){
+					$player = $viewer;
+					break;
+				}
+			}
+		}
+		if($player === null or !$player->isOnline()){
+			return;
+		}
 
 		/** @var ItemCheck $itemCheck */
 		if(($itemCheck = $this->getCheck(ItemCheck::class)) !== null){
