@@ -618,21 +618,14 @@ class AntiCheat{
 	public function onItemSet(Inventory $inventory, int $index, \pocketmine\item\Item $item){
 		if(!$this->enabled) return;
 
-		$player = null;
+		// 仅检测玩家自己的背包：holder 必须是 Player。
+		// 带 viewer 的 tile 库存（箱子/熔炉等）不归因到"第一个浏览者"——
+		// 打开界面的无辜玩家不应为插件/自动化写入的物品背锅（punish 模式下会被误移除物品）。
 		$holder = $inventory->getHolder();
-		if($holder instanceof Player){
-			$player = $holder;
-		}else{
-			foreach($inventory->getViewers() as $viewer){
-				if($viewer instanceof Player){
-					$player = $viewer;
-					break;
-				}
-			}
-		}
-		if($player === null or !$player->isOnline()){
+		if(!($holder instanceof Player) or !$holder->isOnline()){
 			return;
 		}
+		$player = $holder;
 
 		/** @var ItemCheck $itemCheck */
 		if(($itemCheck = $this->getCheck(ItemCheck::class)) !== null){

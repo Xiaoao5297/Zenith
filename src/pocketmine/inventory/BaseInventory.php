@@ -123,22 +123,17 @@ abstract class BaseInventory implements Inventory{
 			return false;
 		}elseif($item->getId() === 0 or $item->getCount() <= 0){
 			return $this->clear($index);
-		}elseif($item->getCount() > $item->getMaxStackSize()){
-			return false;
 		}elseif($item->getCount() > 64 and ($this->getHolder() instanceof Player or count($this->viewers) > 0)){
 			// 超过硬上限（大多物品为 64，任何合法客户端都不可能产生）：
 			// 走反作弊上报而不是静默拒绝，让 ItemCheck 检测层可见。
+			// 注意：必须先于下方的 maxStackSize 检查，否则 maxStackSize<64 的物品
+			// （工具/盔甲）会被静默拒绝而绕过上报。
 			if(($ac = Server::getInstance()->getAntiCheat()) !== null){
 				$ac->onItemSet($this, $index, $item);
 			}
 			return false;
-		}
-
-		// 反作弊（SEC-009）：所有 setItem 路径（事务、创造拿取、插件等）经由此处，
-		// 只要库存与客户端关联（holder 是玩家或有 viewer），就触发 ItemCheck 检测层。
-		// 纯服务端 tile 库存（无 viewer 的箱子/熔炉等）不在此检查，避免对自动化流程误报。
-		if(($this->getHolder() instanceof Player or count($this->viewers) > 0) and ($ac = Server::getInstance()->getAntiCheat()) !== null){
-			$ac->onItemSet($this, $index, $item);
+		}elseif($item->getCount() > $item->getMaxStackSize()){
+			return false;
 		}
 
 		$holder = $this->getHolder();
@@ -149,6 +144,14 @@ abstract class BaseInventory implements Inventory{
 				return false;
 			}
 			$item = $ev->getNewItem();
+		}
+
+		// 反作弊（SEC-009）：所有 setItem 路径（事务、创造拿取、插件等）经由此处，
+		// 只要库存与客户端关联（holder 是玩家或有 viewer），就触发 ItemCheck 检测层。
+		// 纯服务端 tile 库存（无 viewer 的箱子/熔炉等）不在此检查，避免对自动化流程误报。
+		// 放在事件检查之后：被插件取消的写入不 flag，避免 punish 模式误移除合法物品。
+		if(($holder instanceof Player or count($this->viewers) > 0) and ($ac = Server::getInstance()->getAntiCheat()) !== null){
+			$ac->onItemSet($this, $index, $item);
 		}
 
 		$old = $this->getItem($index);

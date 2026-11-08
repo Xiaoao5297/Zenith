@@ -224,8 +224,10 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	public $blocked = false;
 	public $achievements = [];
 	public $lastCorrect;
-	/** SEC-014: 进食最小间隔（秒），服务端按包频率强制限速，防快吃 */
-	public const EAT_MIN_INTERVAL = 1.6;
+	/** SEC-014: 进食最小间隔（秒），服务端按包频率强制限速，防快吃。
+	 * 取 1.5s：低于原版进食时长 1.61s 会误伤正常长按进食（网络抖动下间隔可贴近 1.6s），
+	 * 同时仍远高于快吃作弊速率（0.2-0.5s/次）。 */
+	public const EAT_MIN_INTERVAL = 1.5;
 	public $lastEat = null;
 	/** @var SimpleTransactionGroup */
 	protected $currentTransaction = null;
@@ -2167,10 +2169,12 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				if($this->isSurvival()){
 					--$slot->count;
 					$this->inventory->setItemInHand($slot);
+					// 碗返还随消耗一起走生存分支：创造模式不扣食物也不返还碗（防白得碗）
+					if($slot->getId() === Item::MUSHROOM_STEW or $slot->getId() === Item::BEETROOT_SOUP){
+						$this->inventory->addItem(Item::get(Item::BOWL, 0, 1));
+					}
 				}
-				if($slot->getId() === Item::MUSHROOM_STEW or $slot->getId() === Item::BEETROOT_SOUP){
-					$this->inventory->addItem(Item::get(Item::BOWL, 0, 1));
-				}elseif($slot->getId() === Item::PUFFER_FISH){
+				if($slot->getId() === Item::PUFFER_FISH){
 					$this->addEffect(Effect::getEffect(Effect::POISON)->setDuration(80 * 2));
 					$this->addEffect(Effect::getEffect(Effect::NAUSEA)->setAmplifier(1)->setDuration(15 * 20));
 				}elseif($slot->getId() === Item::SPIDER_EYE){
@@ -3821,6 +3825,11 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 							break;
 						}
 
+						if($target->isInLove()){
+							// 已处于求爱状态：不再重复喂食刷新 love 计时（对齐原版繁殖冷却语义）
+							break;
+						}
+
 						$target->setInLove(true);
 						if($this->isSurvival()){
 							if($item->getCount() > 1){
@@ -5059,6 +5068,14 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		}
 
 		$this->setHealth(0);
+
+		// M4（BUG-002 审查）：死亡时重置 NoFall 累积状态，
+		// 防止空中死亡后 stale fallDistance 在重生落地时被误判。
+		if(($ac = $this->server->getAntiCheat()) !== null){
+			if(($nofall = $ac->getCheck(\pocketmine\anticheat\check\NoFallCheck::class)) !== null){
+				$nofall->resetFallState($this);
+			}
+		}
 
 		$pk = new RespawnPacket();
 		$pk->x = $pos->x;

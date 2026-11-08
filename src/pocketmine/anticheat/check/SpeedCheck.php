@@ -41,7 +41,7 @@ class SpeedCheck extends MovementCheck{
 
 	const TICKS_PER_SECOND = 20;
 
-	/** @var string PlayerData state 键：滑动窗口 [tick, dist] 样本队列 */
+	/** @var string PlayerData state 键：滑动窗口 [tick, dist, tickDelta] 样本队列 */
 	const STATE_WINDOW = "speed.window";
 
 	public function getDisplayName() : string{

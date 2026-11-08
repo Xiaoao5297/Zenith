@@ -221,12 +221,6 @@ class PlayerInventory extends BaseInventory{
 			return false;
 		}
 
-		// 反作弊（SEC-009）：本类完全重写 setItem，不经过 BaseInventory，
-		// 需要与 BaseInventory 相同的触发条件（holder 是玩家或有 viewer）。
-		if(($this->getHolder() instanceof Player or count($this->viewers) > 0) and ($ac = Server::getInstance()->getAntiCheat()) !== null){
-			$ac->onItemSet($this, $index, $item);
-		}
-
 		if($index >= $this->getSize()){ //Armor change
 			Server::getInstance()->getPluginManager()->callEvent($ev = new EntityArmorChangeEvent($this->getHolder(), $this->getItem($index), $item, $index));
 			if($ev->isCancelled() and $this->getHolder() instanceof Human){
@@ -241,6 +235,13 @@ class PlayerInventory extends BaseInventory{
 				return false;
 			}
 			$item = $ev->getNewItem();
+		}
+
+		// 反作弊（SEC-009）：本类完全重写 setItem，不经过 BaseInventory，
+		// 需要与 BaseInventory 相同的触发条件（holder 是玩家或有 viewer）。
+		// 放在事件检查之后：被插件取消的写入不 flag，避免 punish 模式误移除合法物品。
+		if(($ac = Server::getInstance()->getAntiCheat()) !== null){
+			$ac->onItemSet($this, $index, $item);
 		}
 
 

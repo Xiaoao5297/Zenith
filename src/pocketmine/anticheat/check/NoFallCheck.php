@@ -24,6 +24,7 @@ namespace pocketmine\anticheat\check;
 
 use pocketmine\Player;
 use pocketmine\anticheat\MovementSnapshot;
+use pocketmine\anticheat\PlayerData;
 
 /**
  * 摔落伤害规避检测（tick 驱动）。
@@ -77,9 +78,13 @@ class NoFallCheck extends MovementCheck{
 		}
 
 		if(!$snapshot->isOnGround()){
-			// 落地宽限期内再次离地（落地即跳）：放弃 pending，回到空中累积
+			// 落地宽限期内再次离地（落地即跳）：放弃 pending，回到空中累积。
+			// fallDistance 一并清零（L1）：pending 期间服务端伤害未入账，旧累积
+			// 若带入下一次下落会与实际下落双重计数。
 			if((int) $data->getState("nofall.pendingTicks", 0) > 0){
 				$data->setState("nofall.pendingTicks", 0);
+				$data->setState("nofall.fallDistance", 0.0);
+				$data->setState("nofall.fallTicks", 0);
 			}
 			$dy = $snapshot->getDy();
 			if($dy < 0){
@@ -137,7 +142,7 @@ class NoFallCheck extends MovementCheck{
 	/**
 	 * 落地结算：按累积 fallDistance 与已入账伤害对比，然后清空全部状态。
 	 */
-	private function settle(Player $player, $data){
+	private function settle(Player $player, PlayerData $data){
 		$fallDistance = (float) $data->getState("nofall.fallDistance", 0.0);
 		$actualDamage = (float) $data->getState("nofall.lastDamage", 0.0);
 		$this->resetAccumulation($data);
@@ -154,9 +159,16 @@ class NoFallCheck extends MovementCheck{
 	}
 
 	/**
+	 * 外部重置入口（如死亡/重生时清掉 stale 下落状态）。
+	 */
+	public function resetFallState(Player $player){
+		$this->resetAccumulation($this->getPlayerData($player));
+	}
+
+	/**
 	 * 清空下落累积与 pending 状态（落地结算完成或进入合法缓冲环境时调用）。
 	 */
-	private function resetAccumulation($data){
+	private function resetAccumulation(PlayerData $data){
 		$data->setState("nofall.fallDistance", 0.0);
 		$data->setState("nofall.fallTicks", 0);
 		$data->setState("nofall.lastDamage", 0.0);

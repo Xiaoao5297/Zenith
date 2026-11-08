@@ -88,8 +88,12 @@ class ItemCheck extends Check{
 
 		$this->flag($player, $reason . " (" . $item->getName() . ")", 1.0);
 
-		// 仅在惩罚模式下移除非法物品
-		if($this->shouldEnforce()){
+		// 仅在惩罚模式下移除非法物品。
+		// M3：堆叠数量类违规不做惩罚移除——/give 等插件命令会合法写入 count>64 的
+		// 堆叠（客户端注入路径已在 setItem 处被拒绝，到不了这里），punish 移除
+		// 会连带清掉玩家背包里的同 ID 合法物品（removeItem 按 equals 匹配）。
+		$isStackViolation = strpos($reason, "非法堆叠数量") === 0;
+		if($this->shouldEnforce() and !$isStackViolation){
 			$player->getInventory()->removeItem($item);
 			$player->sendMessage($this->antiCheat->getMessage("item-removed", ["item" => $item->getName()]));
 		}
