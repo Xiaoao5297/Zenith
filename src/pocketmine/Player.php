@@ -2026,34 +2026,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 			}
 
-			if($this->server->antiFly){
-				if(!$this->isSpectator() and $this->speed !== null){
-					if($this->onGround){
-						if($this->inAirTicks !== 0){
-							$this->startAirTicks = 5;
-						}
-						$this->inAirTicks = 0;
-					}else{
-						if(!$this->allowFlight and $this->inAirTicks > 10 and !$this->isSleeping() and $this->getDataProperty(self::DATA_NO_AI) !== 1){
-							//expectedVelocity here is not calculated correctly
-							//This causes players to fall too fast when bouncing on slime when antiFly is enabled
-							$expectedVelocity = (-$this->gravity) / $this->drag - ((-$this->gravity) / $this->drag) * exp(-$this->drag * ($this->inAirTicks - $this->startAirTicks));
-							$diff = ($this->speed->y - $expectedVelocity) ** 2;
-							if(!$this->hasEffect(Effect::JUMP) and $diff > 0.6 and $expectedVelocity < $this->speed->y and !$this->server->getAllowFlight()){
-								$this->setMotion($this->temporalVector->setComponents(0, $expectedVelocity, 0));
-								if($this->inAirTicks < 1000){
-
-								}elseif($this->kick($this->server->getLanguage()->translateString("player.kick.flying"))){
-									$this->timings->stopTiming();
-									return false;
-								}
-							}
-						}
-						++$this->inAirTicks;
-					}
-				}
-			}
-
 			if($this->server->foodEnabled){
 				if($this->starvationTick >= $this->server->starvationInterval){
 					$ev = new EntityDamageEvent($this, EntityDamageEvent::CAUSE_STARVATION, 1);
@@ -3064,8 +3036,24 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					$this->forceMovement = new Vector3($this->x, $this->y, $this->z);
 				}
 
-				if($this->teleportPosition !== null or ($this->forceMovement instanceof Vector3 and (($dist = $newPos->distanceSquared($this->forceMovement)) > 0.1 or $revert))){
-					if($this->forceMovement instanceof Vector3) $this->sendPosition($this->forceMovement, $packet->yaw, $packet->pitch);
+				//BUG-002: 阈值 0.25 为 distanceSquared, 即 0.5 格真实距离,
+				//容忍网络抖动与客户端插值; 原值 0.1(0.316 格)导致正常位移被误回弹.
+				if($this->teleportPosition !== null){
+					//传送尚未完成(等待目标点周围区块确认, 由 onUpdate->checkTeleportPosition
+					//收尾并清空 teleportPosition), 无条件弹回 forceMovement(传送前旧位置).
+					//此处不得清 teleportPosition: processMovement 依赖它门控,
+					//区块确认后由 checkTeleportPosition 正常消费.
+					if($this->forceMovement instanceof Vector3){
+						$this->sendPosition($this->forceMovement, $packet->yaw, $packet->pitch);
+					}
+				}elseif($this->forceMovement instanceof Vector3 and ($newPos->distanceSquared($this->forceMovement) > 0.25 or $revert)){
+					$this->sendPosition($this->forceMovement, $packet->yaw, $packet->pitch);
+					if(!$revert){
+						//偏差回弹: 权威位置已发给客户端. 保留 forceMovement 会让一次
+						//抖动后的每一包都再次回弹(连续卡弹), 清空后走正常处理流程;
+						//$revert 时(刚在上方写入的服务端当前位置)保留以持续纠正.
+						$this->forceMovement = null;
+					}
 				}else{
 					$packet->yaw %= 360;
 					$packet->pitch %= 360;

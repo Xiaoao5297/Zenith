@@ -121,8 +121,8 @@ server:
  disable-log: false
  #选择是否刷新控制台窗口标题（某些终端如 Termux 会因此滚动到底部，可设为 false）
  console-title: true
- #选择是否启用自动反飞行
- anti-fly: true
+ #选择是否启用自动反飞行（已废弃：飞行检测由内置反作弊系统 anticheat/FlyCheck 处理，此配置不再生效）
+# anti-fly: true
  #Warn when the average TPS drops below this value (default 15, minimum 1)
  #tick-overload-threshold: 15
  #选择是否启用异步区块请求
