@@ -850,6 +850,12 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		return $this->sleeping !== null;
 	}
 
+	/**
+	 * @deprecated 旧内联反飞已移除, inAirTicks 不再递增, 本方法恒返回 0.
+	 *             为保持公共 API 兼容而保留, 插件不应依赖其返回值.
+	 *
+	 * @return int
+	 */
 	public function getInAirTicks(){
 		return $this->inAirTicks;
 	}
@@ -1867,8 +1873,10 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			$this->setMoving(false);
 		}
 
-		//BUG-015: 拾取检测(掉落物/箭)不依赖玩家移动, 每 tick 无条件执行,
-		//否则静止玩家永远捡不起脚下的物品.
+		//BUG-015: 拾取检测(掉落物/箭)不要求玩家有位移, 即使 distanceSquared == 0
+		//也会执行. 但仍依赖客户端上报 MOVE_PLAYER 包触发 processMovement:
+		//processMovement 开头在 newPosition === null 时早退, 完全不发移动包的
+		//客户端不会进入此处; 静止但持续上报位置的客户端(正常客户端如此)可以拾取.
 		if(!$this->isSpectator()){
 			$this->checkNearEntities($tickDiff);
 		}
@@ -4541,6 +4549,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 							}
 						}
 					}catch(\Throwable $e){ //malformed NBT: don't spam logs; outer malformed-packet handling provides the backstop
+						$this->server->getLogger()->logException($e);
 						break;
 					}
 				}

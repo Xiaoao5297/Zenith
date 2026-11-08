@@ -87,6 +87,9 @@ class AntiCheat{
 	/** @var BaseCheck[] */
 	private $checks = [];
 
+	/** @var BaseCheck[] 类名 => 实例，getCheck() 热路径缓存 */
+	private $checkCache = [];
+
 	/** @var PlayerData[] 键为小写玩家名 */
 	private $playerData = [];
 
@@ -282,6 +285,12 @@ class AntiCheat{
 			new TeleportCheck($this, $checksConfig["teleport"] ?? []),
 			new KnockbackCheck($this, $checksConfig["knockback"] ?? []),
 		];
+
+		// 预构建 getCheck() 的类名 => 实例缓存（热路径，见 getCheck）
+		$this->checkCache = [];
+		foreach($this->checks as $check){
+			$this->checkCache[get_class($check)] = $check;
+		}
 	}
 
 	// ============ 消息 ============
@@ -452,8 +461,13 @@ class AntiCheat{
 	}
 
 	public function getCheck(string $class) : ?BaseCheck{
+		// setItem 等热路径每次都会查 check，先走缓存避免线性扫描
+		if(isset($this->checkCache[$class])){
+			return $this->checkCache[$class];
+		}
 		foreach($this->checks as $check){
 			if(get_class($check) === $class){
+				$this->checkCache[$class] = $check;
 				return $check;
 			}
 		}

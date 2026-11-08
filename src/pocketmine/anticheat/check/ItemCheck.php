@@ -33,6 +33,15 @@ use pocketmine\item\Item;
  */
 class ItemCheck extends Check{
 
+	/**
+	 * 重入守卫：punish 模式下 check() 内 removeItem 会触发 setItem →
+	 * onItemSet → check() 递归。第二层物品合法时会自然终止，但这里显式
+	 * 阻断递归，不依赖该隐式假设。
+	 *
+	 * @var bool
+	 */
+	private static $inCheck = false;
+
 	/** @var array */
 	private static $MAX_STACK_SIZES = [
 		Item::DIAMOND_SWORD => 1,
@@ -79,7 +88,16 @@ class ItemCheck extends Check{
 	public function check(Player $player, Item $item){
 		if(!$this->enabled) return;
 		if($item->getId() === Item::AIR) return;
+		if(self::$inCheck) return;
+		self::$inCheck = true;
+		try{
+			$this->doCheck($player, $item);
+		}finally{
+			self::$inCheck = false;
+		}
+	}
 
+	private function doCheck(Player $player, Item $item){
 		$reason = $this->inspect($item);
 		if($reason === null){
 			$this->decay($player, 0.5);
