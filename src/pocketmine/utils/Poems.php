@@ -1,17 +1,21 @@
 <?php
 
-/* 
- *  _____              _ __  __  
- * /__  /  ___  ____  (_) /_/ /_ 
- *   / /  / _ \/ __ \/ / __/ __ \
- *  / /__/  __/ / / / / /_/ / / /
- * /____/\___/_/ /_/_/\__/_/ /_/ 
- *                                                           
- * This program is free software: you can redistribute/modify it 
- * under the terms of the GNU General Public License, version 3 or later.
+/***
+ *  _____                _  __   __
+ * /__  /  ___   ____   (_)/ /_ / /_
+ *   / /  / _ \ / __ \ / // __// __ \
+ *  / /__/  __// / / // // /_ / / / /
+ * /____/\___//_/ /_//_/ \__//_/ /_/
+ *
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
  * @author Xiaoao
- * @link https://b23.tv/LQKxdts
+ * @link https://github.com/Xiaoao5297/Zenith
+ *
  *
 */
 
