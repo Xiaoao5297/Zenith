@@ -149,6 +149,7 @@ chunk-ticking:
  per-tick: 16
  #Radius of chunks around a player to tick
  tick-radius: 3
+ #区块加载时异步补光；开启后方块改动的天空光也走更新队列（B6），关闭则保持旧行为
  light-updates: false
  clear-tick-list: true
 

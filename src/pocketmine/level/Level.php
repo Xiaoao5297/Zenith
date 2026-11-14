@@ -78,6 +78,7 @@ use pocketmine\level\generator\GeneratorRegisterTask;
 use pocketmine\level\generator\GeneratorUnregisterTask;
 use pocketmine\level\generator\LightPopulationTask;
 use pocketmine\level\generator\PopulationTask;
+use pocketmine\level\light\SkyLightUpdate;
 use pocketmine\math\AxisAlignedBB;
 use pocketmine\math\Math;
 use pocketmine\math\Vector2;
@@ -241,6 +242,9 @@ class Level implements ChunkManager, Metadatable{
 
 	/** @var Vector3[][] */
 	private $changedBlocks = [];
+
+	/** @var SkyLightUpdate|null B6: 天空光更新队列，仅在 chunk-ticking.light-updates 开启时创建 */
+	private $skyLightUpdate = null;
 
 	/** @var ReversePriorityQueue */
 	private $updateQueue;
@@ -870,6 +874,7 @@ class Level implements ChunkManager, Metadatable{
 
 		$this->timings->doTickTiles->startTiming();
 		if(($currentTick % 2) === 0) $this->tickChunks();
+		$this->executeQueuedLightUpdates();
 		$this->timings->doTickTiles->stopTiming();
 
 		$this->tickNaturalMobSpawning($currentTick);
@@ -1795,7 +1800,76 @@ class Level implements ChunkManager, Metadatable{
 	}
 
 	public function updateBlockSkyLight($x, $y, $z){
-		//TODO
+		//B6: 天空光改动先入队，由 executeQueuedLightUpdates() 在 tick 内统一排空。
+		//默认关闭（chunk-ticking.light-updates），关闭时保持历史行为：不更新天空光。
+		if(!$this->useQueuedLightUpdates()){
+			return;
+		}
+
+		if($y < 0 or $y >= 128){
+			return;
+		}
+
+		$chunk = $this->getChunk($x >> 4, $z >> 4, false);
+		if(!($chunk instanceof FullChunk)){
+			return;
+		}
+
+		if($this->skyLightUpdate === null){
+			$this->skyLightUpdate = new SkyLightUpdate($this);
+		}
+
+		//整列重算：从顶部按方块透光率衰减，再交给队列做水平扩散
+		$localX = $x & 0x0f;
+		$localZ = $z & 0x0f;
+		$light = 15;
+		for($currentY = 127; $currentY >= 0; --$currentY){
+			$blockId = $chunk->getBlockId($localX, $currentY, $localZ);
+			if($blockId !== Block::AIR){
+				$light -= self::getSpreadLightReduction($blockId);
+				if($light < 0){
+					$light = 0;
+				}
+			}
+
+			$this->skyLightUpdate->setAndUpdateLight($x, $currentY, $z, $light);
+		}
+	}
+
+	/**
+	 * B6: 与 InCore-II 同名的开关，缺省关闭，避免默认改写世界光照数据。
+	 */
+	private function useQueuedLightUpdates() : bool{
+		return (bool) $this->getServer()->getProperty("chunk-ticking.light-updates", false);
+	}
+
+	/**
+	 * B6: 方块对天空光的透光衰减（1-15）。
+	 */
+	private static function getSpreadLightReduction($blockId) : int{
+		if(!isset(Block::$lightFilter[$blockId])){
+			return 15;
+		}
+
+		$filter = (int) Block::$lightFilter[$blockId];
+		if($filter < 1){
+			return 1;
+		}
+		if($filter > 15){
+			return 15;
+		}
+
+		return $filter;
+	}
+
+	/**
+	 * B6: 排空队列中积压的天空光更新；没有待处理项时是空操作。
+	 */
+	public function executeQueuedLightUpdates(){
+		if($this->skyLightUpdate !== null){
+			$this->skyLightUpdate->execute();
+			$this->skyLightUpdate = null;
+		}
 	}
 
 	public function updateBlockLight($x, $y, $z){
