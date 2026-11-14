@@ -18,7 +18,7 @@ Zenith — PocketMine-MP 分叉（Genisys / SCAXE 血统），纯 PHP 实现，�
 
 ## 代码风格
 
-- 缩进用 **Tab**；`}else{`、`}catch(...){` 同行；返回类型写作 ` : string`；类名后大括号同行。
+- 完整规则见 `docs/code-style.md`（含正反例）。要点：**Tab** 缩进、`if(`/`foreach(` 不加空格、`}else{`/`}catch(...){` 同行、返回类型写作 ` : string`、类名后大括号同行、不用 PHP 8 语法、不要用 PSR-12 格式化器。
 - 新代码允许中文 docblock/注释（`src/pocketmine/anticheat/` 是范例）。
 - 行尾符：`src/pocketmine/network/protocol/v84/` 下 56 个文件是 **CRLF**，其余 LF。编辑时不要用会统一换行的工具（优先 `edit` 工具或按字节读写的脚本）。
 
