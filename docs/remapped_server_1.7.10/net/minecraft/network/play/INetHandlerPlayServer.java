@@ -1,0 +1,69 @@
+package net.minecraft.network.play;
+
+import net.minecraft.network.INetHandler;
+import net.minecraft.network.play.client.C00PacketKeepAlive;
+import net.minecraft.network.play.client.C01PacketChatMessage;
+import net.minecraft.network.play.client.C02PacketUseEntity;
+import net.minecraft.network.play.client.C03PacketPlayer;
+import net.minecraft.network.play.client.C07PacketPlayerDigging;
+import net.minecraft.network.play.client.C08PacketPlayerBlockPlacement;
+import net.minecraft.network.play.client.C09PacketHeldItemChange;
+import net.minecraft.network.play.client.C0APacketAnimation;
+import net.minecraft.network.play.client.C0BPacketEntityAction;
+import net.minecraft.network.play.client.C0CPacketInput;
+import net.minecraft.network.play.client.C0DPacketCloseWindow;
+import net.minecraft.network.play.client.C0EPacketClickWindow;
+import net.minecraft.network.play.client.C0FPacketConfirmTransaction;
+import net.minecraft.network.play.client.C10PacketCreativeInventoryAction;
+import net.minecraft.network.play.client.C11PacketEnchantItem;
+import net.minecraft.network.play.client.C12PacketUpdateSign;
+import net.minecraft.network.play.client.C13PacketPlayerAbilities;
+import net.minecraft.network.play.client.C14PacketTabComplete;
+import net.minecraft.network.play.client.C15PacketClientSettings;
+import net.minecraft.network.play.client.C16PacketClientStatus;
+import net.minecraft.network.play.client.C17PacketCustomPayload;
+
+public interface INetHandlerPlayServer extends INetHandler {
+
+    void func_147350_a(C0APacketAnimation c0apacketanimation);
+
+    void func_147354_a(C01PacketChatMessage c01packetchatmessage);
+
+    void func_147341_a(C14PacketTabComplete c14packettabcomplete);
+
+    void func_147342_a(C16PacketClientStatus c16packetclientstatus);
+
+    void func_147352_a(C15PacketClientSettings c15packetclientsettings);
+
+    void func_147339_a(C0FPacketConfirmTransaction c0fpacketconfirmtransaction);
+
+    void func_147338_a(C11PacketEnchantItem c11packetenchantitem);
+
+    void func_147351_a(C0EPacketClickWindow c0epacketclickwindow);
+
+    void func_147356_a(C0DPacketCloseWindow c0dpacketclosewindow);
+
+    void func_147349_a(C17PacketCustomPayload c17packetcustompayload);
+
+    void func_147340_a(C02PacketUseEntity c02packetuseentity);
+
+    void func_147353_a(C00PacketKeepAlive c00packetkeepalive);
+
+    void func_147347_a(C03PacketPlayer c03packetplayer);
+
+    void func_147348_a(C13PacketPlayerAbilities c13packetplayerabilities);
+
+    void func_147345_a(C07PacketPlayerDigging c07packetplayerdigging);
+
+    void func_147357_a(C0BPacketEntityAction c0bpacketentityaction);
+
+    void func_147358_a(C0CPacketInput c0cpacketinput);
+
+    void func_147355_a(C09PacketHeldItemChange c09packethelditemchange);
+
+    void func_147344_a(C10PacketCreativeInventoryAction c10packetcreativeinventoryaction);
+
+    void func_147343_a(C12PacketUpdateSign c12packetupdatesign);
+
+    void func_147346_a(C08PacketPlayerBlockPlacement c08packetplayerblockplacement);
+}

@@ -1,0 +1,21 @@
+worlds/*
+server.properties
+*.exe
+*.json
+*.log
+*.txt
+
+# Common IDEs
+.idea/*
+!.idea/fileTemplates/
+nbproject/*
+
+# Windows image file caches
+Thumbs.db
+
+# Folder config file
+Desktop.ini
+
+# Mac crap
+.DS_Store
+/nbproject/private/

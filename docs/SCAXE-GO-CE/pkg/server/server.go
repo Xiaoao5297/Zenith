@@ -1,0 +1,1647 @@
+package server
+
+import (
+	"fmt"
+	"math"
+	"math/rand/v2"
+	"sort"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/scaxe/scaxe-go/internal/version"
+	"github.com/scaxe/scaxe-go/pkg/block"
+	"github.com/scaxe/scaxe-go/pkg/command"
+	"github.com/scaxe/scaxe-go/pkg/command/defaults"
+	"github.com/scaxe/scaxe-go/pkg/config"
+	"github.com/scaxe/scaxe-go/pkg/entity"
+	"github.com/scaxe/scaxe-go/pkg/event"
+	"github.com/scaxe/scaxe-go/pkg/item"
+	"github.com/scaxe/scaxe-go/pkg/level"
+	"github.com/scaxe/scaxe-go/pkg/level/anvil"
+	"github.com/scaxe/scaxe-go/pkg/logger"
+	luapkg "github.com/scaxe/scaxe-go/pkg/lua"
+	"github.com/scaxe/scaxe-go/pkg/permission"
+	"github.com/scaxe/scaxe-go/pkg/player"
+	"github.com/scaxe/scaxe-go/pkg/protocol"
+	"github.com/scaxe/scaxe-go/pkg/raknet"
+	"github.com/scaxe/scaxe-go/pkg/scheduler"
+)
+
+const (
+	TicksPerSecond = 20
+	TickDuration   = time.Second / TicksPerSecond
+)
+
+type Server struct {
+	mu sync.RWMutex
+
+	Config *config.ServerConfig
+
+	RakNet  *raknet.Server
+	Address string
+
+	Players       map[string]*player.Player
+	PlayersByName map[string]*player.Player
+
+	Level  *level.Level
+	Levels map[string]*level.Level
+
+	Running     bool
+	CurrentTick int64
+	StartTime   time.Time
+
+	tickTimes    [20]time.Duration
+	tickTimeIdx  int
+	lastTickTime time.Time
+
+	packetBuffers   map[*player.Player][][]byte
+	packetBuffersMu sync.Mutex
+
+	stopChan chan struct{}
+
+	CommandMap *command.CommandMap
+
+	OpManager *permission.OpManager
+
+	PluginManager *luapkg.PluginManager
+}
+
+func NewServer(cfg *config.ServerConfig) *Server {
+	address := fmt.Sprintf("%s:%d", cfg.ServerIP, cfg.ServerPort)
+
+	player.DebugItemPickup = cfg.DebugItemPickup
+
+	s := &Server{
+		Config:        cfg,
+		Address:       address,
+		Players:       make(map[string]*player.Player),
+		PlayersByName: make(map[string]*player.Player),
+		Levels:        make(map[string]*level.Level),
+		Running:       false,
+		CurrentTick:   0,
+		packetBuffers: make(map[*player.Player][][]byte),
+		stopChan:      make(chan struct{}),
+	}
+
+	return s
+}
+
+func (s *Server) Start() error {
+	logger.Server("Starting server", "address", s.Address)
+
+	permission.RegisterDefaultPermissions()
+
+	s.RakNet = raknet.NewServer(s.Address)
+
+	s.CommandMap = command.NewCommandMap()
+	s.CommandMap.Register(defaults.NewListCommand(s))
+	s.CommandMap.Register(defaults.NewStatusCommand(s))
+	s.CommandMap.Register(defaults.NewVersionCommand())
+	s.registerConsoleCommands()
+
+	s.OpManager = permission.NewOpManager("ops.json")
+	if err := s.OpManager.Load(); err != nil {
+		logger.Error("Failed to load ops.json", "error", err)
+	}
+
+	motd := fmt.Sprintf("MCPE;%s;%d;%s;%d;%d;%d;%s;Survival",
+		s.Config.MOTD,
+		60,
+		"0.14.2",
+		s.GetOnlineCount(),
+		s.Config.MaxPlayers,
+		s.RakNet.ServerID(),
+		s.Config.LevelName,
+	)
+	s.RakNet.SetPongData([]byte(motd))
+
+	s.RakNet.OnConnect = s.handleConnect
+	s.RakNet.OnDisconnect = s.handleDisconnect
+	s.RakNet.OnPacket = s.handlePacket
+
+	if err := s.RakNet.Start(); err != nil {
+		return err
+	}
+
+	s.Running = true
+	s.StartTime = time.Now()
+
+	logger.Banner(s.Config.ServerName, "SCAXE-GO "+version.String(), s.Address, s.Config.MaxPlayers)
+	logger.Server("Server started successfully", "tps", TicksPerSecond)
+
+	levelPath := "worlds/" + s.Config.LevelName
+	provider, err := anvil.NewAnvilProvider(levelPath)
+	if err != nil {
+		return fmt.Errorf("failed to create level provider: %v", err)
+	}
+
+	s.Level = level.NewLevel(s.Config.LevelName, levelPath, provider, s.Config.LevelType)
+	s.Levels[s.Config.LevelName] = s.Level
+
+	spawn := s.Level.GetSpawnLocation()
+	spawnCX := int32(spawn.X) >> 4
+	spawnCZ := int32(spawn.Z) >> 4
+	const spawnChunkRadius = 3
+	logger.Server("Preparing spawn area", "cx", spawnCX, "cz", spawnCZ, "radius", spawnChunkRadius)
+	for x := spawnCX - spawnChunkRadius; x <= spawnCX+spawnChunkRadius; x++ {
+		for z := spawnCZ - spawnChunkRadius; z <= spawnCZ+spawnChunkRadius; z++ {
+			s.Level.GetChunk(x, z, true)
+		}
+	}
+	logger.Server("Spawn area ready", "chunks", (spawnChunkRadius*2+1)*(spawnChunkRadius*2+1))
+
+	s.PluginManager = luapkg.NewPluginManager(NewServerAPIAdapter(s), "plugins")
+	if err := s.PluginManager.LoadAll(); err != nil {
+		logger.Warn("Failed to load some plugins", "error", err)
+	}
+	defaults.SetPluginManager(s.PluginManager)
+
+	go s.tickLoop()
+
+	return nil
+}
+
+func (s *Server) StopChan() <-chan struct{} {
+	return s.stopChan
+}
+
+func (s *Server) Stop() {
+	s.mu.Lock()
+	if !s.Running {
+		s.mu.Unlock()
+		return
+	}
+	s.Running = false
+	s.mu.Unlock()
+
+	logger.Server("Stopping server...")
+
+	if s.PluginManager != nil {
+		s.PluginManager.DisableAll()
+	}
+
+	select {
+	case <-s.stopChan:
+
+	default:
+		close(s.stopChan)
+	}
+
+	logger.Debug("Disconnecting all players")
+	for _, p := range s.Players {
+		p.Kick("Server closed", false)
+	}
+
+	logger.Debug("Saving all levels")
+	for name, lvl := range s.Levels {
+		if lvl != nil {
+			lvl.Save()
+			logger.Debug("Saved level", "name", name)
+		}
+	}
+
+	logger.Debug("Stopping network interfaces")
+	if s.RakNet != nil {
+		s.RakNet.Stop()
+	}
+
+	logger.Server("Server stopped")
+}
+
+func (s *Server) IsRunning() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Running
+}
+
+func (s *Server) GetOnlineCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.PlayersByName)
+}
+
+func (s *Server) GetTPS() float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var totalTime time.Duration
+	for _, t := range s.tickTimes {
+		totalTime += t
+	}
+	avgTickTime := totalTime / 20
+
+	if avgTickTime <= 0 {
+		return 20.0
+	}
+
+	tps := float64(time.Second) / float64(avgTickTime)
+	if tps > 20.0 {
+		tps = 20.0
+	}
+	return tps
+}
+
+func (s *Server) GetMSPT() float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var totalTime time.Duration
+	for _, t := range s.tickTimes {
+		totalTime += t
+	}
+	avgTickTime := totalTime / 20
+
+	return float64(avgTickTime.Microseconds()) / 1000.0
+}
+
+func (s *Server) GetPlayer(username string) *player.Player {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.PlayersByName[username]
+}
+
+func (s *Server) GetOnlinePlayers() []*player.Player {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	players := make([]*player.Player, 0, len(s.PlayersByName))
+	for _, p := range s.PlayersByName {
+		players = append(players, p)
+	}
+	return players
+}
+
+func (s *Server) BroadcastPacket(pk protocol.DataPacket) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, p := range s.PlayersByName {
+		if p.Spawned {
+			s.sendPacketUnsafe(p, pk)
+		}
+	}
+}
+
+func (s *Server) broadcastPacketExcept(pkt protocol.DataPacket, except *player.Player) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, p := range s.PlayersByName {
+		if p.Spawned && p != except {
+			s.sendPacketUnsafe(p, pkt)
+		}
+	}
+}
+
+func (s *Server) sendPacketUnsafe(p *player.Player, pkt protocol.DataPacket) {
+	stream := protocol.NewBinaryStream()
+	pkt.Encode(stream)
+	p.Session.SendPacket(stream.Bytes())
+}
+
+func (s *Server) updatePlayerListAdd(p *player.Player) {
+	pk := protocol.NewPlayerListPacket()
+	pk.Type = protocol.PlayerListTypeAdd
+	pk.Entries = []protocol.PlayerListEntry{{
+		UUID:     p.UUID,
+		EntityID: p.GetID(),
+		Username: p.Username,
+		SkinName: p.SkinName,
+		SkinData: p.SkinData,
+	}}
+
+	for _, other := range s.GetOnlinePlayers() {
+		if other.Spawned {
+			s.sendPacket(other, pk)
+		}
+	}
+}
+
+func (s *Server) updatePlayerListRemove(p *player.Player) {
+	pk := protocol.NewPlayerListPacket()
+	pk.Type = protocol.PlayerListTypeRemove
+	pk.Entries = []protocol.PlayerListEntry{{
+		UUID: p.UUID,
+	}}
+	s.BroadcastPacket(pk)
+}
+
+func (s *Server) sendExistingPlayersTo(newPlayer *player.Player) {
+
+	players := s.GetOnlinePlayers()
+
+	pk := protocol.NewPlayerListPacket()
+	pk.Type = protocol.PlayerListTypeAdd
+	for _, p := range players {
+		if p != newPlayer && p.Spawned {
+			pk.Entries = append(pk.Entries, protocol.PlayerListEntry{
+				UUID:     p.UUID,
+				EntityID: p.GetID(),
+				Username: p.Username,
+				SkinName: p.SkinName,
+				SkinData: p.SkinData,
+			})
+		}
+	}
+	if len(pk.Entries) > 0 {
+		s.sendPacket(newPlayer, pk)
+	}
+
+	for _, p := range players {
+		if p != newPlayer && p.Spawned {
+			addPk := protocol.NewAddPlayerPacket()
+			addPk.UUID = p.UUID
+			addPk.Username = p.Username
+			addPk.EntityID = p.GetID()
+			addPk.X = float32(p.Position.X)
+			addPk.Y = float32(p.Position.Y)
+			addPk.Z = float32(p.Position.Z)
+			addPk.SpeedX = float32(p.Motion.X)
+			addPk.SpeedY = float32(p.Motion.Y)
+			addPk.SpeedZ = float32(p.Motion.Z)
+			addPk.Yaw = float32(p.Yaw)
+			addPk.Pitch = float32(p.Pitch)
+
+			s.sendPacket(newPlayer, addPk)
+		}
+	}
+}
+
+func (s *Server) spawnPlayerTo(p *player.Player, viewer *player.Player) {
+
+	pk := protocol.NewPlayerListPacket()
+	pk.Type = protocol.PlayerListTypeAdd
+	pk.Entries = []protocol.PlayerListEntry{{
+		UUID:     p.UUID,
+		EntityID: p.GetID(),
+		Username: p.Username,
+		SkinName: p.SkinName,
+		SkinData: p.SkinData,
+	}}
+	s.sendPacket(viewer, pk)
+
+	addPk := protocol.NewAddPlayerPacket()
+	addPk.UUID = p.UUID
+	addPk.Username = p.Username
+	addPk.EntityID = p.GetID()
+	addPk.X = float32(p.Position.X)
+	addPk.Y = float32(p.Position.Y)
+	addPk.Z = float32(p.Position.Z)
+	addPk.SpeedX = float32(p.Motion.X)
+	addPk.SpeedY = float32(p.Motion.Y)
+	addPk.SpeedZ = float32(p.Motion.Z)
+	addPk.Yaw = float32(p.Yaw)
+	addPk.Pitch = float32(p.Pitch)
+
+	s.sendPacket(viewer, addPk)
+}
+
+func (s *Server) syncInventory(p *player.Player) {
+
+	inventoryItems := make([]item.Item, 0)
+	contents := p.Inventory.GetContents()
+	maxSlot := p.Inventory.GetSize()
+	for i := 0; i < maxSlot; i++ {
+		if it, ok := contents[i]; ok {
+			inventoryItems = append(inventoryItems, it)
+		} else {
+			inventoryItems = append(inventoryItems, item.NewItem(0, 0, 0))
+		}
+	}
+
+	for i := 0; i < 9; i++ {
+		inventoryItems = append(inventoryItems, item.NewItem(0, 0, 0))
+	}
+
+	containerPk := protocol.NewContainerSetContentPacket(0, inventoryItems)
+	containerPk.HotbarTypes = make([]int32, 9)
+	for i := 0; i < 9; i++ {
+		slotIndex := p.Inventory.GetHotbarSlotIndex(i)
+		if slotIndex == -1 {
+			containerPk.HotbarTypes[i] = -1
+		} else {
+			containerPk.HotbarTypes[i] = int32(slotIndex + 9)
+		}
+	}
+	s.sendPacket(p, containerPk)
+
+	armorItems := p.Inventory.GetArmorContents()
+	armorPk := protocol.NewContainerSetContentPacket(120, armorItems)
+	s.sendPacket(p, armorPk)
+
+}
+
+func (s *Server) tickLoop() {
+	ticker := time.NewTicker(TickDuration)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.stopChan:
+			return
+		case <-ticker.C:
+			s.tick()
+		}
+	}
+}
+
+func (s *Server) NextEntityID() int64 {
+	return entity.NextEntityID()
+}
+
+func (s *Server) tick() {
+	tickStart := time.Now()
+
+	s.mu.Lock()
+	s.CurrentTick++
+	s.mu.Unlock()
+
+	if s.Level != nil {
+		s.Level.Tick()
+		if len(s.Level.PendingBlockUpdates) > 0 {
+			for _, upd := range s.Level.PendingBlockUpdates {
+				updPk := protocol.NewUpdateBlockPacket(upd.X, upd.Y, upd.Z, upd.ID, upd.Meta)
+				s.BroadcastPacket(updPk)
+			}
+			s.Level.PendingBlockUpdates = s.Level.PendingBlockUpdates[:0]
+		}
+	}
+
+	for _, p := range s.GetOnlinePlayers() {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Error("Panic in Player.Tick", "player", p.Username, "error", r)
+				}
+			}()
+
+			if p.LoadingChunks && !p.IsSpawned() {
+				s.checkChunks(p)
+				s.tryFirstSpawn(p)
+			}
+
+			if p.IsSpawned() {
+				p.Tick(s.CurrentTick)
+				s.checkChunks(p)
+			}
+		}()
+	}
+
+	if s.Level != nil {
+		pk := protocol.NewMoveEntityPacket()
+		for _, e := range s.Level.GetEntities() {
+			hasMove := e.HasMovementUpdate()
+			hasRot := e.HasRotationUpdate()
+			if hasMove || hasRot {
+				pos := e.GetPosition()
+				entry := protocol.MoveEntityEntry{
+					EntityID: e.GetID(),
+					X:        float32(pos.X),
+					Y:        float32(pos.Y + e.GetEyeHeight()),
+					Z:        float32(pos.Z),
+					Yaw:      float32(e.GetYaw()),
+					HeadYaw:  float32(e.GetYaw()),
+					Pitch:    float32(e.GetPitch()),
+				}
+				pk.Entities = append(pk.Entities, entry)
+			}
+		}
+		if len(pk.Entities) > 0 {
+			for _, p := range s.GetOnlinePlayers() {
+				if p.Spawned {
+					s.sendPacket(p, pk)
+				}
+			}
+		}
+	}
+
+	s.mu.Lock()
+	s.tickTimes[s.tickTimeIdx] = time.Since(tickStart)
+	s.tickTimeIdx = (s.tickTimeIdx + 1) % 20
+	s.lastTickTime = tickStart
+	currentTick := s.CurrentTick
+	s.mu.Unlock()
+
+	if s.PluginManager != nil {
+		s.PluginManager.Tick(currentTick)
+	}
+
+	s.flushPackets()
+	scheduler.GetGlobalScheduler().MainThreadHeartbeat(currentTick)
+}
+
+func (s *Server) handleConnect(session *raknet.Session) {
+	addr := session.Address()
+	logger.Server("New connection", "address", addr)
+
+	p := player.NewPlayer(session, addr, 0)
+
+	s.mu.Lock()
+	s.Players[addr] = p
+	s.mu.Unlock()
+}
+
+func (s *Server) handleDisconnect(session *raknet.Session) {
+	addr := session.Address()
+
+	s.mu.Lock()
+	p, exists := s.Players[addr]
+	if !exists {
+		s.mu.Unlock()
+		return
+	}
+
+	delete(s.Players, addr)
+	s.mu.Unlock()
+
+	if p.LoggedIn {
+		s.handlePlayerQuit(p)
+	}
+
+	p.Close()
+}
+
+func (s *Server) UpdatePong() {
+	motd := fmt.Sprintf("MCPE;%s;%d;%s;%d;%d;%d;%s;Survival",
+		s.Config.MOTD,
+		60,
+		"0.14.2",
+		s.GetOnlineCount(),
+		s.Config.MaxPlayers,
+		s.RakNet.ServerID(),
+		s.Config.LevelName,
+	)
+	s.RakNet.SetPongData([]byte(motd))
+}
+
+func (s *Server) handlePlayerQuit(p *player.Player) {
+	username := p.Username
+	quitEvt := event.NewPlayerQuitEvent(username, p.GetEntityID(), username+" left the game", "disconnected")
+	event.Call(quitEvt)
+
+	s.mu.Lock()
+	delete(s.PlayersByName, username)
+	s.mu.Unlock()
+
+	s.UpdatePong()
+
+	removePlayerPk := protocol.NewRemovePlayerPacket()
+	removePlayerPk.EntityID = p.GetID()
+
+	if uuid, err := uuid.Parse(p.UUID); err == nil {
+		removePlayerPk.UUID = uuid
+	}
+	s.broadcastPacketExcept(removePlayerPk, p)
+
+	s.updatePlayerListRemove(p)
+
+	quitMsg := protocol.NewTextPacket()
+	quitMsg.TextType = protocol.TextTypeTranslation
+	quitMsg.Message = "multiplayer.player.left"
+	quitMsg.Parameters = []string{username}
+	s.BroadcastPacket(quitMsg)
+
+	logger.PlayerLeave(username, "disconnected")
+}
+
+func (s *Server) handlePacket(session *raknet.Session, data []byte) {
+	if len(data) == 0 {
+		return
+	}
+
+	addr := session.Address()
+	s.mu.RLock()
+	p, exists := s.Players[addr]
+	s.mu.RUnlock()
+
+	if !exists {
+		logger.Warn("Packet from unknown session", "address", addr)
+		return
+	}
+
+	packetID := data[0]
+	pkt := protocol.GetPacket(packetID)
+	if pkt == nil {
+		logger.Debug("Unknown packet", "id", fmt.Sprintf("0x%02x", packetID), "from", addr)
+		return
+	}
+
+	logger.PacketIn(pkt.Name(), addr, "id", fmt.Sprintf("0x%02x", packetID), "size", len(data))
+
+	stream := protocol.NewBinaryStreamFromBytes(data[1:])
+	if err := pkt.Decode(stream); err != nil {
+		logger.Error("Failed to decode packet", "packet", pkt.Name(), "error", err)
+		return
+	}
+
+	switch pk := pkt.(type) {
+	case *protocol.LoginPacket:
+		s.handleLogin(p, pk)
+	case *protocol.TextPacket:
+		s.handleText(p, pk)
+	case *protocol.RequestChunkRadiusPacket:
+		s.handleRequestChunkRadius(p, pk)
+	case *protocol.MovePlayerPacket:
+		s.handleMovePlayer(p, pk)
+	case *protocol.PlayerActionPacket:
+		s.handlePlayerAction(p, pk)
+	case *protocol.AnimatePacket:
+		s.handleAnimate(p, pk)
+	case *protocol.UseItemPacket:
+		s.handleUseItem(p, pk)
+	case *protocol.RemoveBlockPacket:
+		s.handleRemoveBlock(p, pk)
+	case *protocol.MobEquipmentPacket:
+		s.handleMobEquipment(p, pk)
+	case *protocol.DropItemPacket:
+		s.handleDropItem(p, pk)
+	case *protocol.ContainerSetSlotPacket:
+		s.handleContainerSetSlot(p, pk)
+	default:
+		logger.Debug("Unhandled packet", "packet", pkt.Name())
+	}
+}
+
+func (s *Server) sendPacket(p *player.Player, pkt protocol.DataPacket) {
+	stream := protocol.NewBinaryStream()
+	pkt.Encode(stream)
+
+	s.packetBuffersMu.Lock()
+	s.packetBuffers[p] = append(s.packetBuffers[p], stream.Bytes())
+	s.packetBuffersMu.Unlock()
+
+	logger.PacketOut(pkt.Name(), p.GetAddress(), "id", fmt.Sprintf("0x%02x", pkt.ID()), "buffered", true)
+}
+
+func (s *Server) sendPacketImmediate(p *player.Player, pkt protocol.DataPacket) {
+	stream := protocol.NewBinaryStream()
+	pkt.Encode(stream)
+	p.Session.SendPacket(stream.Bytes())
+
+	logger.PacketOut(pkt.Name(), p.GetAddress(), "id", fmt.Sprintf("0x%02x", pkt.ID()))
+}
+
+func (s *Server) flushPackets() {
+	s.packetBuffersMu.Lock()
+	defer s.packetBuffersMu.Unlock()
+
+	for p, packets := range s.packetBuffers {
+		if len(packets) == 0 {
+			continue
+		}
+
+		for _, data := range packets {
+			p.Session.SendPacket(data)
+		}
+	}
+
+	s.packetBuffers = make(map[*player.Player][][]byte)
+}
+
+func (s *Server) handleLogin(p *player.Player, pkt *protocol.LoginPacket) {
+	logger.PlayerJoin(pkt.Username, p.GetAddress(), int(pkt.Protocol))
+
+	if p.LoggedIn {
+		logger.Warn("Ignoring duplicate login packet", "player", pkt.Username)
+		return
+	}
+
+	if !protocol.IsProtocolSupported(int(pkt.Protocol)) {
+		logger.Warn("Unsupported protocol", "player", pkt.Username, "protocol", pkt.Protocol)
+	}
+
+	logger.Debug("Login Check", "online", s.GetOnlineCount(), "max", s.Config.MaxPlayers)
+	if s.GetOnlineCount() >= s.Config.MaxPlayers {
+		p.Kick("disconnectionScreen.serverFull", false)
+		return
+	}
+
+	p.HandleLogin(pkt.Username, pkt.ClientUUID, pkt.SkinID, pkt.SkinData, pkt.Protocol)
+	p.ClientID = uint64(pkt.ClientID)
+	p.SetGamemode(s.Config.Gamemode)
+
+	if s.OpManager.IsOp(pkt.Username, pkt.ClientID) {
+		p.SetOp(true)
+		logger.Info("Operator logged in", "player", pkt.Username, "cid", pkt.ClientID)
+	} else {
+		p.SetOp(false)
+	}
+
+	s.mu.Lock()
+	s.PlayersByName[pkt.Username] = p
+	s.mu.Unlock()
+
+	s.UpdatePong()
+
+	playStatus := protocol.NewPlayStatusPacket()
+	playStatus.Status = protocol.PlayStatusLoginSuccess
+	s.sendPacket(p, playStatus)
+
+	var batchPackets []protocol.DataPacket
+
+	spawn := s.Level.GetSafeSpawn()
+	spawnX, spawnY, spawnZ := int32(spawn.X), int32(spawn.Y), int32(spawn.Z)
+
+	p.Human.Level = s.Level
+	p.SetPosition(entity.NewVector3(float64(spawnX), float64(spawnY), float64(spawnZ)))
+
+	startGame := protocol.NewStartGamePacket()
+	startGame.Seed = int32(s.Level.GetSeed())
+	startGame.Dimension = 0
+
+	genID := int32(1)
+	if s.Level.Generator != nil {
+		name := s.Level.Generator.GetName()
+		if name == "flat" {
+			genID = 2
+		} else if name == "old" {
+			genID = 0
+		}
+	}
+	startGame.Generator = genID
+	startGame.Gamemode = int32(s.Config.Gamemode)
+	startGame.EntityID = p.GetID()
+	startGame.SpawnX = spawnX
+	startGame.SpawnY = spawnY
+	startGame.SpawnZ = spawnZ
+	startGame.X = float32(spawnX)
+	startGame.Y = float32(spawnY)
+	startGame.Z = float32(spawnZ)
+	startGame.LevelID = "d29ybGQ="
+	batchPackets = append(batchPackets, startGame)
+
+	advSettings := protocol.NewAdventureSettingsPacket()
+
+	advSettings.Flags = 0
+	if s.Config.Gamemode == 1 || s.Config.AllowFlight {
+		advSettings.Flags |= 0x80
+	}
+
+	advSettings.UserPermission = 2
+	advSettings.GlobalPermission = 2
+
+	batchPackets = append(batchPackets, advSettings)
+
+	setTime := protocol.NewSetTimePacket()
+	setTime.Time = 0
+	setTime.Started = true
+	batchPackets = append(batchPackets, setTime)
+
+	setSpawn := protocol.NewSetSpawnPositionPacket()
+	setSpawn.X = spawnX
+	setSpawn.Y = spawnY
+	setSpawn.Z = spawnZ
+	batchPackets = append(batchPackets, setSpawn)
+
+	setDiff := protocol.NewSetDifficultyPacket()
+	setDiff.Difficulty = 1
+	batchPackets = append(batchPackets, setDiff)
+
+	setHealth := protocol.NewSetHealthPacket()
+	setHealth.Health = 20
+	batchPackets = append(batchPackets, setHealth)
+
+	logger.Server("Sending game data", "player", pkt.Username, "packets", len(batchPackets))
+
+	batchPayload, err := protocol.CreateBatch(batchPackets)
+	if err != nil {
+		logger.Error("Failed to create batch", "error", err)
+		return
+	}
+
+	batchPkt := protocol.NewBatchPacket()
+	batchPkt.Payload = batchPayload
+	s.sendPacket(p, batchPkt)
+
+	if s.Config.Gamemode != 3 {
+		creativeItems := item.GetCreativeItems()
+		s.sendPacket(p, protocol.NewContainerSetContentPacket(121, creativeItems))
+	} else {
+		s.sendPacket(p, protocol.NewContainerSetContentPacket(121, nil))
+	}
+
+	p.LoadingChunks = true
+
+	logger.Player("Login complete, loading chunks", "player", pkt.Username, "online", s.GetOnlineCount())
+}
+
+func (s *Server) handleText(p *player.Player, pkt *protocol.TextPacket) {
+
+	if pkt.TextType != protocol.TextTypeChat {
+		return
+	}
+
+	if pkt.Message == "" {
+		return
+	}
+
+	if pkt.Message[0] == '/' {
+		cmdLine := pkt.Message[1:]
+
+		if cmdLine == "rechunk" {
+			p.ClearAllChunks()
+			p.SendMessage(fmt.Sprintf("§aCleared all loaded chunks (%d). Resending...", p.GetLoadedChunkCount()))
+			s.checkChunks(p)
+			p.SendMessage(fmt.Sprintf("§aSent first batch. Loaded: %d", p.GetLoadedChunkCount()))
+			return
+		}
+
+		if s.CommandMap.Dispatch(p, cmdLine) {
+			return
+		}
+		p.SendMessage("Unknown command. Try /help type commands.")
+		return
+	}
+	chatEvt := event.NewPlayerChatEvent(p.Username, p.GetEntityID(), pkt.Message, nil)
+	event.Call(chatEvt)
+	if chatEvt.IsCancelled() {
+		return
+	}
+
+	logger.Player("Chat", "player", p.Username, "message", chatEvt.GetMessage())
+
+	broadcast := protocol.NewTextPacket()
+	broadcast.TextType = protocol.TextTypeChat
+	broadcast.SourceName = p.Username
+	broadcast.Message = chatEvt.GetMessage()
+
+	s.mu.RLock()
+	for _, other := range s.PlayersByName {
+		s.sendPacket(other, broadcast)
+	}
+	s.mu.RUnlock()
+}
+
+func (s *Server) handleRequestChunkRadius(p *player.Player, pkt *protocol.RequestChunkRadiusPacket) {
+	radius := pkt.Radius
+	if radius < 4 {
+		radius = 4
+	}
+	if radius > 16 {
+		radius = 16
+	}
+
+	p.SetChunkRadius(radius)
+
+	response := protocol.NewChunkRadiusUpdatedPacket()
+	response.Radius = radius
+	s.sendPacket(p, response)
+
+	logger.Debug("Chunk radius updated", "player", p.Username, "radius", radius)
+
+	s.checkChunks(p)
+
+	s.syncInventory(p)
+}
+
+func (s *Server) tryFirstSpawn(p *player.Player) {
+
+	if p.GetLoadedChunkCount() < p.GetSpawnThreshold() {
+		return
+	}
+
+	adventurePk := protocol.NewAdventureSettingsPacket()
+	flags := int32(0)
+	if p.GetGamemode() == 1 || s.Config.AllowFlight {
+		flags |= 0x80
+	}
+	adventurePk.Flags = flags
+	adventurePk.UserPermission = 2
+	adventurePk.GlobalPermission = 2
+	s.sendPacket(p, adventurePk)
+
+	respawnPk := protocol.NewRespawnPacket()
+	respawnPk.X = float32(p.Position.X)
+	respawnPk.Y = float32(p.Position.Y)
+	respawnPk.Z = float32(p.Position.Z)
+	s.sendPacket(p, respawnPk)
+
+	playStatusSpawn := protocol.NewPlayStatusPacket()
+	playStatusSpawn.Status = protocol.PlayStatusPlayerSpawn
+	s.sendPacket(p, playStatusSpawn)
+
+	movePk := protocol.NewMovePlayerPacket()
+	movePk.EntityID = p.GetID()
+	movePk.X = float32(p.Position.X)
+	movePk.Y = float32(p.Position.Y) + 1.62
+	movePk.Z = float32(p.Position.Z)
+	movePk.Yaw = float32(p.Yaw)
+	movePk.BodyYaw = float32(p.Yaw)
+	movePk.Pitch = float32(p.Pitch)
+	movePk.Mode = 1
+	movePk.OnGround = true
+	s.sendPacket(p, movePk)
+
+	welcome := protocol.NewTextPacket()
+	welcome.TextType = protocol.TextTypeRaw
+	welcome.Message = fmt.Sprintf("§aWelcome to %s!", s.Config.ServerName)
+	s.sendPacket(p, welcome)
+
+	p.Spawned = true
+	p.LoadingChunks = false
+
+	s.updatePlayerListAdd(p)
+	s.sendExistingPlayersTo(p)
+
+	for _, other := range s.GetOnlinePlayers() {
+		if other != p && other.Spawned {
+			s.spawnPlayerTo(p, other)
+		}
+	}
+
+	logger.Player("First spawn", "player", p.Username, "chunks", p.GetLoadedChunkCount())
+	joinEvt := event.NewPlayerJoinEvent(p.Username, p.GetEntityID(), p.Username+" joined the game")
+	event.Call(joinEvt)
+
+	joinMsg := protocol.NewTextPacket()
+	joinMsg.TextType = protocol.TextTypeTranslation
+	joinMsg.Message = "multiplayer.player.joined"
+	joinMsg.Parameters = []string{p.Username}
+	s.BroadcastPacket(joinMsg)
+
+	s.syncInventory(p)
+
+	for _, wpk := range s.Level.MakeWeatherPackets() {
+		s.sendPacket(p, wpk)
+	}
+}
+
+func (s *Server) checkChunks(p *player.Player) {
+	radius := p.GetChunkRadius()
+	cx := int32(p.Position.X) >> 4
+	cz := int32(p.Position.Z) >> 4
+
+	maxChunksPerCall := 4
+	if !p.IsSpawned() {
+		maxChunksPerCall = 16
+	}
+
+	type chunkEntry struct {
+		x, z int32
+		dist int32
+	}
+	var pending []chunkEntry
+
+	for dx := -radius; dx <= radius; dx++ {
+		for dz := -radius; dz <= radius; dz++ {
+			dist := dx*dx + dz*dz
+			if dist > radius*radius {
+				continue
+			}
+			x := cx + dx
+			z := cz + dz
+			if !p.IsChunkLoaded(x, z) {
+				pending = append(pending, chunkEntry{x, z, dist})
+			}
+		}
+	}
+
+	sort.Slice(pending, func(i, j int) bool {
+		return pending[i].dist < pending[j].dist
+	})
+
+	if len(pending) > maxChunksPerCall {
+		pending = pending[:maxChunksPerCall]
+	}
+
+	var chunkPackets []protocol.DataPacket
+	var loadedCoords [][2]int32
+
+	for _, entry := range pending {
+		chunk := s.Level.GetChunk(entry.x, entry.z, true)
+		if chunk == nil {
+			continue
+		}
+
+		fullChunk := protocol.NewFullChunkDataPacket()
+		fullChunk.ChunkX = entry.x
+		fullChunk.ChunkZ = entry.z
+		fullChunk.Order = protocol.ChunkOrderLayered
+		fullChunk.Data = chunk.ToPacketBytes()
+		chunkPackets = append(chunkPackets, fullChunk)
+		loadedCoords = append(loadedCoords, [2]int32{entry.x, entry.z})
+	}
+
+	if len(chunkPackets) > 0 {
+		batchPayload, err := protocol.CreateBatch(chunkPackets)
+		if err != nil {
+			logger.Error("Failed to create chunk batch", "error", err)
+		} else {
+			batchPkt := protocol.NewBatchPacket()
+			batchPkt.Payload = batchPayload
+			s.sendPacket(p, batchPkt)
+		}
+
+		for _, coord := range loadedCoords {
+			p.MarkChunkLoaded(coord[0], coord[1])
+
+			if chunk := s.Level.GetChunk(coord[0], coord[1], false); chunk != nil {
+				s.Level.SendChunkTiles(chunk, p)
+			}
+		}
+	}
+
+	unloadRadius := radius + 2
+	loaded := p.GetLoadedChunkList()
+	for _, hash := range loaded {
+		lx := int32(hash >> 32)
+		lz := int32(hash & 0xFFFFFFFF)
+		dx := lx - cx
+		dz := lz - cz
+		if dx < -unloadRadius || dx > unloadRadius || dz < -unloadRadius || dz > unloadRadius {
+			p.UnloadChunk(lx, lz)
+		}
+	}
+
+}
+
+func (s *Server) handleMovePlayer(p *player.Player, pkt *protocol.MovePlayerPacket) {
+	moveEvt := event.NewPlayerMoveEvent(p.Username, p.GetEntityID(),
+		p.Position.X, p.Position.Y, p.Position.Z,
+		float64(pkt.X), float64(pkt.Y), float64(pkt.Z))
+	event.Call(moveEvt)
+	if moveEvt.IsCancelled() {
+		revertPk := protocol.NewMovePlayerPacket()
+		revertPk.EntityID = p.GetID()
+		revertPk.X = float32(p.Position.X)
+		revertPk.Y = float32(p.Position.Y) + 1.62
+		revertPk.Z = float32(p.Position.Z)
+		revertPk.Yaw = float32(p.Yaw)
+		revertPk.Pitch = float32(p.Pitch)
+		revertPk.Mode = 1
+		s.sendPacket(p, revertPk)
+		return
+	}
+
+	oldCX := int32(p.Position.X) >> 4
+	oldCZ := int32(p.Position.Z) >> 4
+
+	p.HandleMove(
+		float64(pkt.X), float64(pkt.Y), float64(pkt.Z),
+		pkt.Yaw, pkt.BodyYaw, pkt.Pitch,
+		pkt.OnGround,
+	)
+
+	newCX := int32(p.Position.X) >> 4
+	newCZ := int32(p.Position.Z) >> 4
+
+	if oldCX != newCX || oldCZ != newCZ {
+		s.checkChunks(p)
+	}
+
+	broadcastPkt := protocol.NewMovePlayerPacket()
+	broadcastPkt.EntityID = p.GetID()
+	broadcastPkt.X = pkt.X
+	broadcastPkt.Y = pkt.Y
+	broadcastPkt.Z = pkt.Z
+	broadcastPkt.Yaw = pkt.Yaw
+	broadcastPkt.BodyYaw = pkt.BodyYaw
+	broadcastPkt.Pitch = pkt.Pitch
+	broadcastPkt.Mode = pkt.Mode
+	broadcastPkt.OnGround = pkt.OnGround
+	s.broadcastPacketExcept(broadcastPkt, p)
+}
+
+func (s *Server) handlePlayerAction(p *player.Player, pkt *protocol.PlayerActionPacket) {
+	p.HandleAction(pkt.Action)
+
+	if pkt.Action == 2 {
+		s.breakBlock(p, pkt.X, pkt.Y, pkt.Z)
+	}
+}
+
+func (s *Server) breakBlock(p *player.Player, x, y, z int32) {
+
+	chunk := s.Level.GetChunk(int32(x>>4), int32(z>>4), false)
+	if chunk == nil {
+		return
+	}
+	bid := chunk.GetBlockId(int(x&0xf), int(y), int(z&0xf))
+	meta := chunk.GetBlockData(int(x&0xf), int(y), int(z&0xf))
+
+	if bid == 0 {
+		return
+	}
+	held := p.Inventory.GetItemInHand()
+	breakEvt := event.NewBlockBreakEvent(int(x), int(y), int(z), int(bid), int(meta), p.GetEntityID(), int(held.ID))
+	event.Call(breakEvt)
+	if breakEvt.IsCancelled() {
+		revertPk := protocol.NewUpdateBlockPacket(x, int32(y), z, bid, meta)
+		s.sendPacket(p, revertPk)
+		return
+	}
+
+	tool := item.NewItem(0, 0, 0)
+	drops := block.GetDrops(uint8(bid), uint8(meta), tool)
+
+	chunk.SetBlock(int(x&0xf), int(y), int(z&0xf), 0, 0)
+
+	upk := protocol.NewUpdateBlockPacket(x, int32(y), z, 0, 0)
+
+	s.BroadcastPacket(upk)
+
+	s.Level.UpdateAround(x, y, z)
+	levPk := level.NewDestroyBlockParticle(float32(x)+0.5, float32(y)+0.5, float32(z)+0.5, int(bid), int(meta))
+	s.BroadcastPacket(levPk)
+
+	if p.Gamemode == 0 {
+		for _, drop := range drops {
+			if drop.Count > 0 {
+				s.dropItem(float32(x)+0.5, float32(y)+0.5, float32(z)+0.5, drop)
+			}
+		}
+	}
+}
+
+func (s *Server) dropItem(x, y, z float32, it item.Item) {
+	mx := float32(rand.Float64()*0.2 - 0.1)
+	my := float32(0.2)
+	mz := float32(rand.Float64()*0.2 - 0.1)
+
+	s.dropItemWithMotion(x, y, z, it, mx, my, mz, 10)
+}
+
+func (s *Server) dropItemWithMotion(x, y, z float32, it item.Item, mx, my, mz float32, delay int) {
+
+	itemEnt := entity.NewItemEntity(it)
+	itemEnt.Position = entity.NewVector3(float64(x), float64(y), float64(z))
+	itemEnt.Motion = entity.NewVector3(float64(mx), float64(my), float64(mz))
+	itemEnt.PickupDelay = delay
+	itemEnt.Level = s.Level
+
+	itemEnt.Entity.SetPosition(itemEnt.Position)
+
+	s.Level.AddEntity(itemEnt)
+
+	pk := protocol.NewAddItemEntityPacket()
+	pk.EntityID = itemEnt.GetID()
+	pk.X = x
+	pk.Y = y
+	pk.Z = z
+	pk.SpeedX = mx
+	pk.SpeedY = my
+	pk.SpeedZ = mz
+	pk.Item = it
+	s.BroadcastPacket(pk)
+
+	dataPk := protocol.NewSetEntityDataPacket()
+	dataPk.EntityID = itemEnt.GetID()
+	dataPk.Metadata = itemEnt.Metadata.Encode()
+	s.BroadcastPacket(dataPk)
+}
+
+func (s *Server) handleDropItem(p *player.Player, pkt *protocol.DropItemPacket) {
+	if !p.Spawned || !p.IsAlive() {
+		return
+	}
+
+	if pkt.Item.ID == 0 {
+		return
+	}
+
+	droppedItem := pkt.Item
+
+	if !p.Inventory.Contains(droppedItem) && p.Gamemode == 0 {
+		logger.Debug("DropItem failed parity check", "player", p.Username, "item", droppedItem.ID)
+		s.syncInventory(p)
+		return
+	}
+
+	if p.Gamemode == 0 {
+
+		if !p.Inventory.Contains(droppedItem) {
+			logger.Debug("DropItem failed parity check: item not in inventory", "player", p.Username, "item", droppedItem.ID)
+			s.syncInventory(p)
+			return
+		}
+
+		leftovers := p.Inventory.RemoveItem(droppedItem)
+		if len(leftovers) > 0 {
+
+			logger.Warn("Failed to remove dropped item", "player", p.Username)
+			s.syncInventory(p)
+			return
+		}
+
+		held := p.Inventory.GetItemInHand()
+		equipPk := protocol.NewMobEquipmentPacket()
+		equipPk.EntityID = p.GetEntityID()
+		equipPk.ItemID = int16(held.ID)
+		equipPk.ItemCount = int8(held.Count)
+		equipPk.ItemMeta = uint16(held.Meta)
+		equipPk.Slot = byte(p.Inventory.GetHeldItemIndex())
+		equipPk.SelectedSlot = byte(p.Inventory.GetHeldItemIndex())
+		s.sendPacket(p, equipPk)
+		s.broadcastPacketExcept(equipPk, p)
+
+	}
+
+	yaw := float64(p.Yaw)
+	pitch := float64(p.Pitch)
+
+	x := -math.Sin(yaw/180*math.Pi) * math.Cos(pitch/180*math.Pi)
+	y := -math.Sin(pitch / 180 * math.Pi)
+	z := math.Cos(yaw/180*math.Pi) * math.Cos(pitch/180*math.Pi)
+
+	len := math.Sqrt(x*x + y*y + z*z)
+	if len > 0 {
+		x /= len
+		y /= len
+		z /= len
+	}
+
+	force := 0.3
+	motionX := float32(x * force)
+	motionY := float32(y * force)
+	motionZ := float32(z * force)
+
+	dropX := float32(p.Position.X)
+	dropY := float32(p.Position.Y - 0.32) // Position.Y is eye-height (feet+1.62), -0.32 = chest level
+	dropZ := float32(p.Position.Z)
+
+	s.dropItemWithMotion(dropX, dropY, dropZ, droppedItem, motionX, motionY, motionZ, 40)
+	logger.Debug("DropItem spawned", "player", p.Username, "x", dropX, "y", dropY, "z", dropZ)
+}
+
+func (s *Server) handleRemoveBlock(p *player.Player, pkt *protocol.RemoveBlockPacket) {
+
+	s.breakBlock(p, pkt.X, int32(pkt.Y), pkt.Z)
+}
+
+func (s *Server) handleAnimate(p *player.Player, pkt *protocol.AnimatePacket) {
+
+	broadcastPkt := protocol.NewAnimatePacket()
+	broadcastPkt.Action = pkt.Action
+	broadcastPkt.EntityID = p.GetID()
+	broadcastPkt.Float = pkt.Float
+	s.broadcastPacketExcept(broadcastPkt, p)
+}
+
+func (s *Server) handleUseItem(p *player.Player, pkt *protocol.UseItemPacket) {
+
+	if pkt.Face <= 5 {
+		clickedBid := s.Level.GetBlockId(pkt.X, pkt.Y, pkt.Z)
+		clickedMeta := s.Level.GetBlockData(pkt.X, pkt.Y, pkt.Z)
+		behavior := block.Registry.GetBehavior(clickedBid)
+		if behavior != nil && behavior.CanBeActivated() {
+			ctx := &block.BlockContext{
+				X:    int(pkt.X),
+				Y:    int(pkt.Y),
+				Z:    int(pkt.Z),
+				Meta: clickedMeta,
+				Face: int(pkt.Face),
+			}
+
+			if behavior.OnActivate(ctx, p.GetEntityID()) {
+				s.handleBlockActivation(p, clickedBid, clickedMeta, pkt.X, pkt.Y, pkt.Z)
+				return
+			}
+		}
+		tx, ty, tz := pkt.X, pkt.Y, pkt.Z
+		switch pkt.Face {
+		case 0:
+			ty--
+		case 1:
+			ty++
+		case 2:
+			tz--
+		case 3:
+			tz++
+		case 4:
+			tx--
+		case 5:
+			tx++
+		}
+
+		held := p.Inventory.GetItemInHand()
+
+		if held.ID == 383 {
+			s.handleSpawnEgg(p, int(held.Meta), float64(tx)+0.5, float64(ty), float64(tz)+0.5)
+			return
+		}
+		placeID := held.ID
+		switch held.ID {
+		case 331:
+			placeID = int(block.REDSTONE_WIRE)
+		}
+
+		if placeID > 0 && placeID < 256 {
+			replacedBid := s.Level.GetBlockId(tx, ty, tz)
+			replacedMeta := s.Level.GetBlockData(tx, ty, tz)
+			placeEvt := event.NewBlockPlaceEvent(
+				int(tx), int(ty), int(tz),
+				int(held.ID), int(held.Meta),
+				p.GetEntityID(),
+				int(held.ID),
+				int(replacedBid), int(replacedMeta),
+			)
+			event.Call(placeEvt)
+			if placeEvt.IsCancelled() {
+				revertPk := protocol.NewUpdateBlockPacket(tx, ty, tz, replacedBid, replacedMeta)
+				s.sendPacket(p, revertPk)
+				return
+			}
+			playerDirection := yawToDirection(p.Yaw)
+			placeMeta := byte(held.Meta)
+			if bh := block.Registry.GetBehavior(byte(placeID)); bh != nil {
+				placeMeta = bh.GetPlacementMeta(playerDirection, int(pkt.Face), float64(pkt.FY))
+			}
+
+			s.Level.SetBlock(tx, ty, tz, byte(placeID), placeMeta, false)
+
+			logger.Player("Placed block", "player", p.Username, "block", placeID,
+				"x", tx, "y", ty, "z", tz,
+				"Yaw", p.Yaw, "meta", placeMeta, "face", pkt.Face)
+
+			updatePk := protocol.NewUpdateBlockPacket(tx, ty, tz, uint8(placeID), placeMeta)
+			s.BroadcastPacket(updatePk)
+
+			s.Level.UpdateAround(tx, ty, tz)
+
+			if p.GetGamemode() == 0 {
+				held.Count--
+				if held.Count <= 0 {
+					held = item.NewItem(0, 0, 0)
+				}
+				p.Inventory.SetItemInHand(held)
+
+				equipPk := protocol.NewMobEquipmentPacket()
+				equipPk.EntityID = p.GetEntityID()
+				equipPk.ItemID = int16(held.ID)
+				equipPk.ItemCount = int8(held.Count)
+				equipPk.ItemMeta = uint16(held.Meta)
+				equipPk.Slot = byte(p.Inventory.GetHeldItemIndex())
+				equipPk.SelectedSlot = byte(p.Inventory.GetHeldItemIndex())
+				s.sendPacket(p, equipPk)
+			}
+		} else {
+			logger.Player("Used item on block", "player", p.Username, "item", held.ID, "x", pkt.X, "y", pkt.Y, "z", pkt.Z)
+		}
+	} else if pkt.Face == 0xff {
+
+		logger.Player("Used item in air", "player", p.Username, "item", pkt.Item.ID)
+	}
+}
+
+func yawToDirection(yaw float64) int {
+	yaw = math.Mod(yaw, 360)
+	if yaw < 0 {
+		yaw += 360
+	}
+	if yaw >= 315 || yaw < 45 {
+		return 1
+	} else if yaw >= 45 && yaw < 135 {
+		return 2
+	} else if yaw >= 135 && yaw < 225 {
+		return 3
+	}
+	return 0
+}
+func (s *Server) handleBlockActivation(p *player.Player, bid, meta byte, x, y, z int32) {
+	var result block.ActivateResult
+
+	switch bid {
+	case block.WOOD_DOOR_BLOCK, block.IRON_DOOR_BLOCK,
+		block.SPRUCE_DOOR_BLOCK, block.BIRCH_DOOR_BLOCK,
+		block.JUNGLE_DOOR_BLOCK, block.ACACIA_DOOR_BLOCK,
+		block.DARK_OAK_DOOR_BLOCK:
+		result = block.DoorOnActivate(meta, int(x), int(y), int(z))
+	case block.TRAPDOOR:
+		result = block.TrapdoorOnActivate(meta)
+	case block.FENCE_GATE, block.FENCE_GATE_SPRUCE, block.FENCE_GATE_BIRCH,
+		block.FENCE_GATE_JUNGLE, block.FENCE_GATE_DARK_OAK, block.FENCE_GATE_ACACIA:
+		dir := int((p.Yaw+45)/90) & 3
+		result = block.FenceGateOnActivate(meta, dir)
+	case block.CHEST, block.TRAPPED_CHEST:
+		result = block.ChestOnActivate()
+	case block.FURNACE, block.BURNING_FURNACE:
+		result = block.FurnaceOnActivate()
+	case block.WORKBENCH:
+		result = block.CraftingTableOnActivate()
+	case block.HOPPER_BLOCK:
+		result = block.ActivateResult{
+			Handled:       true,
+			OpenInventory: true,
+			InventoryType: block.InventoryTypeChest,
+		}
+	case block.DISPENSER, block.DROPPER:
+		result = block.ActivateResult{
+			Handled:       true,
+			OpenInventory: true,
+			InventoryType: block.InventoryTypeChest,
+		}
+	case block.BREWING_STAND_BLOCK:
+		result = block.ActivateResult{
+			Handled:       true,
+			OpenInventory: true,
+			InventoryType: block.InventoryTypeBrewingStand,
+		}
+	case block.CAKE_BLOCK:
+		if meta < 6 {
+			newMeta := meta + 1
+			if newMeta >= 6 {
+				result = block.ActivateResult{Handled: true}
+				s.Level.SetBlock(x, y, z, block.AIR, 0, false)
+				upk := protocol.NewUpdateBlockPacket(x, y, z, block.AIR, 0)
+				s.BroadcastPacket(upk)
+				return
+			}
+			result = block.ActivateResult{
+				Handled:    true,
+				NewMeta:    newMeta,
+				MetaChange: true,
+			}
+		} else {
+			return
+		}
+	case block.DAYLIGHT_SENSOR:
+		s.Level.SetBlock(x, y, z, block.DAYLIGHT_SENSOR_INVERTED, meta, false)
+		upk := protocol.NewUpdateBlockPacket(x, y, z, block.DAYLIGHT_SENSOR_INVERTED, meta)
+		s.BroadcastPacket(upk)
+		return
+	case block.DAYLIGHT_SENSOR_INVERTED:
+		s.Level.SetBlock(x, y, z, block.DAYLIGHT_SENSOR, meta, false)
+		upk := protocol.NewUpdateBlockPacket(x, y, z, block.DAYLIGHT_SENSOR, meta)
+		s.BroadcastPacket(upk)
+		return
+	case block.LEVER:
+		newMeta := meta ^ 0x08
+		result = block.ActivateResult{
+			Handled:    true,
+			NewMeta:    newMeta,
+			MetaChange: true,
+		}
+	case block.STONE_BUTTON, block.WOODEN_BUTTON:
+		newMeta := meta | 0x08
+		result = block.ActivateResult{
+			Handled:    true,
+			NewMeta:    newMeta,
+			MetaChange: true,
+		}
+		delay := 20
+		if bid == block.WOODEN_BUTTON {
+			delay = 30
+		}
+		logger.Info("Button pressed", "bid", bid, "oldMeta", meta, "newMeta", newMeta, "x", x, "y", y, "z", z, "delay", delay)
+		s.Level.ScheduleUpdate(x, y, z, delay)
+
+	default:
+		return
+	}
+
+	if !result.Handled {
+		return
+	}
+	if result.MetaChange {
+		s.Level.SetBlock(x, y, z, bid, result.NewMeta, false)
+		updatePk := protocol.NewUpdateBlockPacket(x, y, z, bid, result.NewMeta)
+		s.BroadcastPacket(updatePk)
+		s.Level.UpdateAround(x, y, z)
+	}
+	for _, pos := range result.SyncPositions {
+		sx, sy, sz := int32(pos[0]), int32(pos[1]), int32(pos[2])
+		syncBid := s.Level.GetBlockId(sx, sy, sz)
+		syncMeta := s.Level.GetBlockData(sx, sy, sz)
+		if isDoorBlock(syncBid) {
+			if !block.DoorIsTopHalf(syncMeta) {
+				newMeta := block.DoorToggleOpen(syncMeta)
+				s.Level.SetBlock(sx, sy, sz, syncBid, newMeta, false)
+				upk := protocol.NewUpdateBlockPacket(sx, sy, sz, syncBid, newMeta)
+				s.BroadcastPacket(upk)
+			} else {
+				upk := protocol.NewUpdateBlockPacket(sx, sy, sz, syncBid, syncMeta)
+				s.BroadcastPacket(upk)
+			}
+		}
+	}
+	if result.OpenInventory {
+		s.openContainerFor(p, result.InventoryType, x, y, z)
+	}
+	if result.PlaySound != "" {
+		soundPk := level.NewDoorSound(float32(x)+0.5, float32(y)+0.5, float32(z)+0.5)
+		s.BroadcastPacket(soundPk)
+	}
+	if bid == block.LEVER || bid == block.STONE_BUTTON || bid == block.WOODEN_BUTTON {
+		clickPk := level.NewClickSound(float32(x)+0.5, float32(y)+0.5, float32(z)+0.5, 1.0)
+		s.BroadcastPacket(clickPk)
+	}
+}
+func (s *Server) openContainerFor(p *player.Player, invType int, x, y, z int32) {
+	windowID := byte(2)
+
+	openPk := protocol.NewContainerOpenPacket()
+	openPk.WindowID = windowID
+	openPk.Type = byte(invType)
+	openPk.Slots = int16(s.getContainerSlotCount(invType))
+	openPk.X = x
+	openPk.Y = y
+	openPk.Z = z
+	s.sendPacket(p, openPk)
+	slotCount := int(openPk.Slots)
+	emptyItems := make([]item.Item, slotCount)
+	for i := range emptyItems {
+		emptyItems[i] = item.NewItem(0, 0, 0)
+	}
+	contentPk := protocol.NewContainerSetContentPacket(windowID, emptyItems)
+	s.sendPacket(p, contentPk)
+
+	logger.Player("Opened container", "player", p.Username,
+		"type", invType, "x", x, "y", y, "z", z)
+}
+func (s *Server) getContainerSlotCount(invType int) int {
+	switch invType {
+	case block.InventoryTypeChest:
+		return 27
+	case block.InventoryTypeCrafting:
+		return 9
+	case block.InventoryTypeFurnace:
+		return 3
+	case block.InventoryTypeEnchant:
+		return 2
+	case block.InventoryTypeAnvil:
+		return 3
+	case block.InventoryTypeBrewingStand:
+		return 4
+	default:
+		return 27
+	}
+}
+func isDoorBlock(id byte) bool {
+	switch id {
+	case block.WOOD_DOOR_BLOCK, block.IRON_DOOR_BLOCK,
+		block.SPRUCE_DOOR_BLOCK, block.BIRCH_DOOR_BLOCK,
+		block.JUNGLE_DOOR_BLOCK, block.ACACIA_DOOR_BLOCK,
+		block.DARK_OAK_DOOR_BLOCK:
+		return true
+	}
+	return false
+}
+
+func (s *Server) handleMobEquipment(p *player.Player, pkt *protocol.MobEquipmentPacket) {
+
+	p.Inventory.SetHeldItemIndex(int(pkt.SelectedSlot))
+
+	broadcastPkt := protocol.NewMobEquipmentPacket()
+	broadcastPkt.EntityID = p.GetID()
+	broadcastPkt.ItemID = pkt.ItemID
+	broadcastPkt.ItemCount = pkt.ItemCount
+	broadcastPkt.ItemMeta = pkt.ItemMeta
+	broadcastPkt.Slot = pkt.Slot
+	broadcastPkt.SelectedSlot = pkt.SelectedSlot
+	s.broadcastPacketExcept(broadcastPkt, p)
+
+	logger.Debug("Equipment changed", "player", p.Username, "slot", pkt.SelectedSlot)
+}
+
+func (s *Server) handleContainerSetSlot(p *player.Player, pkt *protocol.ContainerSetSlotPacket) {
+	if !p.Spawned {
+		return
+	}
+
+	if pkt.WindowID == 0 {
+		if int(pkt.Slot) >= p.Inventory.GetSize() {
+			return
+		}
+		p.Inventory.SetItem(int(pkt.Slot), pkt.Item)
+		logger.Player("Container set slot", "player", p.Username, "slot", pkt.Slot, "item", pkt.Item.ID, "meta", pkt.Item.Meta, "count", pkt.Item.Count)
+	}
+}
+
+func (s *Server) handleSpawnEgg(p *player.Player, networkID int, x, y, z float64) {
+	var mob *entity.Animal
+
+	switch networkID {
+	case entity.CowNetworkID:
+		mob = entity.NewCow()
+	case entity.PigNetworkID:
+		mob = entity.NewPig()
+	case entity.SheepNetworkID:
+		mob = entity.NewSheep().Animal
+	case entity.ChickenNetworkID:
+		mob = entity.NewChicken().Animal
+	default:
+		logger.Player("Unknown spawn egg", "player", p.Username, "networkID", networkID)
+		return
+	}
+
+	mob.Entity.SetPosition(entity.NewVector3(x, y, z))
+	mob.Entity.Level = s.Level
+	mob.Entity.Yaw = float64(p.Yaw)
+
+	s.Level.AddEntity(mob.Entity)
+
+	pk := protocol.NewAddEntityPacket()
+	pk.EntityID = mob.Entity.GetID()
+	pk.Type = int32(mob.Entity.NetworkID)
+	pk.X = float32(x)
+	pk.Y = float32(y)
+	pk.Z = float32(z)
+	pk.Yaw = float32(mob.Entity.Yaw)
+	pk.Pitch = float32(mob.Entity.Pitch)
+	s.BroadcastPacket(pk)
+
+	logger.Player("Spawned mob", "player", p.Username, "type", mob.MobName, "networkID", networkID,
+		"pos", fmt.Sprintf("%.1f,%.1f,%.1f", x, y, z),
+		"entityID", mob.Entity.GetID(),
+		"bb", fmt.Sprintf("%.1f,%.1f,%.1f -> %.1f,%.1f,%.1f",
+			mob.Entity.BoundingBox.MinX, mob.Entity.BoundingBox.MinY, mob.Entity.BoundingBox.MinZ,
+			mob.Entity.BoundingBox.MaxX, mob.Entity.BoundingBox.MaxY, mob.Entity.BoundingBox.MaxZ))
+}

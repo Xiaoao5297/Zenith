@@ -1,0 +1,204 @@
+package net.minecraft.world.gen;
+
+import java.util.Random;
+
+public class NoiseGeneratorImproved extends NoiseGenerator {
+
+    private int[] field_76312_d;
+    public double field_76315_a;
+    public double field_76313_b;
+    public double field_76314_c;
+    private static final double[] field_152381_e = new double[]{1.0D, -1.0D, 1.0D, -1.0D, 1.0D, -1.0D, 1.0D, -1.0D, 0.0D, 0.0D, 0.0D, 0.0D, 1.0D, 0.0D, -1.0D, 0.0D};
+    private static final double[] field_152382_f = new double[]{1.0D, 1.0D, -1.0D, -1.0D, 0.0D, 0.0D, 0.0D, 0.0D, 1.0D, -1.0D, 1.0D, -1.0D, 1.0D, -1.0D, 1.0D, -1.0D};
+    private static final double[] field_152383_g = new double[]{0.0D, 0.0D, 0.0D, 0.0D, 1.0D, 1.0D, -1.0D, -1.0D, 1.0D, 1.0D, -1.0D, -1.0D, 0.0D, 1.0D, 0.0D, -1.0D};
+    private static final double[] field_152384_h = new double[]{1.0D, -1.0D, 1.0D, -1.0D, 1.0D, -1.0D, 1.0D, -1.0D, 0.0D, 0.0D, 0.0D, 0.0D, 1.0D, 0.0D, -1.0D, 0.0D};
+    private static final double[] field_152385_i = new double[]{0.0D, 0.0D, 0.0D, 0.0D, 1.0D, 1.0D, -1.0D, -1.0D, 1.0D, 1.0D, -1.0D, -1.0D, 0.0D, 1.0D, 0.0D, -1.0D};
+
+    public NoiseGeneratorImproved() {
+        this(new Random());
+    }
+
+    public NoiseGeneratorImproved(Random random) {
+        this.field_76312_d = new int[512];
+        this.field_76315_a = random.nextDouble() * 256.0D;
+        this.field_76313_b = random.nextDouble() * 256.0D;
+        this.field_76314_c = random.nextDouble() * 256.0D;
+
+        int i;
+
+        for (i = 0; i < 256; this.field_76312_d[i] = i++) {
+            ;
+        }
+
+        for (i = 0; i < 256; ++i) {
+            int j = random.nextInt(256 - i) + i;
+            int k = this.field_76312_d[i];
+
+            this.field_76312_d[i] = this.field_76312_d[j];
+            this.field_76312_d[j] = k;
+            this.field_76312_d[i + 256] = this.field_76312_d[i];
+        }
+
+    }
+
+    public final double func_76311_b(double d0, double d1, double d2) {
+        return d1 + d0 * (d2 - d1);
+    }
+
+    public final double func_76309_a(int i, double d0, double d1) {
+        int j = i & 15;
+
+        return NoiseGeneratorImproved.field_152384_h[j] * d0 + NoiseGeneratorImproved.field_152385_i[j] * d1;
+    }
+
+    public final double func_76310_a(int i, double d0, double d1, double d2) {
+        int j = i & 15;
+
+        return NoiseGeneratorImproved.field_152381_e[j] * d0 + NoiseGeneratorImproved.field_152382_f[j] * d1 + NoiseGeneratorImproved.field_152383_g[j] * d2;
+    }
+
+    public void func_76308_a(double[] adouble, double d0, double d1, double d2, int i, int j, int k, double d3, double d4, double d5, double d6) {
+        int l;
+        double d7;
+        double d8;
+        double d9;
+        int i1;
+        int j1;
+        int k1;
+        double d10;
+        int l1;
+        int i2;
+        int j2;
+
+        if (j == 1) {
+            boolean flag = false;
+            boolean flag1 = false;
+            boolean flag2 = false;
+            boolean flag3 = false;
+            double d11 = 0.0D;
+            double d12 = 0.0D;
+
+            l = 0;
+            double d13 = 1.0D / d6;
+
+            for (int k2 = 0; k2 < i; ++k2) {
+                d7 = d0 + (double) k2 * d3 + this.field_76315_a;
+                int l2 = (int) d7;
+
+                if (d7 < (double) l2) {
+                    --l2;
+                }
+
+                int i3 = l2 & 255;
+
+                d7 -= (double) l2;
+                d8 = d7 * d7 * d7 * (d7 * (d7 * 6.0D - 15.0D) + 10.0D);
+
+                for (i1 = 0; i1 < k; ++i1) {
+                    d9 = d2 + (double) i1 * d5 + this.field_76314_c;
+                    j1 = (int) d9;
+                    if (d9 < (double) j1) {
+                        --j1;
+                    }
+
+                    k1 = j1 & 255;
+                    d9 -= (double) j1;
+                    d10 = d9 * d9 * d9 * (d9 * (d9 * 6.0D - 15.0D) + 10.0D);
+                    l1 = this.field_76312_d[i3] + 0;
+                    int j3 = this.field_76312_d[l1] + k1;
+                    int k3 = this.field_76312_d[i3 + 1] + 0;
+
+                    i2 = this.field_76312_d[k3] + k1;
+                    d11 = this.func_76311_b(d8, this.func_76309_a(this.field_76312_d[j3], d7, d9), this.func_76310_a(this.field_76312_d[i2], d7 - 1.0D, 0.0D, d9));
+                    d12 = this.func_76311_b(d8, this.func_76310_a(this.field_76312_d[j3 + 1], d7, 0.0D, d9 - 1.0D), this.func_76310_a(this.field_76312_d[i2 + 1], d7 - 1.0D, 0.0D, d9 - 1.0D));
+                    double d14 = this.func_76311_b(d10, d11, d12);
+
+                    j2 = l++;
+                    adouble[j2] += d14 * d13;
+                }
+            }
+
+        } else {
+            l1 = 0;
+            double d15 = 1.0D / d6;
+
+            i2 = -1;
+            boolean flag4 = false;
+            boolean flag5 = false;
+            boolean flag6 = false;
+            boolean flag7 = false;
+            boolean flag8 = false;
+            boolean flag9 = false;
+            double d16 = 0.0D;
+
+            d7 = 0.0D;
+            double d17 = 0.0D;
+
+            d8 = 0.0D;
+
+            for (i1 = 0; i1 < i; ++i1) {
+                d9 = d0 + (double) i1 * d3 + this.field_76315_a;
+                j1 = (int) d9;
+                if (d9 < (double) j1) {
+                    --j1;
+                }
+
+                k1 = j1 & 255;
+                d9 -= (double) j1;
+                d10 = d9 * d9 * d9 * (d9 * (d9 * 6.0D - 15.0D) + 10.0D);
+
+                for (int l3 = 0; l3 < k; ++l3) {
+                    double d18 = d2 + (double) l3 * d5 + this.field_76314_c;
+                    int i4 = (int) d18;
+
+                    if (d18 < (double) i4) {
+                        --i4;
+                    }
+
+                    int j4 = i4 & 255;
+
+                    d18 -= (double) i4;
+                    double d19 = d18 * d18 * d18 * (d18 * (d18 * 6.0D - 15.0D) + 10.0D);
+
+                    for (int k4 = 0; k4 < j; ++k4) {
+                        double d20 = d1 + (double) k4 * d4 + this.field_76313_b;
+                        int l4 = (int) d20;
+
+                        if (d20 < (double) l4) {
+                            --l4;
+                        }
+
+                        int i5 = l4 & 255;
+
+                        d20 -= (double) l4;
+                        double d21 = d20 * d20 * d20 * (d20 * (d20 * 6.0D - 15.0D) + 10.0D);
+
+                        if (k4 == 0 || i5 != i2) {
+                            i2 = i5;
+                            int j5 = this.field_76312_d[k1] + i5;
+                            int k5 = this.field_76312_d[j5] + j4;
+                            int l5 = this.field_76312_d[j5 + 1] + j4;
+                            int i6 = this.field_76312_d[k1 + 1] + i5;
+
+                            l = this.field_76312_d[i6] + j4;
+                            int j6 = this.field_76312_d[i6 + 1] + j4;
+
+                            d16 = this.func_76311_b(d10, this.func_76310_a(this.field_76312_d[k5], d9, d20, d18), this.func_76310_a(this.field_76312_d[l], d9 - 1.0D, d20, d18));
+                            d7 = this.func_76311_b(d10, this.func_76310_a(this.field_76312_d[l5], d9, d20 - 1.0D, d18), this.func_76310_a(this.field_76312_d[j6], d9 - 1.0D, d20 - 1.0D, d18));
+                            d17 = this.func_76311_b(d10, this.func_76310_a(this.field_76312_d[k5 + 1], d9, d20, d18 - 1.0D), this.func_76310_a(this.field_76312_d[l + 1], d9 - 1.0D, d20, d18 - 1.0D));
+                            d8 = this.func_76311_b(d10, this.func_76310_a(this.field_76312_d[l5 + 1], d9, d20 - 1.0D, d18 - 1.0D), this.func_76310_a(this.field_76312_d[j6 + 1], d9 - 1.0D, d20 - 1.0D, d18 - 1.0D));
+                        }
+
+                        double d22 = this.func_76311_b(d21, d16, d7);
+                        double d23 = this.func_76311_b(d21, d17, d8);
+                        double d24 = this.func_76311_b(d19, d22, d23);
+
+                        j2 = l1++;
+                        adouble[j2] += d24 * d15;
+                    }
+                }
+            }
+
+        }
+    }
+}

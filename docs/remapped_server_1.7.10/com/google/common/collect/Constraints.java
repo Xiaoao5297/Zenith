@@ -1,0 +1,246 @@
+package com.google.common.collect;
+
+import com.google.common.annotations.GwtCompatible;
+import com.google.common.base.Preconditions;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.ListIterator;
+import java.util.RandomAccess;
+import java.util.Set;
+import java.util.SortedSet;
+
+@GwtCompatible
+final class Constraints {
+
+    private Constraints() {}
+
+    public static <E> Collection<E> constrainedCollection(Collection<E> collection, Constraint<? super E> constraint) {
+        return new Constraints.ConstrainedCollection<>(collection, constraint);
+    }
+
+    public static <E> Set<E> constrainedSet(Set<E> set, Constraint<? super E> constraint) {
+        return new Constraints.ConstrainedSet<>(set, constraint);
+    }
+
+    public static <E> SortedSet<E> constrainedSortedSet(SortedSet<E> sortedset, Constraint<? super E> constraint) {
+        return new Constraints.ConstrainedSortedSet<>(sortedset, constraint);
+    }
+
+    public static <E> List<E> constrainedList(List<E> list, Constraint<? super E> constraint) {
+        return (List) (list instanceof RandomAccess ? new Constraints.ConstrainedRandomAccessList<>(list, constraint) : new Constraints.ConstrainedList<>(list, constraint));
+    }
+
+    private static <E> ListIterator<E> constrainedListIterator(ListIterator<E> listiterator, Constraint<? super E> constraint) {
+        return new Constraints.ConstrainedListIterator<>(listiterator, constraint);
+    }
+
+    static <E> Collection<E> constrainedTypePreservingCollection(Collection<E> collection, Constraint<E> constraint) {
+        return (Collection) (collection instanceof SortedSet ? constrainedSortedSet((SortedSet) collection, constraint) : (collection instanceof Set ? constrainedSet((Set) collection, constraint) : (collection instanceof List ? constrainedList((List) collection, constraint) : constrainedCollection(collection, constraint))));
+    }
+
+    private static <E> Collection<E> checkElements(Collection<E> collection, Constraint<? super E> constraint) {
+        ArrayList arraylist = Lists.newArrayList((Iterable) collection);
+        Iterator iterator = arraylist.iterator();
+
+        while (iterator.hasNext()) {
+            Object object = iterator.next();
+
+            constraint.checkElement(object);
+        }
+
+        return arraylist;
+    }
+
+    static class ConstrainedListIterator<E> extends ForwardingListIterator<E> {
+
+        private final ListIterator<E> delegate;
+        private final Constraint<? super E> constraint;
+
+        public ConstrainedListIterator(ListIterator<E> listiterator, Constraint<? super E> constraint) {
+            this.delegate = listiterator;
+            this.constraint = constraint;
+        }
+
+        @Override
+        protected ListIterator<E> delegate() {
+            return this.delegate;
+        }
+
+        @Override
+        public void add(E e0) {
+            this.constraint.checkElement(e0);
+            this.delegate.add(e0);
+        }
+
+        @Override
+        public void set(E e0) {
+            this.constraint.checkElement(e0);
+            this.delegate.set(e0);
+        }
+    }
+
+    static class ConstrainedRandomAccessList<E> extends Constraints.ConstrainedList<E> implements RandomAccess {
+
+        ConstrainedRandomAccessList(List<E> list, Constraint<? super E> constraint) {
+            super(list, constraint);
+        }
+    }
+
+    @GwtCompatible
+    private static class ConstrainedList<E> extends ForwardingList<E> {
+
+        final List<E> delegate;
+        final Constraint<? super E> constraint;
+
+        ConstrainedList(List<E> list, Constraint<? super E> constraint) {
+            this.delegate = (List) Preconditions.checkNotNull(list);
+            this.constraint = (Constraint) Preconditions.checkNotNull(constraint);
+        }
+
+        @Override
+        protected List<E> delegate() {
+            return this.delegate;
+        }
+
+        @Override
+        public boolean add(E e0) {
+            this.constraint.checkElement(e0);
+            return this.delegate.add(e0);
+        }
+
+        @Override
+        public void add(int i, E e0) {
+            this.constraint.checkElement(e0);
+            this.delegate.add(i, e0);
+        }
+
+        @Override
+        public boolean addAll(Collection<? extends E> collection) {
+            return this.delegate.addAll(Constraints.checkElements(collection, this.constraint));
+        }
+
+        @Override
+        public boolean addAll(int i, Collection<? extends E> collection) {
+            return this.delegate.addAll(i, Constraints.checkElements(collection, this.constraint));
+        }
+
+        @Override
+        public ListIterator<E> listIterator() {
+            return Constraints.constrainedListIterator(this.delegate.listIterator(), this.constraint);
+        }
+
+        @Override
+        public ListIterator<E> listIterator(int i) {
+            return Constraints.constrainedListIterator(this.delegate.listIterator(i), this.constraint);
+        }
+
+        @Override
+        public E set(int i, E e0) {
+            this.constraint.checkElement(e0);
+            return this.delegate.set(i, e0);
+        }
+
+        @Override
+        public List<E> subList(int i, int j) {
+            return Constraints.constrainedList(this.delegate.subList(i, j), this.constraint);
+        }
+    }
+
+    private static class ConstrainedSortedSet<E> extends ForwardingSortedSet<E> {
+
+        final SortedSet<E> delegate;
+        final Constraint<? super E> constraint;
+
+        ConstrainedSortedSet(SortedSet<E> sortedset, Constraint<? super E> constraint) {
+            this.delegate = (SortedSet) Preconditions.checkNotNull(sortedset);
+            this.constraint = (Constraint) Preconditions.checkNotNull(constraint);
+        }
+
+        @Override
+        protected SortedSet<E> delegate() {
+            return this.delegate;
+        }
+
+        @Override
+        public SortedSet<E> headSet(E e0) {
+            return Constraints.constrainedSortedSet(this.delegate.headSet(e0), this.constraint);
+        }
+
+        @Override
+        public SortedSet<E> subSet(E e0, E e1) {
+            return Constraints.constrainedSortedSet(this.delegate.subSet(e0, e1), this.constraint);
+        }
+
+        @Override
+        public SortedSet<E> tailSet(E e0) {
+            return Constraints.constrainedSortedSet(this.delegate.tailSet(e0), this.constraint);
+        }
+
+        @Override
+        public boolean add(E e0) {
+            this.constraint.checkElement(e0);
+            return this.delegate.add(e0);
+        }
+
+        @Override
+        public boolean addAll(Collection<? extends E> collection) {
+            return this.delegate.addAll(Constraints.checkElements(collection, this.constraint));
+        }
+    }
+
+    static class ConstrainedSet<E> extends ForwardingSet<E> {
+
+        private final Set<E> delegate;
+        private final Constraint<? super E> constraint;
+
+        public ConstrainedSet(Set<E> set, Constraint<? super E> constraint) {
+            this.delegate = (Set) Preconditions.checkNotNull(set);
+            this.constraint = (Constraint) Preconditions.checkNotNull(constraint);
+        }
+
+        @Override
+        protected Set<E> delegate() {
+            return this.delegate;
+        }
+
+        @Override
+        public boolean add(E e0) {
+            this.constraint.checkElement(e0);
+            return this.delegate.add(e0);
+        }
+
+        @Override
+        public boolean addAll(Collection<? extends E> collection) {
+            return this.delegate.addAll(Constraints.checkElements(collection, this.constraint));
+        }
+    }
+
+    static class ConstrainedCollection<E> extends ForwardingCollection<E> {
+
+        private final Collection<E> delegate;
+        private final Constraint<? super E> constraint;
+
+        public ConstrainedCollection(Collection<E> collection, Constraint<? super E> constraint) {
+            this.delegate = (Collection) Preconditions.checkNotNull(collection);
+            this.constraint = (Constraint) Preconditions.checkNotNull(constraint);
+        }
+
+        @Override
+        protected Collection<E> delegate() {
+            return this.delegate;
+        }
+
+        @Override
+        public boolean add(E e0) {
+            this.constraint.checkElement(e0);
+            return this.delegate.add(e0);
+        }
+
+        @Override
+        public boolean addAll(Collection<? extends E> collection) {
+            return this.delegate.addAll(Constraints.checkElements(collection, this.constraint));
+        }
+    }
+}

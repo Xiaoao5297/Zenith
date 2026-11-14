@@ -1,0 +1,26 @@
+package version
+
+import "fmt"
+
+const (
+	Major = 0
+
+	Minor = 3
+
+	Patch = 9
+
+	Codename = "rain+"
+
+	MinecraftVersion = "0.14.3"
+
+	ProtocolVersion = 70
+)
+
+func String() string {
+	return fmt.Sprintf("%d.%d.%d", Major, Minor, Patch)
+}
+
+func Full() string {
+	return fmt.Sprintf("Scaxe Go v%s \"%s\" (MCPE %s, Protocol %d)",
+		String(), Codename, MinecraftVersion, ProtocolVersion)
+}
