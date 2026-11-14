@@ -313,7 +313,8 @@ class BackupManager{
 		$this->running = true;
 		$this->runningTier = $tier;
 		@file_put_contents($this->stateDir . $tier . ".running", time());
-		$this->server->getLogger()->info("[Backup] 开始备份 [" . $tier . "] -> " . $dest);
+		// 例行备份的过程日志走 debug，避免刷屏；失败/磁盘不足仍走 error/warning。
+		$this->server->getLogger()->debug("[Backup] 开始备份 [" . $tier . "] -> " . $dest);
 		$this->server->getScheduler()->scheduleAsyncTask(new BackupTask($tier, $this->dataPath, $dest, $prev, $this->include));
 		return true;
 	}
@@ -332,7 +333,7 @@ class BackupManager{
 				isset($result["linked"]) ? $result["linked"] : 0,
 				isset($result["copied"]) ? $result["copied"] : 0,
 				$removed);
-			$this->server->getLogger()->info("[Backup] " . $this->lastMessage);
+			$this->server->getLogger()->debug("[Backup] " . $this->lastMessage);
 		}else{
 			$dest = isset($result["dest"]) ? (string) $result["dest"] : "";
 			if($dest !== "" and is_dir($dest)){
