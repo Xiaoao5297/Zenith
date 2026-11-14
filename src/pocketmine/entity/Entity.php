@@ -532,6 +532,16 @@ abstract class Entity extends Location implements Metadatable{
      *
      * @return string
      */
+    /**
+     * 是否随区块保存到磁盘。绳结(LeashKnot)由被拴实体的 NBT 恢复, 不落盘,
+     * 否则每次区块重载都会按动物 NBT 新建一个、再加载旧的, 造成无限增长。
+     *
+     * @return bool
+     */
+    public function canBeSaved() : bool{
+        return true;
+    }
+
     public function getSaveId(){
         return self::$shortNames[static::class];
     }

@@ -18,6 +18,10 @@ class SlimeBlock extends Solid{
 		return true;
 	}
 
+	public function canStickBlocks(){
+		return true;
+	}
+
 	public function getHardness() {
 		return 0;
 	}

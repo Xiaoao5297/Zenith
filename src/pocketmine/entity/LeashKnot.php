@@ -69,6 +69,10 @@ class LeashKnot extends Entity{
 	/**
 	 * 绳结本身不落盘：被牵引实体保存的是栅栏坐标，加载时按坐标重建。
 	 */
+	public function canBeSaved() : bool{
+		return false;
+	}
+
 	public function getSaveId(){
 		return "LeashKnot";
 	}

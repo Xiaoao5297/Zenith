@@ -29,6 +29,7 @@ class ConfigEncodingTest{
 			self::testUtf8BomWithCrlf(),
 			self::testGbkLegacyFile(),
 			self::testGbkMojibakeRepair(),
+			self::testValidCjkNotMojibake(),
 			self::testUnicodeEscape(),
 			self::testUnicodeSurrogatePair(),
 			self::testCommonEscapes(),
@@ -127,6 +128,19 @@ class ConfigEncodingTest{
 		return [
 			["mojibake_repaired", $config->get("greet") === "测试", "合法 UTF-8 的 GBK 乱码被修复为原字符"],
 		];
+	}
+
+	private static function testValidCjkNotMojibake() : array{
+		$results = [];
+		$cases = ["一", "专", "业", "你好世界", "服务器"];
+		foreach($cases as $i => $value){
+			$path = self::writeFile("valid-cjk-" . $i . ".properties", "motd=" . $value . "\r\n");
+			$config = self::load($path);
+			$onDisk = \file_get_contents($path);
+			$results[] = ["valid_cjk_" . $i . "_value", $config->get("motd") === $value, "合法中文 " . $value . " 不被当成乱码"];
+			$results[] = ["valid_cjk_" . $i . "_disk", \strpos($onDisk, "motd=" . $value) !== false, "磁盘内容未被改写"];
+		}
+		return $results;
 	}
 
 	private static function testUnicodeEscape() : array{

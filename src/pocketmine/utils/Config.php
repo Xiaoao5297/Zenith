@@ -615,12 +615,41 @@ class Config{
 	private function repairUtf8MojibakePropertiesContent($content){
 		foreach(["GB18030", "GBK"] as $encoding){
 			$repaired = $this->reencodePropertiesContent($content, $encoding);
-			if(is_string($repaired) and $repaired !== "" and $repaired !== $content and $this->isValidUtf8($repaired)){
-				return $repaired;
+			if(!is_string($repaired) or $repaired === "" or $repaired === $content or !$this->isValidUtf8($repaired)){
+				continue;
 			}
+			//误判护栏: 合法中文按 GB18030 重编码后可能落到西里尔/希伯来等区段,
+			//这类结果不可能是真正的乱码修复, 按原样保留, 避免把玩家文案写坏.
+			if($this->hasUnexpectedMojibakeScript($repaired)){
+				continue;
+			}
+			if($this->containsCjk($content) and !$this->containsCjk($repaired)){
+				continue;
+			}
+			return $repaired;
 		}
 
 		return null;
+	}
+
+	/**
+	 * 判断文本是否含有"中文被误当 GBK 重编码"后常见的非目标文字区段.
+	 *
+	 * @param string $text
+	 *
+	 * @return bool
+	 */
+	private function hasUnexpectedMojibakeScript($text){
+		return preg_match('/[\x{0370}-\x{03FF}\x{0400}-\x{052F}\x{0530}-\x{058F}\x{0590}-\x{05FF}\x{0600}-\x{06FF}\x{0700}-\x{074F}\x{0E00}-\x{0E7F}]/u', $text) === 1;
+	}
+
+	/**
+	 * @param string $text
+	 *
+	 * @return bool
+	 */
+	private function containsCjk($text){
+		return preg_match('/[\x{3400}-\x{4DBF}\x{4E00}-\x{9FFF}\x{F900}-\x{FAFF}]/u', $text) === 1;
 	}
 
 	/**

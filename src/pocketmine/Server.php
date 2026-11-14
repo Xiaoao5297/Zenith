@@ -137,6 +137,7 @@ use pocketmine\entity\Chicken;
 use pocketmine\entity\Cow;
 use pocketmine\entity\Pig;
 use pocketmine\entity\Sheep;
+use pocketmine\entity\Witch;
 use pocketmine\entity\Wolf;
 use pocketmine\entity\Mooshroom;
 use pocketmine\entity\Creeper;
@@ -3926,6 +3927,8 @@ private function lookupAddress($address) {
 
 		//B2: 拴绳结实体, 由 Lead 在栅栏上创建
 		Entity::registerEntity(LeashKnot::class);
+		//结构补全(B4)/自然刷怪(B3)会用到女巫, 必须注册才能创建
+		Entity::registerEntity(Witch::class);
 
 		Entity::registerEntity(Human::class, true);
 	}

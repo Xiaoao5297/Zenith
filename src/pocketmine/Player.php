@@ -42,6 +42,7 @@ use pocketmine\entity\Minecart;
 use pocketmine\entity\MinecartChest;
 use pocketmine\entity\MinecartHopper;
 use pocketmine\entity\MinecartTNT;
+use pocketmine\entity\Mob;
 use pocketmine\entity\Projectile;
 use pocketmine\entity\ThrownExpBottle;
 use pocketmine\entity\Villager;
@@ -2023,9 +2024,10 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					$target = $targetLevel instanceof Level ? NetherPortalHelper::convertPosBetweenNetherAndOverworld($this->getPosition(), $targetLevel) : null;
 					if($target instanceof Position){
 						$this->fromPos = null;
+						$this->portalTime = 0;
 						$this->teleport($this->shouldResPos = $target);
 					}
-					$this->portalTime = 0;
+					//目标世界不存在时不重置 portalTime, 否则玩家要重新站满冷却才会再次尝试
 				}
 			}
 			$this->processMovement($tickDiff);
@@ -5330,7 +5332,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 
 				//B2: 手持拴绳右键实体 -> 牵引 (0.15+ 客户端, 由 Lead 内部校验协议与状态)
-				if($packet->action === InteractPacket::ACTION_RIGHT_CLICK and $target instanceof Entity and !($target instanceof Player) and $this->getInventory()->getItemInHand() instanceof Lead){
+				if($packet->action === InteractPacket::ACTION_RIGHT_CLICK and $target instanceof Mob and $this->getInventory()->getItemInHand() instanceof Lead){
 					$handItem = $this->getInventory()->getItemInHand();
 					if($target->distanceSquared($this) <= 49 and $handItem->leashEntity($this, $target)){
 						$this->getInventory()->sendHeldItem($this);

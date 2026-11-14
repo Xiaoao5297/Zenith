@@ -194,15 +194,23 @@ final class MetadataMapping{
 		}
 
 		$type = (int) $property[0];
-		return $type >= self::DATA_TYPE_BYTE and $type <= self::DATA_TYPE_LONG;
+		//允许 8: Zenith 内部用 8 表示 64 位长整型(协议里是 7).
+		return $type >= self::DATA_TYPE_BYTE and $type <= self::DATA_TYPE_LONG + 1;
 	}
 
 	private static function normalizeMetadataProperty(int $index, array $property, int $expectedType){
-		if((int) $property[0] === $expectedType){
+		$type = (int) $property[0];
+		if($type === $expectedType){
 			return [$expectedType, $expectedType === self::DATA_TYPE_BYTE ? ((int) $property[1]) & 0xff : $property[1]];
 		}
 
-		if($index === 0 and self::isIntegerMetadataType((int) $property[0])){
+		//Zenith 内部把 64 位长整型记为 8(7 被 DATA_TYPE_ROTATION 占用), 协议里的 LONG 是 7.
+		//0.15 的拴绳持有者(索引 23)是 long, 不转换会被整条丢弃, 客户端看不到拴绳.
+		if($expectedType === self::DATA_TYPE_LONG and $type === self::DATA_TYPE_LONG + 1){
+			return [self::DATA_TYPE_LONG, (int) $property[1]];
+		}
+
+		if($index === 0 and self::isIntegerMetadataType($type)){
 			return [self::DATA_TYPE_BYTE, ((int) $property[1]) & 0xff];
 		}
 

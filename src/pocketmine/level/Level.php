@@ -3030,14 +3030,19 @@ class Level implements ChunkManager, Metadatable{
 	}
 
 	private function processDeferredStructureMobs(FullChunk $chunk){
-		if(!$this->shouldProcessDeferredStructureMobs($chunk)){
-			return;
-		}
+		$allowed = $this->shouldProcessDeferredStructureMobs($chunk);
 
 		foreach($chunk->getBlockExtraDataArray() as $index => $value){
 			$marker = (int) $value;
 			$entityId = $this->getDeferredStructureMobEntityId($marker);
 			if($entityId === 0){
+				continue;
+			}
+
+			if(!$allowed){
+				//关闭刷怪时也要消费标记: extraData 不随区块落盘, 留着只会让标记丢失得不一致
+				$this->getChunkExtraDataXYZ($index, $x, $y, $z);
+				$chunk->setBlockExtraData($x, $y, $z, 0);
 				continue;
 			}
 
@@ -3061,7 +3066,7 @@ class Level implements ChunkManager, Metadatable{
 					$entity->setMobEquipment(DeferredStructureMobs::createRaiderZombieArmor(), Item::get(Item::AIR, 0, 0));
 					$entity->setNameTag(DeferredStructureMobs::RAIDER_ZOMBIE_NAME);
 					$entity->setNameTagVisible(true);
-				}elseif($entity instanceof Ageable){
+				}elseif($entity instanceof Ageable and !($entity instanceof Villager)){
 					AgeableSpawnHelper::maybeSetBaby($entity, AgeableSpawnHelper::PNX_NATURAL_BABY_CHANCE);
 				}
 				$entity->spawnToAll();

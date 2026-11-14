@@ -105,7 +105,17 @@ class Lead extends Item{
 			}
 		}
 
-		return $attached;
+		if(!$attached){
+			//没有拴上任何实体时回收刚创建的绳结, 避免留下空结
+			if($knot instanceof LeashKnot){
+				$knot->close();
+			}
+			return false;
+		}
+
+		//挂到栅栏同样消耗一根拴绳(创造模式除外)
+		$this->consumeLead($player);
+		return true;
 	}
 
 	private function consumeLead(Player $player){
