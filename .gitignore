@@ -1,0 +1,13 @@
+# 构建产物（HYG-002：发布物走 GitHub Release，不进源码历史）
+*.phar
+
+# 本地编辑备份（HYG-001：版本历史由 git 保留，.bak 是冗余的第二历史）
+*.bak
+
+# 运行时产物
+server.log
+debug_trace.log
+
+# 本地会话/工具文件
+session.json
+.qwen/

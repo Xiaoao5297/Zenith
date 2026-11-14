@@ -134,7 +134,12 @@ class BanList{
 		if(is_resource($fp)){
 			while(($line = fgets($fp)) !== false){
 				if($line{0} !== "#"){
-					$entry = BanEntry::fromString($line);
+					try{
+						$entry = BanEntry::fromString($line);
+					}catch(\Exception $e){
+						MainLogger::getLogger()->warning("跳过封禁列表损坏行: " . trim($line));
+						continue;
+					}
 					if($entry instanceof BanEntry){
 						$this->list[$entry->getName()] = $entry;
 					}
@@ -148,18 +153,17 @@ class BanList{
 
 	public function save($flag = true){
 		$this->removeExpired();
-		$fp = @fopen($this->file, "w");
-		if(is_resource($fp)){
-			if($flag === true){
-				fwrite($fp, "# 更新日期 " . strftime("%x %H:%M", time()) . " by " . Server::getInstance()->getName() . " " . Server::getInstance()->getPocketMineVersion() . "\n");
-				fwrite($fp, "# 用户名 | 封禁日期 | 封禁管理员 | 解禁日期 | 原因\n\n");
-			}
+		$buffer = "";
+		if($flag === true){
+			$buffer .= "# 更新日期 " . strftime("%x %H:%M", time()) . " by " . Server::getInstance()->getName() . " " . Server::getInstance()->getPocketMineVersion() . "\n";
+			$buffer .= "# 用户名 | 封禁日期 | 封禁管理员 | 解禁日期 | 原因\n\n";
+		}
 
-			foreach($this->list as $entry){
-				fwrite($fp, $entry->getString() . "\n");
-			}
-			fclose($fp);
-		}else{
+		foreach($this->list as $entry){
+			$buffer .= $entry->getString() . "\n";
+		}
+
+		if(!\pocketmine\utils\Utils::atomicWriteFile($this->file, $buffer)){
 			MainLogger::getLogger()->error("未保存封禁列表");
 		}
 	}

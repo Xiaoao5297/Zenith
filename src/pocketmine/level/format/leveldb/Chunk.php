@@ -50,7 +50,7 @@ class Chunk extends BaseFullChunk{
 
 	public function setBlockId($x, $y, $z, $id){
 		$this->blocks[($x << 11) | ($z << 7) | $y] = chr($id);
-		$this->hasChanged = true;
+		$this->setChanged();
 	}
 
 	public function getBlockData($x, $y, $z){
@@ -70,7 +70,7 @@ class Chunk extends BaseFullChunk{
 		}else{
 			$this->data[$i] = chr((($data & 0x0f) << 4) | ($old_m & 0x0f));
 		}
-		$this->hasChanged = true;
+		$this->setChanged();
 	}
 
 	public function getFullBlock($x, $y, $z){
@@ -118,7 +118,7 @@ class Chunk extends BaseFullChunk{
 		}
 
 		if($changed){
-			$this->hasChanged = true;
+			$this->setChanged();
 		}
 
 		return $changed;
@@ -141,7 +141,7 @@ class Chunk extends BaseFullChunk{
 		}else{
 			$this->skyLight[$i] = chr((($level & 0x0f) << 4) | ($old_sl & 0x0f));
 		}
-		$this->hasChanged = true;
+		$this->setChanged();
 	}
 
 	public function getBlockLight($x, $y, $z){
@@ -161,7 +161,7 @@ class Chunk extends BaseFullChunk{
 		}else{
 			$this->blockLight[$i] = chr((($level & 0x0f) << 4) | ($old_l & 0x0f));
 		}
-		$this->hasChanged = true;
+		$this->setChanged();
 	}
 
 	public function getBlockIdColumn($x, $z){

@@ -90,7 +90,10 @@ class Creeper extends Monster{
                 $e = new Explosion(new Position($this->getX() , $this->getY() , $this->getZ() , $this->getLevel()) , 5);
                 if ($this->getLevel()->getServer()->aiConfig["creeperexplode"] and !$this->getLevel()->getServer()->isWorldCreeperBlockDamageDisabled($this->getLevel())) $e->explode();
                 else $e->explodeB();
-				$this->getLevel()->removeEntity($this);
+				//BUG-016: Level::removeEntity 现在只做索引注销, 不再 kill.
+				//爆炸销毁自身需显式 kill() + close().
+				$this->kill();
+				$this->close();
 			}
 		}
 		return $hasUpdate;

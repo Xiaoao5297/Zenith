@@ -9,7 +9,7 @@
  *
  *
  * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
+ * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
@@ -23,6 +23,7 @@ namespace pocketmine\anticheat;
 
 use pocketmine\Server;
 use pocketmine\Player;
+use pocketmine\inventory\Inventory;
 use pocketmine\block\Block;
 use pocketmine\entity\Entity;
 use pocketmine\level\Position;
@@ -85,6 +86,9 @@ class AntiCheat{
 
 	/** @var BaseCheck[] */
 	private $checks = [];
+
+	/** @var BaseCheck[] 类名 => 实例，getCheck() 热路径缓存 */
+	private $checkCache = [];
 
 	/** @var PlayerData[] 键为小写玩家名 */
 	private $playerData = [];
@@ -281,6 +285,12 @@ class AntiCheat{
 			new TeleportCheck($this, $checksConfig["teleport"] ?? []),
 			new KnockbackCheck($this, $checksConfig["knockback"] ?? []),
 		];
+
+		// 预构建 getCheck() 的类名 => 实例缓存（热路径，见 getCheck）
+		$this->checkCache = [];
+		foreach($this->checks as $check){
+			$this->checkCache[get_class($check)] = $check;
+		}
 	}
 
 	// ============ 消息 ============
@@ -451,8 +461,13 @@ class AntiCheat{
 	}
 
 	public function getCheck(string $class) : ?BaseCheck{
+		// setItem 等热路径每次都会查 check，先走缓存避免线性扫描
+		if(isset($this->checkCache[$class])){
+			return $this->checkCache[$class];
+		}
 		foreach($this->checks as $check){
 			if(get_class($check) === $class){
+				$this->checkCache[$class] = $check;
 				return $check;
 			}
 		}
@@ -605,7 +620,40 @@ class AntiCheat{
 	}
 
 	/**
+	 * 库存槽位写入（SEC-009，从 BaseInventory::setItem / PlayerInventory::setItem 调用）。
+	 *
+	 * 覆盖所有 setItem 路径：ContainerSetSlot 事务、创造拿取、插件写入等。
+	 * 仅由库存层在"来源可能为客户端"（holder 是玩家或库存有 viewer）时调用，
+	 * 服务端内部自动化写入不会进入此方法，无需在此再做豁免。
+	 *
+	 * 事件路径无返回值：flag 走 ViolationManager 缓冲（alert/punish 双模式自动生效），
+	 * 不抛异常、不在此踢人。playerException 防御与 onItemHeld 一致。
+	 */
+	public function onItemSet(Inventory $inventory, int $index, \pocketmine\item\Item $item){
+		if(!$this->enabled) return;
+
+		// 仅检测玩家自己的背包：holder 必须是 Player。
+		// 带 viewer 的 tile 库存（箱子/熔炉等）不归因到"第一个浏览者"——
+		// 打开界面的无辜玩家不应为插件/自动化写入的物品背锅（punish 模式下会被误移除物品）。
+		$holder = $inventory->getHolder();
+		if(!($holder instanceof Player) or !$holder->isOnline()){
+			return;
+		}
+		$player = $holder;
+
+		/** @var ItemCheck $itemCheck */
+		if(($itemCheck = $this->getCheck(ItemCheck::class)) !== null){
+			$itemCheck->check($player, $item);
+		}
+	}
+
+	/**
 	 * 传送/切换世界/加入后的短暂豁免窗口（tick）。
+	 *
+	 * 另含受伤后 10 tick（0.5s）的短豁免：被击退/爆炸推动时的大位移会触发
+	 * Speed/Teleport 误报（KnockbackCheck 有专门检查，但 SpeedCheck/TeleportCheck
+	 * 不感知受伤事件）。窗口刻意很短——更长的窗口会被利用"自伤刷豁免"，
+	 * 但 0.5 秒内自伤（仙人掌等）收益极低且有伤害间隔，权衡后可接受。
 	 */
 	private function isMovementExempt(PlayerData $data, int $tick) : bool{
 		$grace = 40;
@@ -617,6 +665,12 @@ class AntiCheat{
 			return true;
 		}
 		if($data->getLastWorldChangeTick() >= 0 and $tick - $data->getLastWorldChangeTick() < $grace){
+			return true;
+		}
+
+		// 受伤后短窗口：击退/爆炸推动产生的位移不是玩家主动加速
+		$damageGrace = 10;
+		if($data->getLastDamageTick() >= 0 and $tick - $data->getLastDamageTick() < $damageGrace){
 			return true;
 		}
 

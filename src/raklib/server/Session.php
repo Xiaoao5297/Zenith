@@ -51,6 +51,7 @@ class Session{
 
 	const MAX_SPLIT_SIZE = 128;
 	const MAX_SPLIT_COUNT = 4;
+	const MAX_RELIABLE_WINDOW_BUFFER = 1024;
 
 	public static $WINDOW_SIZE = 2048;
 
@@ -86,11 +87,12 @@ class Session{
 
 	/** @var DataPacket[] */
 	private $recoveryQueue = [];
-	private $recoveryRetry = [];
 
 	/** @var DataPacket[][] */
 	private $splitPackets = [];
 	private $splitTime = [];
+	/** @var int[] */
+	private $splitCounts = [];
 
 	/** @var int[][] */
 	private $needACK = [];
@@ -167,9 +169,18 @@ class Session{
 			foreach($this->packetToSend as $k => $pk){
 				$pk->sendTime = $time;
 				$pk->encode();
-				$this->recoveryQueue[$pk->seqNumber] = $pk;
 				unset($this->packetToSend[$k]);
 				$this->sendPacket($pk);
+				//发送完成，清除 NACK 路径设置的幂等标记，允许后续 NACK/超时再次触发重传
+				$pk->pendingRetransmit = false;
+
+				//retryCount>5 的包已在 NACK 路径被放弃（giveup），此处不再回填 recoveryQueue，
+				//防止其经 packetToSend 路径重新进入恢复队列而撤销放弃上限
+				if(($pk->retryCount ?? 0) > 5){
+					continue;
+				}
+
+				$this->recoveryQueue[$pk->seqNumber] = $pk;
 
 				if(--$limit <= 0){
 					break;
@@ -193,6 +204,12 @@ class Session{
 
 		foreach($this->recoveryQueue as $seq => $pk){
 			if($pk->sendTime < (time() - 8)){
+				//与 NACK 路径共用幂等标记：该包已因 NACK 在 packetToSend 中等待重传时不再重复入队
+				//（NACK 路径保留条目在 recoveryQueue，若本轮 packetToSend 超出 16 包上限未及发送，
+				//sendTime 仍为旧值，此处若无保护会重复 push）
+				if(!empty($pk->pendingRetransmit)){
+					continue;
+				}
 				$this->packetToSend[] = $pk;
 				unset($this->recoveryQueue[$seq]);
 			}else{
@@ -319,7 +336,7 @@ class Session{
 	}
 
 	private function handleSplit(EncapsulatedPacket $packet){
-		if($packet->splitCount >= self::MAX_SPLIT_SIZE or $packet->splitIndex >= self::MAX_SPLIT_SIZE or $packet->splitIndex < 0){
+		if($packet->splitCount < 1 or $packet->splitCount >= self::MAX_SPLIT_SIZE or $packet->splitIndex >= self::MAX_SPLIT_SIZE or $packet->splitIndex < 0){
 			return;
 		}
 
@@ -332,6 +349,7 @@ class Session{
 					if(($now - ($this->splitTime[$id] ?? $now)) > 30){
 						unset($this->splitPackets[$id]);
 						unset($this->splitTime[$id]);
+						unset($this->splitCounts[$id]);
 					}
 				}
 				if(count($this->splitPackets) >= self::MAX_SPLIT_COUNT){
@@ -340,19 +358,36 @@ class Session{
 			}
 			$this->splitPackets[$packet->splitID] = [$packet->splitIndex => $packet];
 			$this->splitTime[$packet->splitID] = time();
+			$this->splitCounts[$packet->splitID] = $packet->splitCount;
 		}else{
+			if($this->splitCounts[$packet->splitID] !== $packet->splitCount){
+				// 同一 splitID 的 splitCount 不一致，视为恶意/损坏数据，丢弃整组
+				unset($this->splitPackets[$packet->splitID]);
+				unset($this->splitTime[$packet->splitID]);
+				unset($this->splitCounts[$packet->splitID]);
+				return;
+			}
 			$this->splitPackets[$packet->splitID][$packet->splitIndex] = $packet;
 		}
 
-		if(count($this->splitPackets[$packet->splitID]) === $packet->splitCount){
+		if(isset($this->splitPackets[$packet->splitID]) and count($this->splitPackets[$packet->splitID]) === $packet->splitCount){
 			$pk = new EncapsulatedPacket();
 			$pk->buffer = "";
 			for($i = 0; $i < $packet->splitCount; ++$i){
+				if(!isset($this->splitPackets[$packet->splitID][$i])){
+					// 组不完整，丢弃整组，避免对 null 解引用
+					unset($this->splitPackets[$packet->splitID]);
+					unset($this->splitTime[$packet->splitID]);
+					unset($this->splitCounts[$packet->splitID]);
+					return;
+				}
 				$pk->buffer .= $this->splitPackets[$packet->splitID][$i]->buffer;
 			}
 
 			$pk->length = strlen($pk->buffer);
 			unset($this->splitPackets[$packet->splitID]);
+			unset($this->splitTime[$packet->splitID]);
+			unset($this->splitCounts[$packet->splitID]);
 
 			$this->handleEncapsulatedPacketRoute($pk);
 		}
@@ -387,6 +422,17 @@ class Session{
 					}
 				}
 			}else{
+				//SEC-025：reliableWindow 缓存条目无上限，攻击者发送 messageIndex 大幅跳跃且
+				//缺口永不补齐的可靠包时，条目会滞留至断线（窗口跨度 2048 × ~1.4KB ≈ 2.8MB/会话）。
+				//此处限制缓存条目数为窗口一半（1024）：正常客户端的乱序重排只差几个包，
+				//远达不到该上限；达到上限即视为异常，断开连接。
+				//disconnect() → removeSession() → close() 与 update() 超时路径一致，
+				//同线程上下文内调用安全；close() 置空 sessionManager 后本函数入口即短路返回。
+				if(count($this->reliableWindow) >= self::MAX_RELIABLE_WINDOW_BUFFER){
+					$this->disconnect("reliable window overflow");
+
+					return;
+				}
 				$this->reliableWindow[$packet->messageIndex] = $packet;
 			}
 		}
@@ -399,6 +445,10 @@ class Session{
 
 	public function isTemporal(){
 		return $this->isTemporal;
+	}
+
+	public function isActive(){
+		return $this->isActive;
 	}
 
 	private function handleEncapsulatedPacketRoute(EncapsulatedPacket $packet){
@@ -480,6 +530,20 @@ class Session{
 
 				$diff = $packet->seqNumber - $this->lastSeqNumber;
 
+				//SEC-022 洞 A：seqNumber 相对 lastSeqNumber 的正向跳跃超过窗口一半（WINDOW_SIZE=2048 时即 >1024）
+				//属于异常现象：正常客户端的乱序重排只差几个包，1024+ 的连续缺失只可能是攻击或极端异常。
+				//若放行，下方循环会为每个缺失序号生成一条 NACK 记录（单包最多 ~2048 条，应答体 ~14KB），
+				//攻击者可循环触发形成稳态反射放大。此处直接断开连接，与现有 disconnect() 用法一致
+				//（同线程上下文内调用 removeSession()，与 update() 超时路径相同）。
+				//发送侧 seqNumber 为 32-bit 无取模自增，接收侧 unpack 3 字节为 24-bit：
+				//客户端 seq 跨 0x1000000 回绕时 diff 会表现为接近 2^24 的巨大正值，
+				//这属于正常回绕而非异常跳跃，需排除（长连接高流量会话约 1600 万包后必然触发）。
+				if($diff > (self::$WINDOW_SIZE >> 1) and $diff < (0x1000000 - (self::$WINDOW_SIZE >> 1))){
+					$this->disconnect("abnormal sequence jump");
+
+					return;
+				}
+
 				unset($this->NACKQueue[$packet->seqNumber]);
 				$this->ACKQueue[$packet->seqNumber] = $packet->seqNumber;
 				$this->receivedWindow[$packet->seqNumber] = $packet->seqNumber;
@@ -524,19 +588,28 @@ class Session{
 					$packet->decode();
 					foreach($packet->packets as $seq){
 						if(isset($this->recoveryQueue[$seq])){
-							// 限制重传次数，防止 NACK 放大攻击
-							$retry = ($this->recoveryRetry[$seq] ?? 0) + 1;
-							if($retry > 5){
-								unset($this->recoveryQueue[$seq]);
-								unset($this->recoveryRetry[$seq]);
+							//SEC-022 洞 B：重传时保持原 seqNumber 不变（与 update() 超时重传路径行为一致），
+							//重试计数挂在 EncapsulatedPacket 对象上（retryCount），跨 NACK 事件累计生效；
+							//原实现以旧 seq 为键的 recoveryRetry 计数器在重传后立即被 unset，从未存活，
+							//且换新 seq 导致客户端重复投递、计数失效。
+							$pk = $this->recoveryQueue[$seq];
+							//幂等保护：同一包在两次 update() 之间可能被多次 NACK，
+							//已在 packetToSend 中等待重传的包不再重复入队，避免重复重传
+							if(!empty($pk->pendingRetransmit)){
 								continue;
 							}
-							$this->recoveryRetry[$seq] = $retry;
-							$pk = $this->recoveryQueue[$seq];
-							$pk->seqNumber = $this->sendSeqNumber++;
+							$pk->pendingRetransmit = true;
+							$pk->retryCount = ($pk->retryCount ?? 0) + 1;
+							if($pk->retryCount > 5){
+								//重传超过 5 次仍未被 ACK：移出恢复队列并放弃该包
+								//（update() 回填 recoveryQueue 时同样跳过 retryCount>5 的包，放弃不可撤销）
+								unset($this->recoveryQueue[$seq]);
+								continue;
+							}
+							//条目保留在 recoveryQueue 中（键即原 seqNumber）：update() 发送 packetToSend
+							//时会以相同键回填 recoveryQueue 并刷新 sendTime，ACK 确认处负责最终移除；
+							//保留后同一包可被后续 NACK/超时再次触发重传并受 retryCount 限制。
 							$this->packetToSend[] = $pk;
-							unset($this->recoveryQueue[$seq]);
-							unset($this->recoveryRetry[$seq]);
 						}
 					}
 				}

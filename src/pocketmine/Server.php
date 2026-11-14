@@ -160,10 +160,6 @@ use pocketmine\entity\Boat;
 use pocketmine\entity\Minecart;
 use pocketmine\entity\ThrownPotion;
 use pocketmine\entity\Painting;
-use pocketmine\scheduler\DServerTask;
-use pocketmine\scheduler\CallbackTask;
-use synapse\Synapse;
-
 use pocketmine\utils\Poems;
 use pocketmine\item\map\MapData;
 
@@ -274,9 +270,6 @@ class Server{
 	/** @var \pocketmine\anticheat\AntiCheat */
 	private $antiCheat;
 
-	/** @var \pocketmine\web\WebPanel */
-	private $webPanel;
-
 	private $networkCompressionAsync = true;
 	public $networkCompressionLevel = 7;
 	// public $InCoreVersion = "0.7Alpha";
@@ -380,14 +373,15 @@ class Server{
 	public $regenerationInterval = 80;
 	public $regenerationFoodThreshold = 18;
 	public $interactDistance = 13;
-	public $spawnProtectionRadius = 16;
+	//WEAK-003: configurable tick overload warning threshold (TPS average below this triggers the warning)
+	public $tickOverloadThreshold = 15;
+	//SEC-014: server-side fast-eat rate limit switch (eatFoodInHand enforces EAT_MIN_INTERVAL when true)
+	public $antiFastEat = true;
+	public $spawnProtectionRadius = null;
 	public $version;
 	public $allowSnowGolem;
 	public $allowIronGolem;
 	public $autoClearInv = true;
-	public $dserverConfig = [];
-	public $dserverPlayers = 0;
-	public $dserverAllPlayers = 0;
 	public $redstoneEnabled = false;
 	public $allowFrequencyPulse = true;
 	public $anviletEnabled = false;
@@ -395,7 +389,6 @@ class Server{
 	public $playerMsgType = self::PLAYER_MSG_TYPE_MESSAGE;
 	public $playerLoginMsg = "";
 	public $playerLogoutMsg = "";
-	public $antiFly = false;
 	public $asyncChunkRequest = true;
 	public $recipesFromJson = false;
 	public $creativeItemsFromJson = false;
@@ -408,16 +401,12 @@ class Server{
 	public $allowSplashPotion = true;
 	public $fireSpread = false;
 	public $advancedCommandSelector = false;
-	public $synapseConfig = [];
 
 	/** @var CraftingDataPacket */
 	private $recipeList = null;
 
 	/** @var CraftingDataPacket[] 按协议版本缓存的配方列表 */
 	private $recipeLists = [];
-
-	/** @var Synapse */
-	private $synapse = null;
 
 
 	/**
@@ -750,10 +739,24 @@ class Server{
 	}
 
 	/**
+	 * 出生点保护半径（方块）。
+	 *
+	 * 配置来源（按优先级）：
+	 * 1. spawn-protection（主 server.properties）：-1 表示禁用保护；调用方以 "> -1" 判断开关。
+	 * 2. player.spawn-protection-radius（advanced config）：过去是死配置（读入后零引用）。
+	 *    BUG-027 将其并入此处作为覆盖值：只有当它显式设置且 >= 0 时才覆盖主配置的半径。
+	 *    设为 -1 可恢复跟随 spawn-protection。
+	 *
 	 * @return int
 	 */
 	public function getSpawnRadius(){
-		return $this->getConfigInt("spawn-protection", 16);
+		$radius = $this->getConfigInt("spawn-protection", 16);
+		$advanced = $this->spawnProtectionRadius;
+		if($advanced !== null and $advanced >= 0){
+			$radius = $advanced;
+		}
+
+		return $radius;
 	}
 
 	/**
@@ -1764,7 +1767,12 @@ class Server{
 		$this->regenerationInterval = (int) $this->getAdvancedProperty("player.regeneration-interval", 80);
 		$this->regenerationFoodThreshold = (int) $this->getAdvancedProperty("player.regeneration-food-threshold", 18);
 		$this->interactDistance = (int) $this->getAdvancedProperty("player.interact-distance", 13);
-		$this->spawnProtectionRadius = (int) $this->getAdvancedProperty("player.spawn-protection-radius", 16);
+		//BUG-027：此 advanced 配置曾为死配置；现参与 getSpawnRadius()（见其注释），>=0 时覆盖 spawn-protection 半径。
+		$advancedSpawnRadius = $this->getAdvancedProperty("player.spawn-protection-radius", null);
+		$this->spawnProtectionRadius = $advancedSpawnRadius !== null ? (int) $advancedSpawnRadius : null;
+		//WEAK-003: configurable tick overload threshold, clamped to a minimum of 1
+		$this->tickOverloadThreshold = max(1, (int) $this->getAdvancedProperty("server.tick-overload-threshold", 15));
+		$this->antiFastEat = (bool) $this->getAdvancedProperty("server.anti-fast-eat", true);
 		$this->aiEnabled = $this->getAdvancedProperty("ai.enable", true);
 		$this->consoleTitle = $this->getAdvancedProperty("server.console-title", true);
 		$this->aiConfig = [
@@ -1790,26 +1798,11 @@ class Server{
 		$this->allowSnowGolem = $this->getAdvancedProperty("server.allow-snow-golem", false);
 		$this->allowIronGolem = $this->getAdvancedProperty("server.allow-iron-golem", false);
 		$this->autoClearInv = $this->getAdvancedProperty("player.auto-clear-inventory", true);
-		$this->dserverConfig = [
-			"enable" => $this->getAdvancedProperty("dserver.enable", false),
-			"queryAutoUpdate" => $this->getAdvancedProperty("dserver.query-auto-update", false),
-			"queryTickUpdate" => $this->getAdvancedProperty("dserver.query-tick-update", true),
-			"motdMaxPlayers" => $this->getAdvancedProperty("dserver.motd-max-players", 0),
-			"queryMaxPlayers" => $this->getAdvancedProperty("dserver.query-max-players", 0),
-			"motdAllPlayers" => $this->getAdvancedProperty("dserver.motd-all-players", false),
-			"queryAllPlayers" => $this->getAdvancedProperty("dserver.query-all-players", false),
-			"motdPlayers" => $this->getAdvancedProperty("dserver.motd-players", false),
-			"queryPlayers" => $this->getAdvancedProperty("dserver.query-players", false),
-			"timer" => $this->getAdvancedProperty("dserver.time", 40),
-			"retryTimes" => $this->getAdvancedProperty("dserver.retry-times", 3),
-			"serverList" => explode(";", $this->getAdvancedProperty("dserver.server-list", ""))
-		];
 		$this->redstoneEnabled = $this->getAdvancedProperty("redstone.enable", false);
 		$this->allowFrequencyPulse = $this->getAdvancedProperty("redstone.allow-frequency-pulse", false);
 		$this->pulseFrequency = $this->getAdvancedProperty("redstone.pulse-frequency", 20);
 		$this->anviletEnabled = $this->getAdvancedProperty("server.allow-anvilandenchanttable", true);
 		$this->getLogger()->setWrite(!$this->getAdvancedProperty("server.disable-log", false));
-		$this->antiFly = $this->getAdvancedProperty("server.anti-fly", true);
 		$this->asyncChunkRequest = $this->getAdvancedProperty("server.async-chunk-request", true);
 		$this->recipesFromJson = $this->getAdvancedProperty("server.recipes-from-json", false);
 		$this->creativeItemsFromJson = $this->getAdvancedProperty("server.creative-items-from-json", false);
@@ -1821,44 +1814,6 @@ class Server{
 		$this->allowSplashPotion = $this->getAdvancedProperty("server.allow-splash-potion", true);
 		$this->fireSpread = $this->getAdvancedProperty("level.fire-spread", false);
 		$this->advancedCommandSelector = $this->getAdvancedProperty("server.advanced-command-selector", false);
-		$this->synapseConfig = [
-			"enabled" => $this->getAdvancedProperty("synapse.enabled", false),
-			"server-ip" => $this->getAdvancedProperty("synapse.server-ip", "127.0.0.1"),
-			"server-port" => $this->getAdvancedProperty("synapse.server-port", 10305),
-			"isMainServer" => $this->getAdvancedProperty("synapse.is-main-server", true),
-			"password" => $this->getAdvancedProperty("synapse.server-password", "123456"),
-			"description" => $this->getAdvancedProperty("synapse.description", "A Synapse client"),
-		];
-	}
-
-	public function isSynapseEnabled() : bool {
-		return (bool) $this->synapseConfig["enabled"];
-	}
-
-	/**
-	 * @return int
-	 *
-	 * Get DServer max players
-	 */
-	public function getDServerMaxPlayers(){
-		return ($this->dserverAllPlayers + $this->getMaxPlayers());
-	}
-
-	/**
-	 * @return int
-	 *
-	 * Get DServer all online player count
-	 */
-	public function getDServerOnlinePlayers(){
-		return ($this->dserverPlayers + count($this->getOnlinePlayers()));
-	}
-
-	public function isDServerEnabled(){
-		return $this->dserverConfig["enable"];
-	}
-
-	public function updateDServerInfo(){
-		$this->scheduler->scheduleAsyncTask(new DServerTask($this->dserverConfig["serverList"], $this->dserverConfig["retryTimes"]));
 	}
 
 	public function generateExpCache($level){
@@ -1961,19 +1916,16 @@ class Server{
 
 			$lang = $this->getProperty("settings.language", BaseLang::FALLBACK_LANGUAGE);
 			if(file_exists($this->filePath . "src/pocketmine/resources/genisys_$lang.yml")){
-				$content = file_get_contents($file = $this->filePath . "src/pocketmine/resources/genisys_$lang.yml");
+				$content = file_get_contents($this->filePath . "src/pocketmine/resources/genisys_$lang.yml");
 			}else{
-				$content = file_get_contents($file = $this->filePath . "src/pocketmine/resources/genisys_eng.yml");
+				$content = file_get_contents($this->filePath . "src/pocketmine/resources/genisys_eng.yml");
 			}
 
 			$genisysYml = $this->getConfigFile("genisys.yml");
 			if(!file_exists($genisysYml)){
 				@file_put_contents($genisysYml, $content);
 			}
-			$internelConfig = new Config($file, Config::YAML, []);
 			$this->advancedConfig = new Config($genisysYml, Config::YAML, []);
-			$cfgVer = $this->getAdvancedProperty("config.version", 0, $internelConfig);
-			$advVer = $this->getAdvancedProperty("config.version", 0);
 
 			$this->loadAdvancedConfig();
 
@@ -2010,6 +1962,8 @@ class Server{
 				"player-tp" => false,
 				"player-view-list" => false,
 				"player-view-plugins" => false,
+				// MISS-002: 同 IP 并发未登录连接数上限（0 = 不限制）
+				"network.max-connections-per-ip" => 3,
 			]);
 
 			$this->forceLanguage = $this->getProperty("settings.force-language", false);
@@ -2100,14 +2054,6 @@ class Server{
 
 			$this->antiCheat = new \pocketmine\anticheat\AntiCheat($this);
 
-			// 启动 Web 控制面板
-			$webPort = (int) $this->getAdvancedProperty("player.web-panel-port", 0);
-			if($webPort > 0){
-				$this->getLogger()->info($this->getLanguage()->translateString("pocketmine.server.webPanelStart", [$webPort]));
-				$this->webPanel = new \pocketmine\web\WebPanel($this, $webPort);
-				$this->webPanel->start();
-			}
-
 
 			$this->logger->info($this->getLanguage()->translateString("pocketmine.server.info", [
 				$this->getName(),
@@ -2146,7 +2092,7 @@ class Server{
 			$this->pluginManager->registerInterface(FolderPluginLoader::class);
 			$this->pluginManager->registerInterface(ScriptPluginLoader::class);
 
-			//set_exception_handler([$this, "exceptionHandler"]);
+			set_exception_handler([$this, "exceptionHandler"]);
 			register_shutdown_function([$this, "crashDump"]);
 
 			$this->queryRegenerateTask = new QueryRegenerateEvent($this, 5);
@@ -2255,33 +2201,12 @@ class Server{
 
 			$this->enablePlugins(PluginLoadOrder::POSTWORLD);
 
-			if($this->dserverConfig["enable"] and ($this->getAdvancedProperty("dserver.server-list", "") != "")) $this->scheduler->scheduleRepeatingTask(new CallbackTask([
-				$this,
-				"updateDServerInfo"
-			]), $this->dserverConfig["timer"]);
-
-			if($this->isSynapseEnabled()){
-				$this->synapse = new Synapse($this, $this->synapseConfig);
-			}
-
-			if($cfgVer != $advVer){
-				$this->logger->notice("Your genisys.yml needs update");
-				$this->logger->notice("Current Version: $advVer   Latest Version: $cfgVer");
-			}
-
 			$this->generateRecipeList();
 
 			$this->start();
 		}catch(\Throwable $e){
 			$this->exceptionHandler($e);
 		}
-	}
-
-	/**
-	 * @return Synapse
-	 */
-	public function getSynapse(){
-		return $this->synapse;
 	}
 
 	//@Deprecated
@@ -2719,9 +2644,6 @@ private function lookupAddress($address) {
 			if($this->rcon instanceof RCON){
 				$this->rcon->stop();
 			}
-			if($this->webPanel instanceof \pocketmine\web\WebPanel){
-				$this->webPanel->shutdown();
-			}
 
 			if($this->getProperty("network.upnp-forwarding", false) === true){
 				$this->logger->info("[UPnP] Removing port forward...");
@@ -2758,11 +2680,6 @@ private function lookupAddress($address) {
 			foreach($this->network->getInterfaces() as $interface){
 				$interface->shutdown();
 				$this->network->unregisterInterface($interface);
-			}
-
-			if($this->isSynapseEnabled()){
-				$this->getLogger()->debug($this->getLanguage()->translateString("pocketmine.server.debug.stopSynapseClient"));
-				$this->synapse->shutdown();
 			}
 
 			//$this->memoryManager->doObjectCleanup();
@@ -3869,12 +3786,6 @@ private function lookupAddress($address) {
 
 		Timings::$connectionTimer->startTiming();
 		$this->network->processInterfaces();
-		if($this->isSynapseEnabled()){
-			$this->synapse->tick();
-		}
-		if($this->webPanel !== null){
-			$this->webPanel->tick();
-		}
 
 		if($this->rcon !== null){
 			$this->rcon->check();
@@ -3898,9 +3809,7 @@ private function lookupAddress($address) {
 			$this->maxUse = 0;
 
 			if(($this->tickCounter & 0b111111111) === 0){
-				if(($this->dserverConfig["enable"] and $this->dserverConfig["queryTickUpdate"]) or !$this->dserverConfig["enable"]){
-					$this->updateQuery();
-				}
+				$this->updateQuery();
 			}
 
 			$this->getNetwork()->updateName();
@@ -3921,7 +3830,8 @@ private function lookupAddress($address) {
 				$level->clearCache();
 			}
 
-			if($this->getTicksPerSecondAverage() < 1){
+			//WEAK-003: use configurable threshold instead of hard-coded 1 (warn before the server is fully stalled)
+			if($this->getTicksPerSecondAverage() < $this->tickOverloadThreshold){
 				$this->logger->warning($this->getLanguage()->translateString("pocketmine.server.tickOverload"));
 			}
 		}

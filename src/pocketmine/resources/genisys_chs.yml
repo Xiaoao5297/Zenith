@@ -36,8 +36,8 @@ player:
  keep-experience: true
  #如果玩家加入时崩溃，请将此值设置为10以下。禁用=-1
  chunk-radius: -1
- #附魔等级上限（默认 32767，与原版一致；设为较小值如 10 可防止 32k 武器）
- max-enchant-level: 32767
+ #附魔等级上限（默认 30，与原版一致；Item.php 会以此钳制非法附魔）
+ max-enchant-level: 30
  #攻击冷却时间（秒，默认 0.15）
  attack-cooldown: 0.15
  #背包事务超时时间（秒，默认 2）
@@ -103,8 +103,11 @@ server:
  disable-log: false
  #选择是否刷新控制台窗口标题（某些终端如 Termux 会因此滚动到底部，可设为 false）
  console-title: true
- #选择是否启用自动反飞行
- anti-fly: true
+ #选择是否启用自动反飞行（已废弃：飞行检测由内置反作弊系统 anticheat/FlyCheck 处理，此配置不再生效）
+# anti-fly: true
+ #TPS 平均值低于此值时输出超载警告（默认 15，最小 1）
+ #tick-overload-threshold: 15
+ #anti-fast-eat: true
  #选择是否启用异步区块请求
  async-chunk-request: true
  #选择玩家加入时的提醒方式

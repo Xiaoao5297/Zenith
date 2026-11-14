@@ -52,7 +52,7 @@ class KickCommand extends VanillaCommand{
 		$name = array_shift($args);
 		$reason = trim(implode(" ", $args));
 
-		if(($player = $sender->getServer()->getPlayer($name)) instanceof Player){
+		if(($player = $sender->getServer()->getPlayerExact($name)) instanceof Player){
 			$player->kick($reason);
 			if(strlen($reason) >= 1){
 				Command::broadcastCommandMessage($sender, new TranslationContainer("commands.kick.success.reason", [$player->getName(), $reason]));

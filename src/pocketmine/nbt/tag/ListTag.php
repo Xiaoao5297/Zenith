@@ -123,6 +123,7 @@ class ListTag extends NamedTag implements \ArrayAccess, \Countable{
 			$size = 0;
 		}
 		for($i = 0; $i < $size and !$nbt->feof(); ++$i){
+			$nbt->countTag();
 			switch($this->tagType){
 				case NBT::TAG_Byte:
 					$tag = new ByteTag("");

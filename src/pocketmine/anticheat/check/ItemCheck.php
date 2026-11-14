@@ -9,7 +9,7 @@
  *
  *
  * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
+ * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
@@ -32,6 +32,15 @@ use pocketmine\item\Item;
  * 命中进入统一缓冲，alert 模式下不移除物品。
  */
 class ItemCheck extends Check{
+
+	/**
+	 * 重入守卫：punish 模式下 check() 内 removeItem 会触发 setItem →
+	 * onItemSet → check() 递归。第二层物品合法时会自然终止，但这里显式
+	 * 阻断递归，不依赖该隐式假设。
+	 *
+	 * @var bool
+	 */
+	private static $inCheck = false;
 
 	/** @var array */
 	private static $MAX_STACK_SIZES = [
@@ -79,7 +88,16 @@ class ItemCheck extends Check{
 	public function check(Player $player, Item $item){
 		if(!$this->enabled) return;
 		if($item->getId() === Item::AIR) return;
+		if(self::$inCheck) return;
+		self::$inCheck = true;
+		try{
+			$this->doCheck($player, $item);
+		}finally{
+			self::$inCheck = false;
+		}
+	}
 
+	private function doCheck(Player $player, Item $item){
 		$reason = $this->inspect($item);
 		if($reason === null){
 			$this->decay($player, 0.5);
@@ -88,8 +106,12 @@ class ItemCheck extends Check{
 
 		$this->flag($player, $reason . " (" . $item->getName() . ")", 1.0);
 
-		// 仅在惩罚模式下移除非法物品
-		if($this->shouldEnforce()){
+		// 仅在惩罚模式下移除非法物品。
+		// M3：堆叠数量类违规不做惩罚移除——/give 等插件命令会合法写入 count>64 的
+		// 堆叠（客户端注入路径已在 setItem 处被拒绝，到不了这里），punish 移除
+		// 会连带清掉玩家背包里的同 ID 合法物品（removeItem 按 equals 匹配）。
+		$isStackViolation = strpos($reason, "非法堆叠数量") === 0;
+		if($this->shouldEnforce() and !$isStackViolation){
 			$player->getInventory()->removeItem($item);
 			$player->sendMessage($this->antiCheat->getMessage("item-removed", ["item" => $item->getName()]));
 		}

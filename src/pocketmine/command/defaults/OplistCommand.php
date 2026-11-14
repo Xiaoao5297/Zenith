@@ -18,11 +18,13 @@ class OplistCommand extends VanillaCommand{
 		$this->setPermission("pocketmine.command.oplist");
 	}
 	public function execute(CommandSender $sender, $currentAlias, array $args){
-	$arr = $sender->getServer()->OPlist();
-	for($i = 0; $arr[$i] != ''; $i ++){
-		$sender->sendMessage($arr[$i] . "\n");
-	}
-	//$sender->sendMessage("hello");
+		if(!$this->testPermission($sender)){
+			return true;
+		}
+		$arr = $sender->getServer()->getOps()->getAll(true);
+		for($i = 0; isset($arr[$i]) and $arr[$i] != ''; $i ++){
+			$sender->sendMessage($arr[$i] . "\n");
+		}
 		return true;
 	}
 }

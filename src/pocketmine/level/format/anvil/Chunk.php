@@ -122,7 +122,7 @@ class Chunk extends BaseChunk{
 
 	public function setLightPopulated($value = 1){
 		$this->nbt->LightPopulated = new ByteTag("LightPopulated", $value);
-		$this->hasChanged = true;
+		$this->setChanged();
 	}
 
 	/**
@@ -137,7 +137,7 @@ class Chunk extends BaseChunk{
 	 */
 	public function setPopulated($value = 1){
 		$this->nbt->TerrainPopulated = new ByteTag("TerrainPopulated", $value);
-		$this->hasChanged = true;
+		$this->setChanged();
 	}
 
 	/**
@@ -152,7 +152,7 @@ class Chunk extends BaseChunk{
 	 */
 	public function setGenerated($value = 1){
 		$this->nbt->TerrainGenerated = new ByteTag("TerrainGenerated", $value);
-		$this->hasChanged = true;
+		$this->setChanged();
 	}
 
 	/**

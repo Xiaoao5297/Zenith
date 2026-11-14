@@ -135,7 +135,8 @@ class LevelDB extends BaseLevelProvider{
 		$nbt = new NBT(NBT::LITTLE_ENDIAN);
 		$nbt->setData($this->levelData);
 		$buffer = $nbt->write();
-		file_put_contents($this->getPath() . "level.dat", Binary::writeLInt(3) . Binary::writeLInt(strlen($buffer)) . $buffer);
+		//MISS-004：原子写 level.dat，避免崩溃窗口内文件被截断导致整个世界无法加载
+		\pocketmine\utils\Utils::atomicWriteFile($this->getPath() . "level.dat", Binary::writeLInt(3) . Binary::writeLInt(strlen($buffer)) . $buffer);
 	}
 
 	public function requestChunkTask($x, $z){

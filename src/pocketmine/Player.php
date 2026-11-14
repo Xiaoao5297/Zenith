@@ -132,6 +132,7 @@ use pocketmine\nbt\tag\ShortTag;
 use pocketmine\nbt\tag\StringTag;
 use pocketmine\network\DataPacketManager;
 use pocketmine\network\Network;
+use pocketmine\network\compat\BatchCodec;
 use pocketmine\network\protocol\ProtocolCompatibility;
 use pocketmine\network\protocol\SetEntityDataPacket;
 use pocketmine\network\protocol\v84\DataPacketV84;
@@ -223,6 +224,10 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	public $blocked = false;
 	public $achievements = [];
 	public $lastCorrect;
+	/** SEC-014: 进食最小间隔（秒），服务端按包频率强制限速，防快吃。
+	 * 取 1.5s：低于原版进食时长 1.61s 会误伤正常长按进食（网络抖动下间隔可贴近 1.6s），
+	 * 同时仍远高于快吃作弊速率（0.2-0.5s/次）。 */
+	public const EAT_MIN_INTERVAL = 1.5;
 	public $lastEat = null;
 	/** @var SimpleTransactionGroup */
 	protected $currentTransaction = null;
@@ -274,6 +279,8 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	protected $chunkLoadCount = 0;
 	protected $loadQueue = [];
 	protected $nextChunkOrderRun = 5;
+	//WEAK-005: last tick orderChunks() actually ran, for throttling its per-run O(n) recalculation
+	protected $lastOrderChunks = -1;
 
 	/** @var Player[] */
 	protected $hiddenPlayers = [];
@@ -843,6 +850,12 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		return $this->sleeping !== null;
 	}
 
+	/**
+	 * @deprecated 旧内联反飞已移除, inAirTicks 不再递增, 本方法恒返回 0.
+	 *             为保持公共 API 兼容而保留, 插件不应依赖其返回值.
+	 *
+	 * @return int
+	 */
 	public function getInAirTicks(){
 		return $this->inAirTicks;
 	}
@@ -1062,8 +1075,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		$this->setHealth($this->getHealth());
 		if($this->server->foodEnabled) $this->setFood($this->getFood());
 		else $this->setFood(20);
-
-		if($this->server->dserverConfig["enable"] and $this->server->dserverConfig["queryAutoUpdate"]) $this->server->updateQuery();
 
 		/*if($this->server->getUpdater()->hasUpdate() and $this->hasPermission(Server::BROADCAST_CHANNEL_ADMINISTRATIVE)){
 			$this->server->getUpdater()->showPlayerUpdate($this);
@@ -1856,14 +1867,18 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 			}
 
-			if(!$this->isSpectator()){
-				$this->checkNearEntities($tickDiff);
-			}
-
 			$this->speed = $from->subtract($to);
 		}elseif($distanceSquared == 0){
 			$this->speed = new Vector3(0, 0, 0);
 			$this->setMoving(false);
+		}
+
+		//BUG-015: 拾取检测(掉落物/箭)不要求玩家有位移, 即使 distanceSquared == 0
+		//也会执行. 但仍依赖客户端上报 MOVE_PLAYER 包触发 processMovement:
+		//processMovement 开头在 newPosition === null 时早退, 完全不发移动包的
+		//客户端不会进入此处; 静止但持续上报位置的客户端(正常客户端如此)可以拾取.
+		if(!$this->isSpectator()){
+			$this->checkNearEntities($tickDiff);
 		}
 
 		if($revert && !$this->isSpectator()){
@@ -2023,34 +2038,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 			}
 
-			if($this->server->antiFly){
-				if(!$this->isSpectator() and $this->speed !== null){
-					if($this->onGround){
-						if($this->inAirTicks !== 0){
-							$this->startAirTicks = 5;
-						}
-						$this->inAirTicks = 0;
-					}else{
-						if(!$this->allowFlight and $this->inAirTicks > 10 and !$this->isSleeping() and $this->getDataProperty(self::DATA_NO_AI) !== 1){
-							//expectedVelocity here is not calculated correctly
-							//This causes players to fall too fast when bouncing on slime when antiFly is enabled
-							$expectedVelocity = (-$this->gravity) / $this->drag - ((-$this->gravity) / $this->drag) * exp(-$this->drag * ($this->inAirTicks - $this->startAirTicks));
-							$diff = ($this->speed->y - $expectedVelocity) ** 2;
-							if(!$this->hasEffect(Effect::JUMP) and $diff > 0.6 and $expectedVelocity < $this->speed->y and !$this->server->getAllowFlight()){
-								$this->setMotion($this->temporalVector->setComponents(0, $expectedVelocity, 0));
-								if($this->inAirTicks < 1000){
-
-								}elseif($this->kick("本服务器禁止飞行！")){
-									$this->timings->stopTiming();
-									return false;
-								}
-							}
-						}
-						++$this->inAirTicks;
-					}
-				}
-			}
-
 			if($this->server->foodEnabled){
 				if($this->starvationTick >= $this->server->starvationInterval){
 					$ev = new EntityDamageEvent($this, EntityDamageEvent::CAUSE_STARVATION, 1);
@@ -2103,10 +2090,8 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		return true;
 	}
 
-	public $eatCoolDown = 0;
-
 	public function eatFoodInHand(){
-		if($this->eatCoolDown + 2000 >= time() || !$this->spawned){
+		if(!$this->spawned){
 			return;
 		}
 
@@ -2151,6 +2136,14 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		$slot = $this->inventory->getItemInHand();
 		if(isset($items[$slot->getId()]) and $this->isAlive()){
 			if($this->getFood() <= 20 and isset($items[$slot->getId()])){
+				//SEC-014: 服务端按包频率强制进食限速，防快吃（不依赖客户端动画包）
+				$now = microtime(true);
+				if($this->lastEat !== null and ($now - $this->lastEat) < self::EAT_MIN_INTERVAL and $this->server->antiFastEat){
+					$this->inventory->sendContents($this);
+					return;
+				}
+				$this->lastEat = $now;
+
 				$this->server->getPluginManager()->callEvent($ev = new PlayerItemConsumeEvent($this, $slot));
 				if($ev->isCancelled()){
 					$this->inventory->sendContents($this);
@@ -2181,11 +2174,15 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					$this->setFood($this->getFood() + $amount);
 				}
 
-				--$slot->count;
-				$this->inventory->setItemInHand($slot);
-				if($slot->getId() === Item::MUSHROOM_STEW or $slot->getId() === Item::BEETROOT_SOUP){
-					$this->inventory->addItem(Item::get(Item::BOWL, 0, 1));
-				}elseif($slot->getId() === Item::PUFFER_FISH){
+				if($this->isSurvival()){
+					--$slot->count;
+					$this->inventory->setItemInHand($slot);
+					// 碗返还随消耗一起走生存分支：创造模式不扣食物也不返还碗（防白得碗）
+					if($slot->getId() === Item::MUSHROOM_STEW or $slot->getId() === Item::BEETROOT_SOUP){
+						$this->inventory->addItem(Item::get(Item::BOWL, 0, 1));
+					}
+				}
+				if($slot->getId() === Item::PUFFER_FISH){
 					$this->addEffect(Effect::getEffect(Effect::POISON)->setDuration(80 * 2));
 					$this->addEffect(Effect::getEffect(Effect::NAUSEA)->setAmplifier(1)->setDuration(15 * 20));
 				}elseif($slot->getId() === Item::SPIDER_EYE){
@@ -2319,7 +2316,12 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		}
 
 		if($this->nextChunkOrderRun-- <= 0 or $this->chunk === null){
-			$this->orderChunks();
+			//WEAK-005: throttle orderChunks() to every 4 ticks; first call and force-runs ($this->chunk === null,
+			//or nextChunkOrderRun reset to 0 by spawn/teleport/movement checks) still execute immediately.
+			if($this->chunk === null or $this->lastOrderChunks < 0 or ($this->server->getTick() - $this->lastOrderChunks) >= 4){
+				$this->orderChunks();
+				$this->lastOrderChunks = $this->server->getTick();
+			}
 		}
 
 		if(count($this->loadQueue) > 0 or !$this->spawned){
@@ -2345,12 +2347,22 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	}
 
 	public function onPlayerPreLogin(){
-		//TODO: implement auth
+		//SEC-003 方案A: 本服务器为离线模式, 不尝试也不宣称验证 JWT 签名.
 		$this->tryAuthenticate();
 	}
 
 	public function tryAuthenticate(){
-		//TODO: implement authentication after it is available
+		//SEC-003 方案A: 离线模式认证路径. 仅做基本健全性检查 (username 非空且长度合法),
+		//不验证 JWT 签名, 检查通过即视为离线认证成功. 用户名的字符合法性已由
+		//handleDataPacket 中 LOGIN_PACKET 分支的 isValidPlayerName 保证.
+		$username = (string) $this->getName();
+		$length = strlen($username);
+		if($username === "" or $length < 3 or $length > 16){
+			$this->authenticateCallback(false);
+			return;
+		}
+
+		$this->server->getLogger()->debug("Offline-mode authentication for " . $username . " (no JWT signature verification, SEC-003 option A)");
 		$this->authenticateCallback(true);
 	}
 
@@ -2629,8 +2641,10 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			return false;
 		}
 
-		$str = @zlib_decode($packet->payload, 1024 * 1024 * 64);
+		$str = BatchCodec::streamingDecompress($packet->payload, BatchCodec::MAX_PAYLOAD);
 		if(!is_string($str)){
+			//SEC-001: decompression failed or exceeded BatchCodec::MAX_PAYLOAD (zip bomb) —
+			//same semantics as a failed zlib_decode in the original probe.
 			return false;
 		}
 
@@ -2930,7 +2944,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 				$this->username = TextFormat::clean($packet->username);
 				if(!\pocketmine\utils\Utils::isValidPlayerName($this->username)){
-					$this->kick("玩家名包含非法字符，请更换名称后重试", false);
+					$this->kick($this->server->getLanguage()->translateString("player.kick.invalidName"), false);
 					break;
 				}
 				$this->displayName = $this->username;
@@ -3018,7 +3032,14 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				if($this->linkedEntity instanceof Entity){
 					$entity = $this->linkedEntity;
 					if($entity instanceof Boat){
-						$entity->setPosition($this->temporalVector->setComponents($packet->x, $packet->y - 0.3, $packet->z));
+						//SEC-018: 不信任乘客上报的坐标, 限制船与乘客的位移距离,
+						//防止恶意包瞬移船跨区块强加载. 超限则忽略该坐标(不回弹:
+						//船坐标由船自身 onUpdate 广播, 下一 tick 自然纠正).
+						$maxBoatMoveDistSq = 100.0; //10 格钳制阈值(平方)
+						$target = $this->temporalVector->setComponents($packet->x, $packet->y - 0.3, $packet->z);
+						if($entity->distanceSquared($target) <= $maxBoatMoveDistSq){
+							$entity->setPosition($target);
+						}
 					}
 					//原注释
 					if($entity instanceof Minecart){
@@ -3037,8 +3058,24 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					$this->forceMovement = new Vector3($this->x, $this->y, $this->z);
 				}
 
-				if($this->teleportPosition !== null or ($this->forceMovement instanceof Vector3 and (($dist = $newPos->distanceSquared($this->forceMovement)) > 0.1 or $revert))){
-					if($this->forceMovement instanceof Vector3) $this->sendPosition($this->forceMovement, $packet->yaw, $packet->pitch);
+				//BUG-002: 阈值 0.25 为 distanceSquared, 即 0.5 格真实距离,
+				//容忍网络抖动与客户端插值; 原值 0.1(0.316 格)导致正常位移被误回弹.
+				if($this->teleportPosition !== null){
+					//传送尚未完成(等待目标点周围区块确认, 由 onUpdate->checkTeleportPosition
+					//收尾并清空 teleportPosition), 无条件弹回 forceMovement(传送前旧位置).
+					//此处不得清 teleportPosition: processMovement 依赖它门控,
+					//区块确认后由 checkTeleportPosition 正常消费.
+					if($this->forceMovement instanceof Vector3){
+						$this->sendPosition($this->forceMovement, $packet->yaw, $packet->pitch);
+					}
+				}elseif($this->forceMovement instanceof Vector3 and ($newPos->distanceSquared($this->forceMovement) > 0.25 or $revert)){
+					$this->sendPosition($this->forceMovement, $packet->yaw, $packet->pitch);
+					if(!$revert){
+						//偏差回弹: 权威位置已发给客户端. 保留 forceMovement 会让一次
+						//抖动后的每一包都再次回弹(连续卡弹), 清空后走正常处理流程;
+						//$revert 时(刚在上方写入的服务端当前位置)保留以持续纠正.
+						$this->forceMovement = null;
+					}
 				}else{
 					$packet->yaw %= 360;
 					$packet->pitch %= 360;
@@ -3070,8 +3107,18 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				$item = null;
 
 				if($this->isCreative()){ //Creative mode match
-					$item = $packet->item;
-					$slot = Item::getCreativeItemIndex($item);
+					// SEC-008: 不信任客户端上报的 Item（可携带任意 NBT/count）。
+					// 仅用 id/damage 在创意物品表中匹配，命中后采用服务端权威副本。
+					$slot = Item::getCreativeItemIndex($packet->item);
+					if($slot >= 0){
+						$serverItem = Item::getCreativeItem($slot);
+						if($serverItem !== null){
+							$item = clone $serverItem;
+							// 保留客户端请求的数量，但钳制到合法堆叠上限
+							$item->setCount(max(1, min($packet->item->getCount(), $item->getMaxStackSize())));
+						}
+					}
+					// $slot < 0（不在创意列表）保持 $item === null，由下方错误分支拒绝
 				}else{
 					$item = $this->inventory->getItem($packet->slot);
 					$slot = $packet->slot;
@@ -3374,7 +3421,8 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 							$thrownPotion->spawnToAll();
 						}
 					}elseif($item instanceof FoodSource){
-						$this->lastEat = microtime(true);
+						//SEC-014: lastEat 由 eatFoodInHand() 按 USE_ITEM 包频率记录，
+						//此处不再作为防快吃计时起点（新机制不依赖动画包）
 					}elseif($item instanceof Map){
 						$item2 = new Item(Item::FILLED_MAP);
 						$mapId = round(microtime(true), 1) * 10;
@@ -3464,7 +3512,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					case PlayerActionPacket::ACTION_RELEASE_ITEM:
 						$item = $this->inventory->getItemInHand();
 						if($item instanceof FoodSource){
-							$this->lastEat = PHP_INT_MAX;
+							//SEC-014: 防快吃改由 eatFoodInHand() 内部限速，此处不再重置
 						}
 						if($this->startAction > -1 and $this->getDataFlag(self::DATA_FLAGS, self::DATA_FLAG_ACTION)){
 							if($this->inventory->getItemInHand()->getId() === Item::BOW){
@@ -3751,6 +3799,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					if($target instanceof Animal){
 						$item = $this->getInventory()->getItemInHand();
 						if($target instanceof Sheep and $item instanceof Shears){
+							if(!$target->hasWool()){
+								break;
+							}
 							if($this->isSurvival()){
 								$item->useOn($target);
 							}
@@ -3760,13 +3811,40 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 							}
 							break;
 						}
-						if($this->isSurvival()){
-							$item->setDamage($item->getDamage() - 1);
-						}
+
 						if($target->isBaby()){
-							$target->setBaby(false);
+							// feeding babies only speeds up growth, not implemented (no instant grow-up)
+							break;
+						}
+
+						// breeding requires holding the matching food (SEC-013)
+						if($target instanceof Sheep or $target instanceof Cow or $target instanceof Mooshroom){
+							$breedFood = Item::WHEAT;
+						}elseif($target instanceof Pig){
+							$breedFood = Item::CARROT;
+						}elseif($target instanceof Chicken){
+							$breedFood = Item::WHEAT_SEEDS;
 						}else{
-							$target->setInLove(true);
+							// no breeding mapping for this Animal subclass: fall through to attack handling (original behavior)
+							break;
+						}
+
+						if($item->getId() !== $breedFood or $item->getCount() < 1){
+							break;
+						}
+
+						if($target->isInLove()){
+							// 已处于求爱状态：不再重复喂食刷新 love 计时（对齐原版繁殖冷却语义）
+							break;
+						}
+
+						$target->setInLove(true);
+						if($this->isSurvival()){
+							if($item->getCount() > 1){
+								$this->inventory->setItemInHand(Item::get($item->getId(), $item->getDamage(), $item->getCount() - 1));
+							}else{
+								$this->inventory->setItemInHand(Item::get(Item::AIR, 0, 1));
+							}
 						}
 					}
 					break;
@@ -3810,10 +3888,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					foreach($item->getEnchantments() as $Enchantment){
 						if($Enchantment->getId() == 9){ //TYPE_WEAPON_SHARPNESS
 							$damageBase += ($Enchantment->getLevel() * 1.25);
-						}elseif($Enchantment->getId() == 13){ //TYPE_WEAPON_FIRE_ASPECT
-							if(!$this->hasEffect(Effect::FIRE_RESISTANCE)){
-								$target->setOnFire(5 * $Enchantment->getLevel());
-							}
 						}
 					}
 					$damage = [
@@ -3827,7 +3901,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					}
 					$this->lastAttackTime = $now;
 
-					if(!$this->canInteract($target, 8)){
+					if(!$this->canInteract($target, 6)){
 						$cancelled = true;
 					}elseif($target instanceof Player){
 						if(($target->getGamemode() & 0x01) > 0){
@@ -3862,6 +3936,16 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 							$this->inventory->sendContents($this);
 						}
 						break;
+					}
+
+					// Fire Aspect: only applied after the attack actually lands
+					// (cooldown drop, distance cancellation and event cancellation all break before this point)
+					foreach($item->getEnchantments() as $Enchantment){
+						if($Enchantment->getId() == 13){ //TYPE_WEAPON_FIRE_ASPECT
+							if(!$this->hasEffect(Effect::FIRE_RESISTANCE)){
+								$target->setOnFire(5 * $Enchantment->getLevel());
+							}
+						}
 					}
 
 					if($item->isTool() and $this->isSurvival()){
@@ -3902,13 +3986,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 				switch($packet->event){
 					case EntityEventPacket::USE_ITEM: //Eating
-						$EatTime =  microtime(true) - $this->lastEat;
-						if($this->lastEat != PHP_INT_MAX and $EatTime <= 1.15 and $this->server->antiFastEat){
-							$this->kick("秒吃在此服务器中不被允许，你吃饭只用".number_format($EatTime, 6)."秒？");
-						}else{
-							$this->eatFoodInHand();
-						}
-						$this->lastEat = PHP_INT_MAX;
+						//SEC-014: 限速检查移入 eatFoodInHand()（按包频率记录 lastEat），
+						//此处不再依赖 lastEat 判定，动画包（START_EATING/RELEASE）缺失也能限速
+						$this->eatFoodInHand();
 						break;
 				}
 				break;
@@ -3966,6 +4046,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 								Timings::$playerCommandTimer->startTiming();
 								$this->server->dispatchCommand($ev->getPlayer(), substr($ev->getMessage(), 1));
 								Timings::$playerCommandTimer->stopTiming();
+								if(!$this->connected){
+									break;
+								}
 							}else{
 								$this->server->getPluginManager()->callEvent($ev = new PlayerChatEvent($this, $ev->getMessage()));
 								if(!$ev->isCancelled()){
@@ -4008,7 +4091,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					break;
 				*/
 				$recipe = $this->server->getCraftingManager()->getRecipe($packet->id);
-				if($this->usingAnvil == true){
+				if($this->usingAnvil and ($this->windowIndex[$packet->windowId] ?? null) instanceof AnvilInventory){
 					$anvilInventory = $this->windowIndex[$packet->windowId] ?? null;
 					if($anvilInventory === null){
 						foreach($this->windowIndex as $window){
@@ -4075,7 +4158,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 									break;
 								}
 
-							}elseif($ingredient !== null and $item->getId() !== 0){
+							}elseif($ingredient !== null and $ingredient->getId() !== Item::AIR){
+								//SEC-006: required ingredient cell present in recipe but client reported AIR/missing
+								//-> cannot craft, prevents the "empty-slot bypass" item dupe
 								$canCraft = false;
 								break;
 							}
@@ -4117,7 +4202,21 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				}
 
 				/** @var Item[] $ingredients */
-				$ingredients = $gridInput;
+				if($recipe instanceof ShapedRecipe and count($gridInput) > 0){
+					//SEC-006 defense in depth: deduct ingredients according to the recipe's
+					//own ingredient map instead of trusting the client-reported grid,
+					//so a crafted item always consumes every material the recipe needs.
+					$ingredients = [];
+					foreach($recipe->getIngredientMap() as $row){
+						foreach($row as $ingredient){
+							if($ingredient->getId() !== Item::AIR){
+								$ingredients[] = $ingredient;
+							}
+						}
+					}
+				}else{
+					$ingredients = $gridInput;
+				}
 				if(count($ingredients) === 0){
 					//Win10/PC 客户端不在合成事件里携带合成格物品, 用配方定义兜底
 					$ingredients = [];
@@ -4154,10 +4253,16 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 				foreach($ingredients as $ingredient){
 					$slot = -1;
+					//SEC-006: respect the ingredient's own count. Single-cell multi-count
+					//recipes (e.g. SNOW_LAYER = one cell of 3x SNOW_BLOCK) must consume
+					//the full count, otherwise 1 placed item yields N crafted results.
+					//Server recipe is authoritative; the client grid only needs to match
+					//type (deepEquals does not compare counts), so deduct $need per cell.
+					$need = max(1, (int) $ingredient->getCount());
 					foreach($this->inventory->getContents() as $index => $i){
-						if($ingredient->getId() !== 0 and $ingredient->deepEquals($i, $ingredient->getDamage() !== null) and ($i->getCount() - $used[$index]) >= 1){
+						if($ingredient->getId() !== 0 and $ingredient->deepEquals($i, $ingredient->getDamage() !== null) and ($i->getCount() - $used[$index]) >= $need){
 							$slot = $index;
-							$used[$index]++;
+							$used[$index] += $need;
 							break;
 						}
 					}
@@ -4304,7 +4409,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 						break;
 					}
 
-					if($this->usingAnvil == true){
+					if($this->usingAnvil and ($this->windowIndex[$packet->windowid] ?? null) instanceof AnvilInventory){
 						$anvilInventory = $this->windowIndex[$packet->windowid] ?? null;
 						if($anvilInventory === null){
 							foreach($this->windowIndex as $window){
@@ -4402,42 +4507,50 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				$this->craftingType = 0;
 
 				$pos = new Vector3($packet->x, $packet->y, $packet->z);
-				if($pos->distanceSquared($this) > 10000){
+				if($pos->distanceSquared($this) > $this->server->interactDistance ** 2){
 					break;
 				}
 
 				$t = $this->level->getTile($pos);
 				if($t instanceof Sign){
-					$nbt = new NBT(NBT::LITTLE_ENDIAN);
-					$nbt->read($packet->namedtag);
-					$nbt = $nbt->getData();
-					if($nbt["id"] !== Tile::SIGN){
-						$t->spawnTo($this);
-					}else{
-						$ev = new SignChangeEvent($t->getBlock(), $this, [
-							TextFormat::clean($nbt["Text1"], $this->removeFormat),
-							TextFormat::clean($nbt["Text2"], $this->removeFormat),
-							TextFormat::clean($nbt["Text3"], $this->removeFormat),
-							TextFormat::clean($nbt["Text4"], $this->removeFormat)
-						]);
-
-						if(!isset($t->namedtag->Creator) or $t->namedtag["Creator"] !== $this->getRawUniqueId()){
-							$ev->setCancelled();
+					if(strlen($packet->namedtag) > 1024){ //sign NBT is at most 4 lines x 16 chars; reject oversized payloads
+						break;
+					}
+					try{
+						$nbt = new NBT(NBT::LITTLE_ENDIAN);
+						$nbt->read($packet->namedtag);
+						$nbt = $nbt->getData();
+						if($nbt["id"] !== Tile::SIGN){
+							$t->spawnTo($this);
 						}else{
-							foreach($ev->getLines() as $line){
-								if(mb_strlen($line, "UTF-8") > 16){
-									$ev->setCancelled();
+							$ev = new SignChangeEvent($t->getBlock(), $this, [
+								TextFormat::clean($nbt["Text1"], $this->removeFormat),
+								TextFormat::clean($nbt["Text2"], $this->removeFormat),
+								TextFormat::clean($nbt["Text3"], $this->removeFormat),
+								TextFormat::clean($nbt["Text4"], $this->removeFormat)
+							]);
+
+							if(!isset($t->namedtag->Creator) or $t->namedtag["Creator"] !== $this->getRawUniqueId()){
+								$ev->setCancelled();
+							}else{
+								foreach($ev->getLines() as $line){
+									if(mb_strlen($line, "UTF-8") > 16){
+										$ev->setCancelled();
+									}
 								}
 							}
-						}
 
-						$this->server->getPluginManager()->callEvent($ev);
+							$this->server->getPluginManager()->callEvent($ev);
 
-						if(!$ev->isCancelled()){
-							$t->setText($ev->getLine(0), $ev->getLine(1), $ev->getLine(2), $ev->getLine(3));
-						}else{
-							$t->spawnTo($this);
+							if(!$ev->isCancelled()){
+								$t->setText($ev->getLine(0), $ev->getLine(1), $ev->getLine(2), $ev->getLine(3));
+							}else{
+								$t->spawnTo($this);
+							}
 						}
+					}catch(\Throwable $e){ //malformed NBT: don't spam logs; outer malformed-packet handling provides the backstop
+						$this->server->getLogger()->logException($e);
+						break;
 					}
 				}
 				break;
@@ -4747,8 +4860,6 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			$this->hasSpawned = [];
 			$this->spawnPosition = null;
 			unset($this->buffer);
-
-			if($this->server->dserverConfig["enable"] and $this->server->dserverConfig["queryAutoUpdate"]) $this->server->updateQuery();
 		}
 
 		if($this->perm !== null){
@@ -4966,6 +5077,14 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		}
 
 		$this->setHealth(0);
+
+		// M4（BUG-002 审查）：死亡时重置 NoFall 累积状态，
+		// 防止空中死亡后 stale fallDistance 在重生落地时被误判。
+		if(($ac = $this->server->getAntiCheat()) !== null){
+			if(($nofall = $ac->getCheck(\pocketmine\anticheat\check\NoFallCheck::class)) !== null){
+				$nofall->resetFallState($this);
+			}
+		}
 
 		$pk = new RespawnPacket();
 		$pk->x = $pos->x;
@@ -5278,7 +5397,14 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		}
 
 		if($forceId === null){
-			$this->windowCnt = $cnt = max(2, ++$this->windowCnt % 99);
+			$cnt = max(2, ++$this->windowCnt % 99);
+			for($i = 0; $i < 98 and isset($this->windowIndex[$cnt]); ++$i){
+				$this->windowCnt = $cnt = max(2, ++$this->windowCnt % 99);
+			}
+			if(isset($this->windowIndex[$cnt])){ //all 98 window ids in use: reuse the smallest free id instead of clobbering a live window
+				for($cnt = 2; $cnt < 100 and isset($this->windowIndex[$cnt]); ++$cnt);
+			}
+			$this->windowCnt = $cnt;
 		}else{
 			$cnt = (int) $forceId;
 		}

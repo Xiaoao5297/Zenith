@@ -332,6 +332,11 @@ abstract class Entity extends Location implements Metadatable{
         $this->chunk->addEntity($this);
         $this->level->addEntity($this);
         $this->initEntity();
+        if($this->closed){
+            // initEntity() closed this entity (e.g. corrupt/missing NBT tag);
+            // skip spawn event and scheduling for the already-closed entity
+            return;
+        }
         $this->lastUpdate = $this->server->getTick();
         $this->server->getPluginManager()->callEvent(new EntitySpawnEvent($this));
 
@@ -738,6 +743,10 @@ abstract class Entity extends Location implements Metadatable{
      * @param int $amount
      */
     public function setHealth($amount){
+        if(!is_finite($amount)){
+            // NaN/Inf are invalid input; ignore instead of coercing (NaN casts to 0 on ARM64 and kills the entity)
+            return;
+        }
         $amount = (int)$amount;
         if($amount === $this->health){
             return;
@@ -1699,7 +1708,7 @@ abstract class Entity extends Location implements Metadatable{
             $this->closed = true;
             $this->removeEffect(Effect::HEALTH_BOOST);
             $this->despawnFromAll();
-            if($this->linkedType != 0){
+            if($this->linkedType != 0 and $this->linkedEntity !== null){
                 $this->linkedEntity->setLinked(0, $this);
             }
             if($this->chunk !== null){

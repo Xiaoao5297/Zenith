@@ -84,27 +84,31 @@ class RCON{
 			if($this->workers[$n]->isTerminated() === true){
 				$this->workers[$n] = new RCONInstance($this->socket, $this->password, $this->clientsPerThread);
 			}elseif($this->workers[$n]->isWaiting()){
-				if($this->workers[$n]->response !== ""){
-					$this->server->getLogger()->info($this->workers[$n]->response);
-					$this->workers[$n]->synchronized(function(RCONInstance $thread){
-						$thread->notify();
-					}, $this->workers[$n]);
-				}else{
-
-					$response = new RemoteConsoleCommandSender();
-					$command = $this->workers[$n]->cmd;
-
-					$this->server->getPluginManager()->callEvent($ev = new RemoteServerCommandEvent($response, $command));
-
-					if(!$ev->isCancelled()){
-						$this->server->dispatchCommand($ev->getSender(), $ev->getCommand());
+				/*
+				 * Dispatch under the worker's monitor so the whole command/response
+				 * handoff is atomic: the worker cannot observe a half-written state,
+				 * and a stale or foreign response can never be mistaken for the
+				 * answer to the pending command.
+				 */
+				$this->workers[$n]->synchronized(function(RCONInstance $thread){
+					if(!$thread->isWaiting()){
+						return; //Worker already timed out or finished between the two checks
 					}
+					if($thread->cmd !== "" and !$thread->responseReady){
+						$response = new RemoteConsoleCommandSender();
+						$command = $thread->cmd;
 
-					$this->workers[$n]->response = $response->getMessage();
-					$this->workers[$n]->synchronized(function(RCONInstance $thread){
+						$this->server->getPluginManager()->callEvent($ev = new RemoteServerCommandEvent($response, $command));
+
+						if(!$ev->isCancelled()){
+							$this->server->dispatchCommand($ev->getSender(), $ev->getCommand());
+						}
+
+						$thread->response = $response->getMessage();
+						$thread->responseReady = true;
 						$thread->notify();
-					}, $this->workers[$n]);
-				}
+					}
+				}, $this->workers[$n]);
 			}
 		}
 	}

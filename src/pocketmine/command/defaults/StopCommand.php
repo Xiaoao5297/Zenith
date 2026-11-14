@@ -43,16 +43,13 @@ class StopCommand extends VanillaCommand{
 		}
 
 		$msg = "";
-		if(isset($args[0])){
-			$msg = $args[0];
-		}
-
 		$restart = false;
-		if(isset($args[1])){
-			if($args[0] == 'force'){
+		if(isset($args[0])){
+			if($args[0] === "force"){
 				$restart = true;
+				$msg = implode(" ", array_slice($args, 1));
 			}else{
-				$restart = false;
+				$msg = implode(" ", $args);
 			}
 		}
 

@@ -87,16 +87,29 @@ class Installer{
 		echo $this->lang->welcome_to_pocketmine . "\n";
 		echo <<<LICENSE
   Chinese License:
-  使用须知：
-  1.本核心为基于LGPL开源项目，禁止倒卖，违者必究。
-  2.如要二次修改，禁止以任何方式往核心中添加后门。
-  3.如发现Bug，请加作者QQ：2574459918 或 2574459918@qq.com 反馈
+  本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证（GPL）条款，
+  重新分发和/或修改它，许可证可以是第3版，或（你选择的）任何更新版本。
+
+  本程序的发布是希望它有用，但不提供任何担保，甚至不提供适销性或特定用途适用性的默示担保。
+  详见 GNU 通用公共许可证。
+
+  你应该已经随本程序收到了 GNU 通用公共许可证的副本。如果没有，请见 <https://www.gnu.org/licenses/>。
 
   English License:
-  Terms of Use:
-  1. This core is based on the LGPL open source project, reselling is prohibited, violators will be prosecuted.
-  2. If you want to modify it, you are prohibited from adding backdoors to the core in any way.
-  3. If you find a bug, please add the author's QQ: 2574459918 or 2574459918@qq.com
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Lesser General Public License as published by
+  the Free Software Foundation, either version 3 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+  Bug reports / 问题反馈: QQ 2574459918 / 2574459918@qq.com
 
 LICENSE;
 		echo "\n[?] " . $this->lang->accept_license . " (y/N): ";

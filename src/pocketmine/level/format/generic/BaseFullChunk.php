@@ -70,6 +70,15 @@ abstract class BaseFullChunk implements FullChunk{
 
 	protected $hasChanged = false;
 
+	/**
+	 * BUG-028：区块修改计数器。对象生命周期内单调递增，setChanged(false)（保存后）不重置。
+	 * 异步生成/光照任务用它做快照比对：hasChanged 布尔可被中途 saveChunk 重置，
+	 * false === false 的比对会放行覆盖；计数器不会被重置，无法绕过。
+	 *
+	 * @var int
+	 */
+	private $mutationCounter = 0;
+
 	private $isInit = false;
 
 	/**
@@ -228,7 +237,7 @@ abstract class BaseFullChunk implements FullChunk{
 	}
 
 	public function setBiomeId($x, $z, $biomeId){
-		$this->hasChanged = true;
+		$this->setChanged();
 		$this->biomeColors[($z << 4) + $x] = ($this->biomeColors[($z << 4) + $x] & 0xFFFFFF) | ($biomeId << 24);
 	}
 
@@ -239,8 +248,8 @@ abstract class BaseFullChunk implements FullChunk{
 	}
 
 	public function setBiomeColor($x, $z, $R, $G, $B){
-		$this->hasChanged = true;
-		$this->biomeColors[($z << 4) + $x] = ($this->biomeColors[($z << 4) + $x] & 0xFF000000) | (($R & 0xFF) << 16) | (($G & 0xFF) << 8) | ($B & 0xFF);
+		$this->setChanged();
+		$this->biomeColors[($z << 4) + $x] = ($this->biomeColors[($z << 4) + $x] & 0xFF000000) | (($R & 0xFF) << 16) | (($G & 0xFF) << 8) | ($B & 0xff);
 	}
 
 	public function getHeightMap($x, $z){
@@ -321,14 +330,14 @@ abstract class BaseFullChunk implements FullChunk{
 	public function addEntity(Entity $entity){
 		$this->entities[$entity->getId()] = $entity;
 		if(!($entity instanceof Player) and $this->isInit){
-			$this->hasChanged = true;
+			$this->setChanged();
 		}
 	}
 
 	public function removeEntity(Entity $entity){
 		unset($this->entities[$entity->getId()]);
 		if(!($entity instanceof Player) and $this->isInit){
-			$this->hasChanged = true;
+			$this->setChanged();
 		}
 	}
 
@@ -339,7 +348,7 @@ abstract class BaseFullChunk implements FullChunk{
 		}
 		$this->tileList[$index] = $tile;
 		if($this->isInit){
-			$this->hasChanged = true;
+			$this->setChanged();
 		}
 	}
 
@@ -347,7 +356,7 @@ abstract class BaseFullChunk implements FullChunk{
 		unset($this->tiles[$tile->getId()]);
 		unset($this->tileList[(($tile->z & 0x0f) << 12) | (($tile->x & 0x0f) << 8) | ($tile->y & 0xff)]);
 		if($this->isInit){
-			$this->hasChanged = true;
+			$this->setChanged();
 		}
 	}
 
@@ -442,7 +451,17 @@ abstract class BaseFullChunk implements FullChunk{
 	}
 
 	public function setChanged($changed = true){
+		if($changed){
+			++$this->mutationCounter;
+		}
 		$this->hasChanged = (bool) $changed;
+	}
+
+	/**
+	 * @return int
+	 */
+	public function getMutationCounter(){
+		return $this->mutationCounter;
 	}
 
 	public static function fromFastBinary($data, LevelProvider $provider = null){

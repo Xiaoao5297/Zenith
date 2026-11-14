@@ -73,6 +73,10 @@ class NBT{
 	const MAX_READ_DEPTH = 64;
 	private $readDepth = 0;
 
+	/** Hard cap on the total number of tags parsed from a single NBT payload to stop client-supplied wide NBT from exhausting memory */
+	const MAX_TOTAL_TAGS = 100000;
+	private $tagCount = 0;
+
 	public $buffer;
 	private $offset;
 	public $endianness;
@@ -462,6 +466,7 @@ class NBT{
 
 	public function read($buffer, $doMultiple = false){
 		$this->readDepth = 0;
+		$this->tagCount = 0;
 		$this->offset = 0;
 		$this->buffer = $buffer;
 		$this->data = $this->readTag();
@@ -522,8 +527,23 @@ class NBT{
 		--$this->readDepth;
 	}
 
+	/**
+	 * Counts a tag constructed directly by ListTag::read() against the per-parse tag cap,
+	 * throwing if the cap is exceeded. Tags read through readTag() are counted there.
+	 */
+	public function countTag(){
+		if(++$this->tagCount > self::MAX_TOTAL_TAGS){
+			$this->readDepth = 0;
+			throw new \RuntimeException("NBT contains too many tags");
+		}
+	}
+
 	public function readTag(){
 		$this->enterDepth();
+		if(++$this->tagCount > self::MAX_TOTAL_TAGS){
+			$this->readDepth = 0;
+			throw new \RuntimeException("NBT contains too many tags");
+		}
 		switch($this->getByte()){
 			case NBT::TAG_Byte:
 				$tag = new ByteTag($this->getString());

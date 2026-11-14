@@ -51,7 +51,7 @@ class OpCommand extends VanillaCommand{
 
 		$name = array_shift($args);
 
-		$player = $sender->getServer()->getPlayer($name);
+		$player = $sender->getServer()->getPlayerExact($name);
 		if($player === null){
 			$sender->sendMessage(new TranslationContainer("commands.generic.player.notFound"));
 			return true;

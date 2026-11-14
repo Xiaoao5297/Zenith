@@ -46,17 +46,26 @@ class XPOrb extends Entity{
 			$hasUpdate = true;
 		}
 		
-		$minDistance = PHP_INT_MAX;
-		$expectedPos = null;
-		foreach($this->getLevel()->getEntities() as $e){
-			if($e instanceof Player){
-				if($e->distance($this) <= $minDistance) {
-					$expectedPos = $e;
-					$minDistance = $e->distance($this);
+		if($this->age % 4 === 0){
+			$minDistance = PHP_INT_MAX;
+			$expectedPos = null;
+			foreach($this->getLevel()->getNearbyEntities($this->boundingBox->grow(8, 8, 8)) as $e){
+				if($e instanceof Player){
+					$dist = $e->distance($this);
+					if($dist <= $minDistance){
+						$expectedPos = $e;
+						$minDistance = $dist;
+					}
 				}
-			} 
+			}
+		}else{
+			$minDistance = PHP_INT_MAX;
+			$expectedPos = null;
 		}
 
+		//BUG-017 follow-up: gravity/drag, obstruction check and movement run every tick
+		//regardless of magnetism, so orbs keep falling when no player is within 8 blocks.
+		//Only the player scan (age % 4) and the magnetic motion assignment stay throttled.
 		if($minDistance < PHP_INT_MAX){
 			$moveSpeed = 0.7;
 			$motX = ($expectedPos->getX() - $this->x) / 8;
@@ -64,29 +73,29 @@ class XPOrb extends Entity{
 			$motZ = ($expectedPos->getZ() - $this->z) / 8;
 			$motSqrt = sqrt($motX * $motX + $motY * $motY + $motZ * $motZ);
 			$motC = 1 - $motSqrt;
-		
+
 			if($motC > 0){
 				$motC *= $motC;
 				$this->motionX = $motX / $motSqrt * $motC * $moveSpeed;
 				$this->motionY = $motY / $motSqrt * $motC * $moveSpeed;
 				$this->motionZ = $motZ / $motSqrt * $motC * $moveSpeed;
 			}
+		}
 
-			$this->motionY -= $this->gravity;
+		$this->motionY -= $this->gravity;
 
-			if($this->checkObstruction($this->x, $this->y, $this->z)){
-				$hasUpdate = true;
-			}
+		if($this->checkObstruction($this->x, $this->y, $this->z)){
+			$hasUpdate = true;
+		}
 
-			if($minDistance <= 1.3){
-				if($this->getLevel()->getServer()->expEnabled){
-					if($this->getExperience() > 0){
-						$this->kill();
-						$this->close();
+		if($minDistance < PHP_INT_MAX and $minDistance <= 1.3){
+			if($this->getLevel()->getServer()->expEnabled){
+				if($this->getExperience() > 0){
+					$this->kill();
+					$this->close();
 
-						$this->getLevel()->getServer()->getPluginManager()->callEvent($ev = new PlayerPickupExpOrbEvent($expectedPos, $this->getExperience()));
-						if(!$ev->isCancelled()) $expectedPos->addExperience($this->getExperience());
-					}
+					$this->getLevel()->getServer()->getPluginManager()->callEvent($ev = new PlayerPickupExpOrbEvent($expectedPos, $this->getExperience()));
+					if(!$ev->isCancelled()) $expectedPos->addExperience($this->getExperience());
 				}
 			}
 		}
@@ -97,7 +106,7 @@ class XPOrb extends Entity{
 		
 		$this->timings->stopTiming();
 
-		return $hasUpdate or !$this->onGround or abs($this->motionX) > 0.00001 or abs($this->motionY) > 0.00001 or abs($this->motionZ) > 0.00001;
+		return $this->age < 1200 or $hasUpdate or !$this->onGround or abs($this->motionX) > 0.00001 or abs($this->motionY) > 0.00001 or abs($this->motionZ) > 0.00001;
 	}
 
 	public function canCollideWith(Entity $entity){

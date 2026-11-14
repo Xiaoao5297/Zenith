@@ -211,6 +211,14 @@ class PlayerInventory extends BaseInventory{
 			return false;
 		}elseif($item->getId() === 0 or $item->getCount() <= 0){
 			return $this->clear($index);
+		}elseif($item->getCount() > $item->getMaxStackSize()){
+			// 反作弊（SEC-009）：超过硬上限（>64）的物品任何合法客户端都不可能产生，
+			// 走反作弊上报；仅超单品堆叠上限（如武器 count>1）保持静默拒绝，
+			// 与 BaseInventory 的既有防线一致（插件写入不误报）。
+			if($item->getCount() > 64 and ($ac = Server::getInstance()->getAntiCheat()) !== null){
+				$ac->onItemSet($this, $index, $item);
+			}
+			return false;
 		}
 
 		if($index >= $this->getSize()){ //Armor change
@@ -227,6 +235,13 @@ class PlayerInventory extends BaseInventory{
 				return false;
 			}
 			$item = $ev->getNewItem();
+		}
+
+		// 反作弊（SEC-009）：本类完全重写 setItem，不经过 BaseInventory，
+		// 需要与 BaseInventory 相同的触发条件（holder 是玩家或有 viewer）。
+		// 放在事件检查之后：被插件取消的写入不 flag，避免 punish 模式误移除合法物品。
+		if(($ac = Server::getInstance()->getAntiCheat()) !== null){
+			$ac->onItemSet($this, $index, $item);
 		}
 
 

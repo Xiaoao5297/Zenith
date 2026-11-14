@@ -105,7 +105,8 @@ class McRegion extends BaseLevelProvider{
 			"Data" => $levelData
 		]));
 		$buffer = $nbt->writeCompressed();
-		file_put_contents($path . "level.dat", $buffer);
+		//MISS-004：原子写 level.dat，避免崩溃窗口内文件被截断导致整个世界无法加载
+		\pocketmine\utils\Utils::atomicWriteFile($path . "level.dat", $buffer);
 	}
 
 	public static function getRegionIndex($chunkX, $chunkZ, &$x, &$z){
@@ -222,12 +223,17 @@ class McRegion extends BaseLevelProvider{
 				if(is_file($regionFile)){
 					$tag = date("Ymd-His") . "_r." . $regionX . "." . $regionZ;
 					$qpath = $quarantine . $tag . ".mcr";
+					//Drop the corrupted entry from the location table so subsequent loads treat it as
+					//non-generated, then fall through to an empty chunk instead of returning false
+					//(which used to propagate null to the level thread and crash the server in a loop).
+					//This must happen on BOTH branches: if the copy succeeds the data still lives in
+					//the original region file, and without removeChunk every reload would quarantine
+					//a new timestamped copy until the disk filled up (BUG-022 follow-up).
+					$region->removeChunk($chunkX - $regionX * 32, $chunkZ - $regionZ * 32);
 					if(@copy($regionFile, $qpath)){
-						$this->getServer()->getLogger()->error("已隔离: " . $qpath);
+						$this->getServer()->getLogger()->error("已隔离损坏的 region 文件: " . $qpath . "，该区块已从索引中剔除并重建空区块");
 					}else{
-						$this->getServer()->getLogger()->error("无法隔离损坏的 region 文件，已拒绝重建该区块以保留原始数据: " . $regionFile);
-						$this->level->timings->syncChunkLoadDataTimer->stopTiming();
-						return false;
+						$this->getServer()->getLogger()->error("无法隔离损坏的 region 文件，已将该区块从索引中剔除并重建空区块: " . $regionFile);
 					}
 				}
 			}
@@ -259,6 +265,8 @@ class McRegion extends BaseLevelProvider{
 
 	public function saveChunk($x, $z){
 		if($this->isChunkLoaded($x, $z)){
+			//doGarbageCollection() may have closed the region handle, reload it (loadRegion is idempotent)
+			$this->loadRegion($x >> 5, $z >> 5);
 			$this->getRegion($x >> 5, $z >> 5)->writeChunk($this->getChunk($x, $z));
 
 			return true;

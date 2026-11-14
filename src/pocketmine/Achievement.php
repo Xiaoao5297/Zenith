@@ -22,66 +22,66 @@ abstract class Achievement{
 			"requires" => [],
 		),*/
 		"mineWood" => [
-			"name" => "获取木材 -获取原木",
+			"name" => "achievement.mineWood.name",
 			"requires" => [ //"openInventory",
 			],
 		],
 		"buildWorkBench" => [
-			"name" => "制作工作台 -用四块木板合成工作台",
+			"name" => "achievement.buildWorkBench.name",
 			"requires" => [
 				"mineWood",
 			],
 		],
 		"buildPickaxe" => [
-			"name" => "采矿时间到! -制作木稿",
+			"name" => "achievement.buildPickaxe.name",
 			"requires" => [
 				"buildWorkBench",
 			],
 		],
 		"buildFurnace" => [
-			"name" => "热门话题 -制作熔炉",
+			"name" => "achievement.buildFurnace.name",
 			"requires" => [
 				"buildPickaxe",
 			],
 		],
 		"acquireIron" => [
-			"name" => "来硬的 -炼出铁锭",
+			"name" => "achievement.acquireIron.name",
 			"requires" => [
 				"buildFurnace",
 			],
 		],
 		"buildHoe" => [
-			"name" => "耕种时间到! -制作木锄",
+			"name" => "achievement.buildHoe.name",
 			"requires" => [
 				"buildWorkBench",
 			],
 		],
 		"makeBread" => [
-			"name" => "烤面包 -制作一个面包",
+			"name" => "achievement.makeBread.name",
 			"requires" => [
 				"buildHoe",
 			],
 		],
 		"bakeCake" => [
-			"name" => "蛋糕是个谎言 -制作一个蛋糕",
+			"name" => "achievement.bakeCake.name",
 			"requires" => [
 				"buildHoe",
 			],
 		],
 		"buildBetterPickaxe" => [
-			"name" => "获得升级 -制作石稿",
+			"name" => "achievement.buildBetterPickaxe.name",
 			"requires" => [
 				"buildPickaxe",
 			],
 		],
 		"buildSword" => [
-			"name" => "出击时间到! -做出木剑",
+			"name" => "achievement.buildSword.name",
 			"requires" => [
 				"buildWorkBench",
 			],
 		],
 		"diamonds" => [
-			"name" => "是钻石! -获取钻石",
+			"name" => "achievement.diamonds.name",
 			"requires" => [
 				"acquireIron",
 			],
@@ -92,7 +92,7 @@ abstract class Achievement{
 
 	public static function broadcast(Player $player, $achievementId){
 		if(isset(Achievement::$list[$achievementId])){
-			$translation = new TranslationContainer("chat.type.achievement", [$player->getDisplayName(), TextFormat::GREEN . Achievement::$list[$achievementId]["name"]]);
+			$translation = new TranslationContainer("chat.type.achievement", [$player->getDisplayName(), TextFormat::GREEN . Server::getInstance()->getLanguage()->translateString(Achievement::$list[$achievementId]["name"])]);
 			if(Server::getInstance()->getConfigString("announce-player-achievements", true) === true){
 				Server::getInstance()->broadcastMessage($translation);
 			}else{

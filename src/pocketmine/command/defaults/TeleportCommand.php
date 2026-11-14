@@ -40,7 +40,13 @@ class TeleportCommand extends VanillaCommand{
 	}
 
 	public function execute(CommandSender $sender, $currentAlias, array $args){
-		if($sender->getServer()->getConfigString("player-tp") == false && !$this->testPermission($sender)){
+		$playerTpOpen = strtolower($sender->getServer()->getConfigString("player-tp", "false")) === "true";
+		if(!$playerTpOpen && !$this->testPermission($sender)){
+			return true;
+		}
+		if($playerTpOpen && !$this->testPermissionSilent($sender) && !(count($args) === 1 or count($args) === 3)){
+			//开放模式下无权限的玩家只允许传送自己（/tp 玩家名 或 /tp x y z），不能操作其他玩家
+			$sender->sendMessage(new TranslationContainer(TextFormat::RED . "%commands.generic.permission"));
 			return true;
 		}
 

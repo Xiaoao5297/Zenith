@@ -157,9 +157,17 @@ class EnchantInventory extends ContainerInventory{
 	public function onClose(Player $who){
 		parent::onClose($who);
 
+		//SEC-019: 库存已 per-viewer 化, slot 内容只属于当前关闭者.
+		//优先归还其背包, 放不下的部分才掉落在台子旁, 不再无条件掉落.
 		$level = $this->getHolder()->getLevel();
 		for($i = 0; $i < 2; ++$i){
-			if($level instanceof Level) $level->dropItem($this->getHolder()->add(0.5, 0.5, 0.5), $this->getItem($i));
+			$item = $this->getItem($i);
+			if($item instanceof Item and $item->getId() !== Item::AIR and $item->getCount() > 0){
+				$leftover = $who->getInventory()->addItem($item);
+				foreach($leftover as $rest){
+					if($level instanceof Level) $level->dropItem($this->getHolder()->add(0.5, 0.5, 0.5), $rest);
+				}
+			}
 			$this->clear($i);
 		}
 

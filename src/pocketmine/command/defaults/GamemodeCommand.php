@@ -41,7 +41,13 @@ class GamemodeCommand extends VanillaCommand{
 	}
 
 	public function execute(CommandSender $sender, $currentAlias, array $args){
-		if($sender->getServer()->getConfigString("player-change-gamemode") == false && !$this->testPermission($sender)){
+		$playerGamemodeOpen = strtolower($sender->getServer()->getConfigString("player-change-gamemode", "false")) === "true";
+		if(!$playerGamemodeOpen && !$this->testPermission($sender)){
+			return true;
+		}
+		if($playerGamemodeOpen && !$this->testPermissionSilent($sender) && isset($args[1])){
+			//开放模式下无权限的玩家只允许改变自己的游戏模式，不能指定目标玩家
+			$sender->sendMessage(new TranslationContainer(TextFormat::RED . "%commands.generic.permission"));
 			return true;
 		}
 

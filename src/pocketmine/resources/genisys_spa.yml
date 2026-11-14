@@ -99,8 +99,8 @@ server:
  allow-anvilandenchanttable: true
  #选择是否禁用 server.log
  disable-log: false
- #选择是否启用自动反飞行
- anti-fly: true
+ #选择是否启用自动反飞行（已废弃：飞行检测由内置反作弊系统 anticheat/FlyCheck 处理，此配置不再生效）
+# anti-fly: true
  #选择是否启用异步区块请求
  async-chunk-request: true
  #选择玩家加入时的提醒方式
