@@ -24,6 +24,7 @@ use pocketmine\inventory\AnvilInventory;
 use pocketmine\item\Item;
 use pocketmine\item\Tool;
 use pocketmine\level\sound\AnvilBreakSound;
+use pocketmine\network\protocol\ProtocolCompatibility;
 use pocketmine\Player;
 
 class Anvil extends Fallable{
@@ -73,6 +74,9 @@ class Anvil extends Fallable{
 		if($player instanceof Player){
 			if($player->isCreative() and $player->getServer()->limitedCreative){
 				return true;
+			}
+			if(ProtocolCompatibility::isProtocol011((int) $player->getProtocol())){
+				return $player->handleProtocol011AnvilInteraction($this, $item);
 			}
 			if(!$player->usingAnvil){
 				$player->addWindow(new AnvilInventory($this));

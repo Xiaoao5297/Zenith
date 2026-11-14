@@ -99,23 +99,30 @@ use pocketmine\inventory\BigShapedRecipe;
 use pocketmine\inventory\BigShapelessRecipe;
 use pocketmine\inventory\EnchantInventory;
 use pocketmine\inventory\FurnaceInventory;
+use pocketmine\inventory\FurnaceRecipe;
 use pocketmine\inventory\Inventory;
 use pocketmine\inventory\InventoryHolder;
 use pocketmine\inventory\PlayerInventory;
 use pocketmine\inventory\ShapedRecipe;
+use pocketmine\inventory\ShapedRecipeFromJson;
 use pocketmine\inventory\VillagerTradeInventory;
 use pocketmine\inventory\ShapelessRecipe;
 use pocketmine\inventory\SimpleTransactionGroup;
+use pocketmine\item\Armor;
+use pocketmine\item\Dye;
+use pocketmine\item\enchantment\Enchantment;
 use pocketmine\item\FoodSource;
 use pocketmine\item\Item;
 use pocketmine\item\Lead;
 use pocketmine\item\Potion;
+use pocketmine\item\Tool;
 use pocketmine\item\Map;
 use pocketmine\level\ChunkLoader;
 use pocketmine\level\format\FullChunk;
 use pocketmine\level\Level;
 use pocketmine\level\Location;
 use pocketmine\level\Position;
+use pocketmine\level\sound\AnvilUseSound;
 use pocketmine\level\sound\LaunchSound;
 use pocketmine\math\AxisAlignedBB;
 use pocketmine\math\Vector2;
@@ -154,6 +161,7 @@ use pocketmine\network\protocol\FullChunkDataPacket;
 use pocketmine\network\protocol\Info as ProtocolInfo;
 use pocketmine\network\protocol\InteractPacket;
 use pocketmine\network\protocol\MovePlayerPacket;
+use pocketmine\network\protocol\MobEffectPacket;
 use pocketmine\network\protocol\PlayerActionPacket;
 use pocketmine\network\protocol\PlayStatusPacket;
 use pocketmine\network\protocol\RespawnPacket;
@@ -174,6 +182,7 @@ use pocketmine\network\SourceInterface;
 use pocketmine\permission\PermissibleBase;
 use pocketmine\permission\PermissionAttachment;
 use pocketmine\plugin\Plugin;
+use pocketmine\scheduler\CallbackTask;
 use pocketmine\tile\ItemFrame;
 use pocketmine\tile\Sign;
 use pocketmine\tile\Spawnable;
@@ -234,6 +243,23 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	/** @var SimpleTransactionGroup */
 	protected $currentTransaction = null;
 	public $craftingType = 0; //0 = 2x2 crafting, 1 = 3x3 crafting, 2 = stonecutter
+	/** @var int 0.11 客户端当前打开的合成界面类型（0.11 不发送 CRAFTING_EVENT 的打开状态） */
+	private $legacy011CraftingType = 0;
+
+	/** @var int|null 旧版客户端登录时暂存的创造模式，进入世界后再切换 */
+	protected $delayedCreativeGamemode = null;
+
+	/** @var array 0.11 铁砧会话（材料/附魔书点击序列） */
+	private $legacy011AnvilSession = [];
+	/** @var array 0.11 附魔台会话（先报价、再确认） */
+	private $legacy011EnchantingTableSession = [];
+	/** @var bool 0.11 自动疾跑（客户端不发送疾跑动作） */
+	private $protocol011AutoSprint = true;
+
+	/** 0.11 自动疾跑向客户端同步的属性值/效果，仅供 isProtocol011 路径使用 */
+	private const PROTOCOL_011_AUTO_SPRINT_SPEED = 5.0;
+	private const PROTOCOL_011_AUTO_SPRINT_EFFECT_AMPLIFIER = 1;
+	private const PROTOCOL_011_AUTO_SPRINT_EFFECT_DURATION = 0x7fffffff;
 
 	protected $isCrafting = false;
 
@@ -1068,6 +1094,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 		$this->server->onPlayerLogin($this);
 		$this->spawnToAll();
+		if($this->delayedCreativeGamemode !== null){
+			$this->server->getScheduler()->scheduleDelayedTask(new CallbackTask([$this, "applyDelayedCreativeGamemode"]), 20);
+		}
 
 		$this->level->getWeather()->sendWeather($this);
 		if($this->server->expEnabled){
@@ -1766,6 +1795,8 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			$dy = $newPos->y - $this->y;
 			$dz = $newPos->z - $this->z;
 
+			$this->applyProtocol011AutoSprint();
+
 			$this->move($dx, $dy, $dz);
 
 			$diffX = $this->x - $newPos->x;
@@ -2436,6 +2467,10 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			$this->gamemode = $this->server->getGamemode();
 			$nbt->playerGameType = new IntTag("playerGameType", $this->gamemode);
 		}
+		if($this->isLegacyPre014Player() and ($this->gamemode & 0x01) > 0 and $this->gamemode !== Player::SPECTATOR){
+			$this->delayedCreativeGamemode = $this->gamemode;
+			$this->gamemode = Player::SURVIVAL;
+		}
 
 		$this->allowFlight = $this->isCreative();
 
@@ -2469,6 +2504,10 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		}
 
 		parent::__construct($this->level->getChunk($nbt["Pos"][0] >> 4, $nbt["Pos"][2] >> 4, true), $nbt);
+		if($this->isProtocol011Player() and $this->protocol011AutoSprint){
+			$this->setSprinting(true);
+			$this->syncDepthStriderMovementSpeed();
+		}
 		$this->loggedIn = true;
 		$this->server->addOnlinePlayer($this);
 
@@ -2561,6 +2600,1555 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 	private function isProtocol011Player() : bool{
 		return ProtocolCompatibility::isProtocol011((int) ($this->protocol ?? 0));
+	}
+
+	/**
+	 * 0.11 ~ 0.13：旧版玩法补丁的协议门控。
+	 * 0.14 / 0.15 一律返回 false，保证原有路径完全不受影响。
+	 */
+	private function isLegacyPre014Player() : bool{
+		return ProtocolCompatibility::isLegacyPre014Protocol((int) ($this->protocol ?? 0));
+	}
+
+	/**
+	 * 0.11 客户端没有可靠的服务端附魔/铁砧窗口，改为「手持物品点击方块」的会话式交互。
+	 * 非 0.11 返回 false，由调用方回落到原版窗口逻辑。
+	 */
+	public function handleProtocol011AnvilInteraction(Block $anvilBlock, Item $hand) : bool{
+		if(!$this->isProtocol011Player()){
+			return false;
+		}
+
+		$this->expireProtocol011AnvilSession();
+		$now = time();
+		$this->legacy011AnvilSession["time"] = $now;
+		$this->legacy011AnvilSession["block"] = $anvilBlock;
+
+		if($hand->getId() === Item::AIR or $hand->getCount() <= 0){
+			$this->sendProtocol011AnvilHelp();
+			$this->resetProtocol011AnvilSession();
+			return true;
+		}
+
+		if(($this->legacy011AnvilSession["stage"] ?? "") === "book" and ($this->legacy011AnvilSession["book"] ?? null) instanceof Item){
+			return $this->applyProtocol011AnvilBook($anvilBlock, $hand, $this->legacy011AnvilSession["book"]);
+		}
+
+		if(($this->legacy011AnvilSession["stage"] ?? "") === "repair" and ($this->legacy011AnvilSession["material"] ?? null) instanceof Item){
+			$materialSlot = (int) ($this->legacy011AnvilSession["materialSlot"] ?? -1);
+			$targetSlot = $this->inventory->getHeldItemSlot();
+			if($targetSlot === $materialSlot){
+				$this->sendMessage("§7[§4✖§7] §c请切换到另一格要修复的物品，不能用同一件物品当材料。");
+				$this->resetProtocol011AnvilSession();
+				return true;
+			}
+
+			$repair = $this->tryProtocol011AnvilRepair($this->legacy011AnvilSession["material"], $hand);
+			if($repair === null){
+				$this->sendMessage("§7[§4✖§7] §c材料不匹配，或物品耐久已满。");
+				$this->resetProtocol011AnvilSession();
+				return true;
+			}
+			$handled = $this->finishProtocol011AnvilRepair($anvilBlock, $this->legacy011AnvilSession["material"], $hand, $repair, $materialSlot);
+			if($handled){
+				$this->tryProtocol011DamageAnvil($anvilBlock);
+			}
+			return $handled;
+		}
+
+		if($hand->getId() === Item::ENCHANTED_BOOK){
+			if(!$hand->hasEnchantments()){
+				$this->sendMessage("§7[§4✖§7] §c无效的附魔书。");
+				$this->resetProtocol011AnvilSession();
+				return true;
+			}
+
+			$this->legacy011AnvilSession = [
+				"stage" => "book",
+				"book" => clone $hand,
+				"block" => $anvilBlock,
+				"time" => $now
+			];
+			$this->sendMessage("§7[§a✔§7]§a 请手持要附魔的物品点击以确认操作");
+			return true;
+		}
+
+		$targetName = $this->getProtocol011RepairTargetName($hand);
+		if($targetName === null){
+			$this->sendProtocol011AnvilHelp();
+			return true;
+		}
+
+		$this->legacy011AnvilSession = [
+			"stage" => "repair",
+			"material" => clone $hand,
+			"materialSlot" => $this->inventory->getHeldItemSlot(),
+			"block" => $anvilBlock,
+			"time" => $now
+		];
+		$this->sendMessage("§7[§a✔§7]§a 请手持要修复的§e " . $targetName . " §a并再次点击。");
+		return true;
+	}
+
+	/**
+	 * 0.11 附魔台：第一次点击报价，第二次点击确认扣青金石/等级。
+	 * 非 0.11 返回 false，走原版 EnchantInventory。
+	 */
+	public function handleProtocol011EnchantingTableInteraction(Block $tableBlock, Item $hand) : bool{
+		if(!$this->isProtocol011Player()){
+			return false;
+		}
+
+		$this->expireProtocol011EnchantingTableSession();
+		$category = $this->getProtocol011EnchantingTableCategory($hand);
+		if($category === null){
+			$this->sendMessage("§7[§4✖§7] §c您手持的物品无法被附魔！（必须手持工具、盔甲、武器、书）");
+			$this->resetProtocol011EnchantingTableSession();
+			return true;
+		}
+
+		if(($this->legacy011EnchantingTableSession["stage"] ?? "") === "offer"){
+			$offer = $this->legacy011EnchantingTableSession;
+			if(($offer["category"] ?? "") !== $category or (int) ($offer["itemId"] ?? -1) !== $hand->getId()){
+				$this->sendMessage("§7[§4✖§7] §c附魔过程中不能更换物品类型！");
+				$this->resetProtocol011EnchantingTableSession();
+				return true;
+			}
+			if($hand->getId() !== Item::BOOK and $hand->hasEnchantments()){
+				$this->sendMessage("§7[§4✖§7] §c附魔过的物品无法再被附魔！");
+				$this->resetProtocol011EnchantingTableSession();
+				return true;
+			}
+
+			$enchantment = Enchantment::getEnchantment((int) $offer["enchantment"]);
+			$enchantment->setLevel((int) $offer["level"]);
+			if(!$this->canProtocol011ApplyEnchantment($hand, $enchantment) and $hand->getId() !== Item::BOOK){
+				$this->sendMessage("§7[§4✖§7] §c此物品无法被附魔。");
+				$this->resetProtocol011EnchantingTableSession();
+				return true;
+			}
+
+			$lapis = Item::get(Item::DYE, Dye::BLUE, (int) $offer["lapis"]);
+			if(!$this->inventory->contains($lapis)){
+				$this->sendMessage("§7[§4✖§7] §c你的背包中没有足够的 青金石*" . $lapis->getCount() . " 或 exp等级*" . (int) $offer["cost"]);
+				$this->resetProtocol011EnchantingTableSession();
+				return true;
+			}
+			if($this->getExpLevel() < (int) $offer["cost"]){
+				$this->sendMessage("§7[§4✖§7] §c你的背包中没有足够的 青金石*" . $lapis->getCount() . " 或 exp等级*" . (int) $offer["cost"]);
+				$this->resetProtocol011EnchantingTableSession();
+				return true;
+			}
+
+			$this->inventory->removeItem($lapis);
+			$this->setExpLevel($this->getExpLevel() - (int) $offer["cost"]);
+			if($hand->getId() === Item::BOOK){
+				$this->inventory->removeItem(Item::get(Item::BOOK, 0, 1));
+				$result = Item::get(Item::ENCHANTED_BOOK, 0, 1);
+				$result->addEnchantment($enchantment);
+				foreach($this->inventory->addItem($result) as $leftover){
+					$this->level->dropItem($this, $leftover);
+				}
+				$this->sendMessage("§7[§a✔§7]§a 成功从附魔台获取了" . $this->getProtocol011EnchantmentDisplayName($enchantment->getId()) . " 附魔书！");
+			}else{
+				$result = clone $hand;
+				$result->addEnchantment($enchantment);
+				$this->inventory->setItemInHand($result);
+				$this->sendMessage("§7[§a✔§7]§a 成功附魔 " . $this->getProtocol011EnchantmentDisplayName($enchantment->getId()) . " " . $this->getProtocol011EnchantmentLevelName($enchantment->getLevel()) . "！");
+			}
+			$this->inventory->sendContents($this);
+			$this->resetProtocol011EnchantingTableSession();
+			return true;
+		}
+
+		if($hand->getId() !== Item::BOOK and $hand->hasEnchantments()){
+			$this->sendMessage("§7[§4✖§7] §c附魔过的物品无法再被附魔！");
+			$this->resetProtocol011EnchantingTableSession();
+			return true;
+		}
+
+		$available = $this->getProtocol011AvailableEnchantments($category);
+		$available = array_values(array_filter($available, function($id) use ($hand){
+			$enchantment = Enchantment::getEnchantment((int) $id);
+			return $hand->getId() === Item::BOOK or $this->canProtocol011ApplyEnchantment($hand, $enchantment);
+		}));
+		if(count($available) === 0){
+			$this->sendMessage("§7[§4✖§7] §c您手持的物品无法被附魔！（必须手持工具、盔甲、武器、书）");
+			$this->resetProtocol011EnchantingTableSession();
+			return true;
+		}
+
+		$enchantmentId = (int) $available[mt_rand(0, count($available) - 1)];
+		$level = mt_rand(1, min(3, Enchantment::getEnchantMaxLevel($enchantmentId)));
+		$cost = $level;
+		$lapis = $level * 5;
+		$this->legacy011EnchantingTableSession = [
+			"stage" => "offer",
+			"category" => $category,
+			"itemId" => $hand->getId(),
+			"enchantment" => $enchantmentId,
+			"level" => $level,
+			"cost" => $cost,
+			"lapis" => $lapis,
+			"block" => $tableBlock,
+			"time" => time()
+		];
+		$this->sendMessage("§a您的附魔类型：§e" . $this->getProtocol011EnchantmentDisplayName($enchantmentId) . " " . $this->getProtocol011EnchantmentLevelName($level));
+		$this->sendMessage("§a所需条件：§e青金石*" . $lapis . ", 等级*" . $cost);
+		$this->sendMessage("§a再次点击即可附魔");
+		return true;
+	}
+
+	private function expireProtocol011AnvilSession() : void{
+		if(!$this->isProtocol011Player()){
+			return;
+		}
+		if(isset($this->legacy011AnvilSession["time"]) and time() - (int) $this->legacy011AnvilSession["time"] > 30){
+			$this->resetProtocol011AnvilSession();
+		}
+	}
+
+	private function resetProtocol011AnvilSession() : void{
+		$this->legacy011AnvilSession = [];
+	}
+
+	private function sendProtocol011AnvilHelp() : void{
+		$this->sendMessage("§e======= §f铁砧使用说明 §e=======");
+		$this->sendMessage("§7[§a1§7] §d手持 §b材料 §d点击 §f§l»§r §a修复手持物品");
+		$this->sendMessage("§7[§a2§7] §d手持 §b附魔书 §d点击 §f§l»§r §a给手持的物品附魔");
+	}
+
+	private function applyProtocol011AnvilBook(Block $anvilBlock, Item $target, Item $book) : bool{
+		if(!$this->isProtocol011Player()){
+			return false;
+		}
+		if(!$this->canProtocol011UseAsEnchantTarget($target)){
+			$this->sendMessage("§7[§4✖§7] §c此物品无法被附魔。");
+			$this->resetProtocol011AnvilSession();
+			return true;
+		}
+
+		$result = clone $target;
+		$applied = [];
+		foreach($this->getProtocol011BookEnchantments($book) as $bookEnchantment){
+			$enchantment = $this->resolveProtocol011AnvilEnchantment($result, $bookEnchantment);
+			if($enchantment instanceof Enchantment){
+				$result->addEnchantment($enchantment);
+				$applied[] = $enchantment;
+			}
+		}
+
+		if(count($applied) === 0){
+			$this->sendMessage("§7[§4✖§7] §c这本书的附魔无法应用到此物品。");
+			$this->resetProtocol011AnvilSession();
+			return true;
+		}
+
+		$cost = 0;
+		foreach($applied as $enchantment){
+			$cost += max(1, $this->getProtocol011BookCostMultiplier($enchantment->getId())) * $enchantment->getLevel();
+		}
+		if($this->getExpLevel() < $cost){
+			$this->sendMessage("§7[§4✖§7] §c你需要§e " . $cost . "§c 经验等级，你只有 §e" . $this->getExpLevel() . "§c。");
+			$this->resetProtocol011AnvilSession();
+			return true;
+		}
+
+		$bookToRemove = Item::get(Item::ENCHANTED_BOOK, 0, 1);
+		if($book->hasCompoundTag()){
+			$bookToRemove->setCompoundTag($book->getCompoundTag());
+		}
+		if(!$this->inventory->contains($bookToRemove)){
+			$this->sendMessage("§7[§4✖§7] §c未找到附魔书，操作失败。");
+			$this->resetProtocol011AnvilSession();
+			return true;
+		}
+
+		$this->inventory->removeItem($bookToRemove);
+		$this->setExpLevel($this->getExpLevel() - $cost);
+		$this->inventory->setItemInHand($result);
+		$this->inventory->sendContents($this);
+		$this->playProtocol011AnvilUseSound($anvilBlock);
+		$this->tryProtocol011DamageAnvil($anvilBlock);
+		$this->sendMessage("§7[§a✔§7]§a 附魔成功！消耗了§e " . $cost . " §a经验等级。");
+		$this->resetProtocol011AnvilSession();
+		return true;
+	}
+
+	private function getProtocol011BookEnchantments(Item $book) : array{
+		$result = [];
+		foreach($book->getEnchantments() as $enchantment){
+			$maxLevel = Enchantment::getEnchantMaxLevel($enchantment->getId());
+			if($enchantment->getId() !== Enchantment::TYPE_INVALID and $enchantment->getLevel() <= $maxLevel){
+				$result[] = clone $enchantment;
+			}
+		}
+
+		return $result;
+	}
+
+	private function resolveProtocol011AnvilEnchantment(Item $target, Enchantment $bookEnchantment){
+		if(!$this->canProtocol011ApplyEnchantment($target, $bookEnchantment)){
+			return null;
+		}
+		foreach($target->getEnchantments() as $existing){
+			if($existing->getId() !== $bookEnchantment->getId() and $this->isProtocol011ConflictingEnchantment($existing->getId(), $bookEnchantment->getId())){
+				return null;
+			}
+		}
+
+		$maxLevel = Enchantment::getEnchantMaxLevel($bookEnchantment->getId());
+		$bookLevel = min($bookEnchantment->getLevel(), $maxLevel);
+		$oldLevel = $target->getEnchantmentLevel($bookEnchantment->getId());
+		$newLevel = $oldLevel > 0 ? ($oldLevel === $bookLevel ? min($maxLevel, $oldLevel + 1) : max($oldLevel, $bookLevel)) : $bookLevel;
+		if($newLevel <= $oldLevel){
+			return null;
+		}
+
+		return Enchantment::getEnchantment($bookEnchantment->getId())->setLevel($newLevel);
+	}
+
+	private function finishProtocol011AnvilRepair(Block $anvilBlock, Item $material, Item $target, array $repair, int $materialSlot) : bool{
+		$cost = (int) $repair["xp_cost"];
+		if($this->getExpLevel() < $cost){
+			$this->sendMessage("§7[§4✖§7] §c你需要§e " . $cost . "§c 经验等级，你只有 §e" . $this->getExpLevel() . "§c。");
+			$this->resetProtocol011AnvilSession();
+			return true;
+		}
+
+		$materialToRemove = $repair["is_combine_repair"] ? clone $material : Item::get($material->getId(), $material->getDamage(), (int) $repair["need"]);
+		if(!$this->consumeProtocol011AnvilMaterialFromSlot($materialSlot, $materialToRemove)){
+			$this->sendMessage("§7[§4✖§7] §c材料不足：需要§e " . (int) $repair["need"] . " §c个。");
+			$this->resetProtocol011AnvilSession();
+			return true;
+		}
+
+		$this->setExpLevel($this->getExpLevel() - $cost);
+		$this->inventory->setItemInHand($repair["item"]);
+		$this->inventory->sendContents($this);
+		$this->playProtocol011AnvilUseSound($anvilBlock);
+		if($repair["is_combine_repair"]){
+			$this->sendMessage("§7[§a✔§7]§a 合并修复成功！");
+			$this->sendMessage("§7[§e?§7] §f消耗经验: §e" . $cost . "§f级。");
+		}else{
+			$this->sendMessage("§7[§a✔§7]§a 修复成功！消耗了§e " . $cost . " §a经验等级和§e " . (int) $repair["need"] . " §a个材料。");
+		}
+		$this->resetProtocol011AnvilSession();
+		return true;
+	}
+
+	private function consumeProtocol011AnvilMaterialFromSlot(int $slot, Item $materialToRemove) : bool{
+		if(!$this->isProtocol011Player()){
+			return false;
+		}
+		if($slot < 0 or $slot >= $this->inventory->getSize()){
+			return false;
+		}
+
+		$slotItem = $this->inventory->getItem($slot);
+		$checkDamage = $materialToRemove->getDamage() === null ? false : true;
+		$checkTags = $materialToRemove->getCompoundTag() === null ? false : true;
+		if(!$materialToRemove->equals($slotItem, $checkDamage, $checkTags) or $slotItem->getCount() < $materialToRemove->getCount()){
+			return false;
+		}
+
+		$remaining = clone $slotItem;
+		$remaining->setCount($remaining->getCount() - $materialToRemove->getCount());
+		return $this->inventory->setItem($slot, $remaining);
+	}
+
+	private function tryProtocol011AnvilRepair(Item $material, Item $target){
+		if(!$this->canProtocol011UseAsEnchantTarget($target) or $target->getCount() !== 1){
+			return null;
+		}
+
+		if($material->getId() === $target->getId() and $material->getCount() >= 1){
+			$result = clone $target;
+			$changed = false;
+			$cost = 0;
+			$maxDurability = $target->getMaxDurability();
+			if($maxDurability !== false and $maxDurability > 0){
+				$targetRemaining = max(0, $maxDurability - $target->getDamage());
+				$materialRemaining = max(0, $maxDurability - $material->getDamage());
+				$combinedRemaining = min($maxDurability, $targetRemaining + $materialRemaining + (int) floor($maxDurability * 0.12));
+				$newDamage = $maxDurability - $combinedRemaining;
+				if($newDamage < $result->getDamage()){
+					$result->setDamage($newDamage);
+					$changed = true;
+					$cost += 2;
+				}
+			}
+
+			foreach($material->getEnchantments() as $materialEnchantment){
+				$enchantment = $this->resolveProtocol011AnvilEnchantment($result, $materialEnchantment);
+				if($enchantment instanceof Enchantment){
+					$result->addEnchantment($enchantment);
+					$changed = true;
+					$cost += max(1, $this->getProtocol011BookCostMultiplier($enchantment->getId())) * $enchantment->getLevel();
+				}
+			}
+
+			if(!$changed or $cost <= 0){
+				return null;
+			}
+
+			return [
+				"item" => $result,
+				"need" => 1,
+				"xp_cost" => $cost,
+				"is_combine_repair" => true
+			];
+		}
+
+		$repairMaterial = $this->getProtocol011RepairMaterialId($target);
+		if($repairMaterial === false or $material->getId() !== $repairMaterial){
+			return null;
+		}
+		$maxDurability = $target->getMaxDurability();
+		if($maxDurability === false or $maxDurability <= 0 or $target->getDamage() <= 0){
+			return null;
+		}
+
+		$damage = min($maxDurability, max(0, $target->getDamage()));
+		$repairPerUnit = max(1, (int) floor($maxDurability / 4));
+		$used = 0;
+		while($damage > 0 and $used < $material->getCount()){
+			$damage -= min($repairPerUnit, $damage);
+			++$used;
+		}
+		if($used <= 0 or $damage >= $target->getDamage()){
+			return null;
+		}
+
+		$result = clone $target;
+		$result->setDamage($damage);
+		return [
+			"item" => $result,
+			"need" => $used,
+			"xp_cost" => $used,
+			"is_combine_repair" => false
+		];
+	}
+
+	private function getProtocol011RepairTargetName(Item $material){
+		if($material->getMaxDurability() !== false and $material->getMaxDurability() > 0){
+			return "相同物品";
+		}
+
+		switch($material->getId()){
+			case Item::DIAMOND:
+				return "钻石装备或工具";
+			case Item::IRON_INGOT:
+				return "铁质装备、锁链护甲、剪刀或打火石";
+			case Item::GOLD_INGOT:
+				return "金质装备或工具";
+			case Item::COBBLESTONE:
+				return "石质工具";
+			case Item::PLANK:
+				return "木质工具";
+			case Item::LEATHER:
+				return "皮革护甲";
+			case Item::STRING:
+				return "弓或钓鱼竿";
+		}
+
+		return null;
+	}
+
+	private function getProtocol011RepairMaterialId(Item $target){
+		if($target->isArmor()){
+			switch($target->getArmorTier()){
+				case Armor::TIER_LEATHER:
+					return Item::LEATHER;
+				case Armor::TIER_CHAIN:
+				case Armor::TIER_IRON:
+					return Item::IRON_INGOT;
+				case Armor::TIER_DIAMOND:
+					return Item::DIAMOND;
+				case Armor::TIER_GOLD:
+					return Item::GOLD_INGOT;
+			}
+		}
+
+		$tier = $this->getProtocol011ToolTier($target);
+		if($tier !== false){
+			switch($tier){
+				case Tool::TIER_WOODEN:
+					return Item::PLANK;
+				case Tool::TIER_STONE:
+					return Item::COBBLESTONE;
+				case Tool::TIER_IRON:
+					return Item::IRON_INGOT;
+				case Tool::TIER_DIAMOND:
+					return Item::DIAMOND;
+				case Tool::TIER_GOLD:
+					return Item::GOLD_INGOT;
+			}
+		}
+
+		switch($target->getId()){
+			case Item::BOW:
+			case Item::FISHING_ROD:
+				return Item::STRING;
+			case Item::SHEARS:
+			case Item::FLINT_STEEL:
+				return Item::IRON_INGOT;
+		}
+
+		return false;
+	}
+
+	private function getProtocol011ToolTier(Item $target){
+		if(($tier = $target->isPickaxe()) !== false){
+			return $tier;
+		}
+		if(($tier = $target->isAxe()) !== false){
+			return $tier;
+		}
+		if(($tier = $target->isSword()) !== false){
+			return $tier;
+		}
+		if(($tier = $target->isShovel()) !== false){
+			return $tier;
+		}
+		if(($tier = $target->isHoe()) !== false){
+			return $tier;
+		}
+
+		return false;
+	}
+
+	private function canProtocol011UseAsEnchantTarget(Item $target) : bool{
+		if($target->getId() === Item::AIR or $target->getId() === Item::BOOK){
+			return false;
+		}
+		if($target->getId() === Item::ENCHANTED_BOOK){
+			return true;
+		}
+		if($target->isArmor()){
+			return true;
+		}
+		if($target->isSword() !== false or $target->isAxe() !== false or $target->isPickaxe() !== false or $target->isShovel() !== false or $target->isHoe() !== false or $target->isShears() !== false){
+			return true;
+		}
+
+		return $target->getId() === Item::BOW or $target->getId() === Item::FISHING_ROD or $target->getId() === Item::FLINT_STEEL;
+	}
+
+	private function canProtocol011ApplyEnchantment(Item $item, Enchantment $enchantment) : bool{
+		if($item->getId() === Item::BOOK or $item->getId() === Item::ENCHANTED_BOOK){
+			return true;
+		}
+
+		switch($enchantment->getId()){
+			case Enchantment::TYPE_ARMOR_PROTECTION:
+			case Enchantment::TYPE_ARMOR_FIRE_PROTECTION:
+			case Enchantment::TYPE_ARMOR_EXPLOSION_PROTECTION:
+			case Enchantment::TYPE_ARMOR_PROJECTILE_PROTECTION:
+			case Enchantment::TYPE_ARMOR_THORNS:
+				return $item->isArmor();
+			case Enchantment::TYPE_ARMOR_FALL_PROTECTION:
+			case Enchantment::TYPE_WATER_SPEED:
+				return $item->isBoots();
+			case Enchantment::TYPE_WATER_BREATHING:
+			case Enchantment::TYPE_WATER_AFFINITY:
+				return $item->isHelmet();
+			case Enchantment::TYPE_WEAPON_SHARPNESS:
+			case Enchantment::TYPE_WEAPON_SMITE:
+			case Enchantment::TYPE_WEAPON_ARTHROPODS:
+				return $item->isSword() !== false or $item->isAxe() !== false;
+			case Enchantment::TYPE_WEAPON_KNOCKBACK:
+			case Enchantment::TYPE_WEAPON_FIRE_ASPECT:
+			case Enchantment::TYPE_WEAPON_LOOTING:
+				return $item->isSword() !== false;
+			case Enchantment::TYPE_MINING_EFFICIENCY:
+			case Enchantment::TYPE_MINING_SILK_TOUCH:
+			case Enchantment::TYPE_MINING_FORTUNE:
+				return $this->isProtocol011MiningEnchantTarget($item);
+			case Enchantment::TYPE_MINING_DURABILITY:
+				return $this->canProtocol011UseAsEnchantTarget($item);
+			case Enchantment::TYPE_BOW_POWER:
+			case Enchantment::TYPE_BOW_KNOCKBACK:
+			case Enchantment::TYPE_BOW_FLAME:
+			case Enchantment::TYPE_BOW_INFINITY:
+				return $item->getId() === Item::BOW;
+			case Enchantment::TYPE_FISHING_FORTUNE:
+			case Enchantment::TYPE_FISHING_LURE:
+				return $item->getId() === Item::FISHING_ROD;
+		}
+
+		return false;
+	}
+
+	private function isProtocol011MiningEnchantTarget(Item $item) : bool{
+		return $item->isPickaxe() !== false or $item->isAxe() !== false or $item->isShovel() !== false or $item->isHoe() !== false or $item->isShears() !== false;
+	}
+
+	private function isProtocol011ConflictingEnchantment(int $firstId, int $secondId) : bool{
+		if($firstId === $secondId){
+			return false;
+		}
+		$protections = [
+			Enchantment::TYPE_ARMOR_PROTECTION => true,
+			Enchantment::TYPE_ARMOR_FIRE_PROTECTION => true,
+			Enchantment::TYPE_ARMOR_EXPLOSION_PROTECTION => true,
+			Enchantment::TYPE_ARMOR_PROJECTILE_PROTECTION => true
+		];
+		if(isset($protections[$firstId]) and isset($protections[$secondId])){
+			return true;
+		}
+
+		$damage = [
+			Enchantment::TYPE_WEAPON_SHARPNESS => true,
+			Enchantment::TYPE_WEAPON_SMITE => true,
+			Enchantment::TYPE_WEAPON_ARTHROPODS => true
+		];
+		if(isset($damage[$firstId]) and isset($damage[$secondId])){
+			return true;
+		}
+
+		return ($firstId === Enchantment::TYPE_MINING_SILK_TOUCH and $secondId === Enchantment::TYPE_MINING_FORTUNE) or
+			($firstId === Enchantment::TYPE_MINING_FORTUNE and $secondId === Enchantment::TYPE_MINING_SILK_TOUCH);
+	}
+
+	private function getProtocol011BookCostMultiplier(int $enchantmentId) : int{
+		switch($enchantmentId){
+			case Enchantment::TYPE_ARMOR_EXPLOSION_PROTECTION:
+			case Enchantment::TYPE_WATER_BREATHING:
+			case Enchantment::TYPE_WATER_SPEED:
+			case Enchantment::TYPE_WATER_AFFINITY:
+			case Enchantment::TYPE_WEAPON_FIRE_ASPECT:
+			case Enchantment::TYPE_WEAPON_LOOTING:
+			case Enchantment::TYPE_MINING_FORTUNE:
+			case Enchantment::TYPE_BOW_KNOCKBACK:
+			case Enchantment::TYPE_BOW_FLAME:
+			case Enchantment::TYPE_FISHING_FORTUNE:
+			case Enchantment::TYPE_FISHING_LURE:
+				return 2;
+			case Enchantment::TYPE_ARMOR_THORNS:
+			case Enchantment::TYPE_MINING_SILK_TOUCH:
+			case Enchantment::TYPE_BOW_INFINITY:
+				return 4;
+		}
+
+		return 1;
+	}
+
+	private function tryProtocol011DamageAnvil(Block $anvilBlock) : void{
+		if(!$this->isProtocol011Player() or $anvilBlock->getId() !== Block::ANVIL or $anvilBlock->getLevel() === null or mt_rand(1, 100) > 15){
+			return;
+		}
+
+		$oldMeta = (int) $anvilBlock->getDamage();
+		$damage = $oldMeta >> 2;
+		if($damage >= 2){
+			$anvilBlock->getLevel()->setBlock($anvilBlock, Block::get(Block::AIR), true, true);
+			$anvilBlock->getLevel()->dropItem($anvilBlock->add(0.5, 0.5, 0.5), Item::get(Item::IRON_INGOT, 0, 3));
+			$anvilBlock->getLevel()->addSound(new AnvilBreakSound($anvilBlock));
+			return;
+		}
+
+		$newMeta = (($damage + 1) << 2) | ($oldMeta & 0x03);
+		$anvilBlock->getLevel()->setBlock($anvilBlock, Block::get(Block::ANVIL, $newMeta), true, true);
+	}
+
+	private function playProtocol011AnvilUseSound(Block $anvilBlock) : void{
+		if($anvilBlock->getLevel() !== null){
+			$anvilBlock->getLevel()->addSound(new AnvilUseSound($anvilBlock));
+		}
+	}
+
+	private function expireProtocol011EnchantingTableSession() : void{
+		if(!$this->isProtocol011Player()){
+			return;
+		}
+		if(isset($this->legacy011EnchantingTableSession["time"]) and time() - (int) $this->legacy011EnchantingTableSession["time"] > 30){
+			$this->resetProtocol011EnchantingTableSession();
+		}
+	}
+
+	private function resetProtocol011EnchantingTableSession() : void{
+		$this->legacy011EnchantingTableSession = [];
+	}
+
+	private function getProtocol011EnchantingTableCategory(Item $item){
+		if($item->getId() === Item::BOOK){
+			return "book";
+		}
+		if($item->isHelmet()){
+			return "helmet";
+		}
+		if($item->isBoots()){
+			return "boots";
+		}
+		if($item->isArmor()){
+			return "armor";
+		}
+		if($item->isSword() !== false){
+			return "sword";
+		}
+		if($this->isProtocol011MiningEnchantTarget($item) or $item->getId() === Item::FLINT_STEEL){
+			return "tool";
+		}
+		if($item->getId() === Item::BOW){
+			return "bow";
+		}
+		if($item->getId() === Item::FISHING_ROD){
+			return "fishing";
+		}
+
+		return null;
+	}
+
+	private function getProtocol011AvailableEnchantments(string $category) : array{
+		$armor = [
+			Enchantment::TYPE_ARMOR_PROTECTION,
+			Enchantment::TYPE_ARMOR_FIRE_PROTECTION,
+			Enchantment::TYPE_ARMOR_EXPLOSION_PROTECTION,
+			Enchantment::TYPE_ARMOR_PROJECTILE_PROTECTION,
+			Enchantment::TYPE_ARMOR_THORNS
+		];
+		$helmet = [Enchantment::TYPE_WATER_BREATHING, Enchantment::TYPE_WATER_AFFINITY];
+		$boots = [Enchantment::TYPE_ARMOR_FALL_PROTECTION, Enchantment::TYPE_WATER_SPEED];
+		$sword = [
+			Enchantment::TYPE_WEAPON_SHARPNESS,
+			Enchantment::TYPE_WEAPON_SMITE,
+			Enchantment::TYPE_WEAPON_ARTHROPODS,
+			Enchantment::TYPE_WEAPON_KNOCKBACK,
+			Enchantment::TYPE_WEAPON_FIRE_ASPECT,
+			Enchantment::TYPE_WEAPON_LOOTING,
+			Enchantment::TYPE_MINING_DURABILITY
+		];
+		$tool = [
+			Enchantment::TYPE_MINING_EFFICIENCY,
+			Enchantment::TYPE_MINING_SILK_TOUCH,
+			Enchantment::TYPE_MINING_DURABILITY,
+			Enchantment::TYPE_MINING_FORTUNE
+		];
+		$bow = [
+			Enchantment::TYPE_BOW_POWER,
+			Enchantment::TYPE_BOW_KNOCKBACK,
+			Enchantment::TYPE_BOW_FLAME,
+			Enchantment::TYPE_BOW_INFINITY,
+			Enchantment::TYPE_MINING_DURABILITY
+		];
+		$fishing = [
+			Enchantment::TYPE_FISHING_FORTUNE,
+			Enchantment::TYPE_FISHING_LURE,
+			Enchantment::TYPE_MINING_DURABILITY
+		];
+
+		switch($category){
+			case "helmet":
+				return array_merge($armor, $helmet);
+			case "boots":
+				return array_merge($armor, $boots);
+			case "armor":
+				return $armor;
+			case "sword":
+				return $sword;
+			case "tool":
+				return $tool;
+			case "bow":
+				return $bow;
+			case "fishing":
+				return $fishing;
+			case "book":
+				return array_values(array_unique(array_merge($armor, $helmet, $boots, $sword, $tool, $bow, $fishing)));
+		}
+
+		return [];
+	}
+
+	private function getProtocol011EnchantmentDisplayName(int $id) : string{
+		$names = [
+			Enchantment::TYPE_ARMOR_PROTECTION => "保护",
+			Enchantment::TYPE_ARMOR_FIRE_PROTECTION => "火焰保护",
+			Enchantment::TYPE_ARMOR_FALL_PROTECTION => "摔落保护",
+			Enchantment::TYPE_ARMOR_EXPLOSION_PROTECTION => "爆炸保护",
+			Enchantment::TYPE_ARMOR_PROJECTILE_PROTECTION => "弹射物保护",
+			Enchantment::TYPE_ARMOR_THORNS => "荆棘",
+			Enchantment::TYPE_WATER_BREATHING => "水下呼吸",
+			Enchantment::TYPE_WATER_SPEED => "深海探索者",
+			Enchantment::TYPE_WATER_AFFINITY => "水下速掘",
+			Enchantment::TYPE_WEAPON_SHARPNESS => "锋利",
+			Enchantment::TYPE_WEAPON_SMITE => "亡灵杀手",
+			Enchantment::TYPE_WEAPON_ARTHROPODS => "节肢杀手",
+			Enchantment::TYPE_WEAPON_KNOCKBACK => "击退",
+			Enchantment::TYPE_WEAPON_FIRE_ASPECT => "火焰附加",
+			Enchantment::TYPE_WEAPON_LOOTING => "抢夺",
+			Enchantment::TYPE_MINING_EFFICIENCY => "效率",
+			Enchantment::TYPE_MINING_SILK_TOUCH => "精准采集",
+			Enchantment::TYPE_MINING_DURABILITY => "耐久",
+			Enchantment::TYPE_MINING_FORTUNE => "时运",
+			Enchantment::TYPE_BOW_POWER => "力量",
+			Enchantment::TYPE_BOW_KNOCKBACK => "冲击",
+			Enchantment::TYPE_BOW_FLAME => "火矢",
+			Enchantment::TYPE_BOW_INFINITY => "无限",
+			Enchantment::TYPE_FISHING_FORTUNE => "海之眷顾",
+			Enchantment::TYPE_FISHING_LURE => "饵钓"
+		];
+
+		return $names[$id] ?? ("未知附魔");
+	}
+
+	private function getProtocol011EnchantmentLevelName(int $level) : string{
+		$names = [
+			1 => "I",
+			2 => "II",
+			3 => "III",
+			4 => "IV",
+			5 => "V"
+		];
+
+		return $names[$level] ?? (string) $level;
+	}
+
+	/**
+	 * 0.11 客户端不发送疾跑动作包，进入移动流程时按服务端策略自动疾跑。
+	 */
+	private function applyProtocol011AutoSprint() : void{
+		if(!$this->isProtocol011Player() or !$this->protocol011AutoSprint){
+			return;
+		}
+
+		if(!$this->isSprinting()){
+			$this->setSprinting(true);
+		}
+		$this->syncDepthStriderMovementSpeed();
+		$this->syncProtocol011AutoSprintClientSpeed();
+	}
+
+	private function shouldUseProtocol011AutoSprintSpeed() : bool{
+		return $this->isProtocol011Player() and $this->protocol011AutoSprint and $this->isSprinting();
+	}
+
+	private function syncProtocol011AutoSprintClientSpeed() : void{
+		if(!$this->isProtocol011Player() or !$this->spawned){
+			return;
+		}
+
+		$pk = new MobEffectPacket();
+		$pk->eid = 0;
+		$pk->effectId = Effect::SPEED;
+		if($this->shouldUseProtocol011AutoSprintSpeed()){
+			$pk->eventId = MobEffectPacket::EVENT_ADD;
+			$pk->amplifier = self::PROTOCOL_011_AUTO_SPRINT_EFFECT_AMPLIFIER;
+			$pk->particles = false;
+			$pk->duration = self::PROTOCOL_011_AUTO_SPRINT_EFFECT_DURATION;
+		}else{
+			$effect = $this->getEffect(Effect::SPEED);
+			if($effect instanceof Effect){
+				$pk->eventId = MobEffectPacket::EVENT_ADD;
+				$pk->amplifier = (int) $effect->getAmplifier();
+				$pk->particles = (bool) $effect->isVisible();
+				$pk->duration = max(1, (int) $effect->getDuration());
+			}else{
+				$pk->eventId = MobEffectPacket::EVENT_REMOVE;
+				$pk->amplifier = 0;
+				$pk->particles = false;
+				$pk->duration = 0;
+			}
+		}
+
+		$this->dataPacket($pk);
+	}
+
+	/**
+	 * 0.11 路径才叠加深海探索者/自动疾跑速度；0.14 保持原有 movementSpeed 直写。
+	 */
+	private function syncDepthStriderMovementSpeed(){
+		$speed = $this->movementSpeed;
+		if($this->isProtocol011Player() and $this->isInsideOfWater()){
+			$depthStrider = min(3, $this->inventory->getBoots()->getEnchantmentLevel(Enchantment::TYPE_WATER_SPEED));
+			if($depthStrider > 0){
+				$speed *= 1 + (0.35 * $depthStrider);
+			}
+		}
+		if($this->shouldUseProtocol011AutoSprintSpeed()){
+			$speed = self::PROTOCOL_011_AUTO_SPRINT_SPEED;
+		}
+		$this->getAttributeMap()->getAttribute(Attribute::MOVEMENT_SPEED)->setValue($speed);
+	}
+
+	/**
+	 * 0.11 打开工作台/切石机时记录界面类型（0.11 后续包会清空 craftingType）。
+	 */
+	public function markProtocol011CraftingTableOpen(int $craftingType) : void{
+		$this->craftingType = $craftingType;
+		if($this->isProtocol011Player()){
+			$this->legacy011CraftingType = $craftingType;
+		}
+	}
+
+	private function resetProtocol011CraftingTableState() : void{
+		if(!$this->isProtocol011Player()){
+			return;
+		}
+		$this->legacy011CraftingType = 0;
+	}
+
+	private function getProtocol011CraftingType() : int{
+		return $this->isProtocol011Player() ? max($this->craftingType, $this->legacy011CraftingType) : $this->craftingType;
+	}
+
+	private function sanitizeProtocol013RecipeItem(Item $item, bool &$modified){
+		$mappedItem = ProtocolCompatibility::mapRecipeItemForProtocol((int) $this->protocol, $item);
+		if($mappedItem === null){
+			return null;
+		}
+
+		if(!$mappedItem->deepEquals($item, true, true, true)){
+			$modified = true;
+		}
+
+		return $mappedItem;
+	}
+
+	/**
+	 * 0.13 客户端配方列表需要用映射后的物品重建，同时保留原配方 UUID。
+	 * 非 0.13 一律原样返回（$modified = false），保证 0.14/0.15 行为不变。
+	 */
+	private function cloneProtocol013RecipeWithId($recipe, bool &$modified){
+		$modified = false;
+		if(!ProtocolCompatibility::isProtocol013((int) ($this->protocol ?? 0))){
+			return $recipe;
+		}
+
+		if($recipe instanceof ShapedRecipe){
+			$result = $this->sanitizeProtocol013RecipeItem($recipe->getResult(), $modified);
+			if($result === null){
+				return null;
+			}
+
+			$mappedRecipe = new ShapedRecipeFromJson($result, $recipe->getHeight(), $recipe->getWidth());
+			for($y = 0; $y < $recipe->getHeight(); ++$y){
+				for($x = 0; $x < $recipe->getWidth(); ++$x){
+					$ingredient = $recipe->getIngredient($x, $y);
+					if($ingredient instanceof Item){
+						$mappedIngredient = $this->sanitizeProtocol013RecipeItem($ingredient, $modified);
+						if($mappedIngredient === null){
+							return null;
+						}
+						$mappedRecipe->addIngredient($x, $y, $mappedIngredient);
+					}
+				}
+			}
+		}elseif($recipe instanceof ShapelessRecipe){
+			$result = $this->sanitizeProtocol013RecipeItem($recipe->getResult(), $modified);
+			if($result === null){
+				return null;
+			}
+
+			$mappedRecipe = $recipe instanceof BigShapelessRecipe ? new BigShapelessRecipe($result) : new ShapelessRecipe($result);
+			foreach($recipe->getIngredientList() as $ingredient){
+				$mappedIngredient = $this->sanitizeProtocol013RecipeItem($ingredient, $modified);
+				if($mappedIngredient === null){
+					return null;
+				}
+				$mappedRecipe->addIngredient($mappedIngredient);
+			}
+		}elseif($recipe instanceof FurnaceRecipe){
+			$result = $this->sanitizeProtocol013RecipeItem($recipe->getResult(), $modified);
+			$input = $this->sanitizeProtocol013RecipeItem($recipe->getInput(), $modified);
+			if($result === null or $input === null){
+				return null;
+			}
+
+			$mappedRecipe = new FurnaceRecipe($result, $input);
+		}else{
+			return $recipe;
+		}
+
+		if($recipe->getId() !== null){
+			$mappedRecipe->setId($recipe->getId());
+		}
+
+		return $modified ? $mappedRecipe : $recipe;
+	}
+
+	private function protocol013ClientItemMatches(Item $serverItem, Item $clientItem){
+		if($clientItem->getId() === Item::AIR){
+			return false;
+		}
+
+		if(ProtocolCompatibility::requiresLegacyRedstoneMapping((int) $this->protocol)){
+			$normalized = ProtocolCompatibility::normalizeClientItemForProtocol((int) $this->protocol, $clientItem);
+			if($normalized !== $clientItem){
+				$normalized->setCount($clientItem->getCount());
+				return $serverItem->deepEquals($normalized, true, true, true);
+			}
+		}
+
+		$serverMeta = $serverItem->getDamage();
+		$clientMeta = $clientItem->getDamage();
+		return ProtocolCompatibility::itemsMatchAfterProtocolMapping(
+			(int) $this->protocol,
+			$serverItem->getId(),
+			$serverMeta === null ? 0 : (int) $serverMeta,
+			$serverItem->getCount(),
+			$clientItem->getId(),
+			$clientMeta === null ? 0 : (int) $clientMeta,
+			$clientItem->getCount()
+		);
+	}
+
+	private function normalizeProtocol013ClientItem(Item $sourceItem, Item $clientItem){
+		if(ProtocolCompatibility::requiresLegacyRedstoneMapping((int) $this->protocol)){
+			$normalized = ProtocolCompatibility::normalizeRecipeClientItemForProtocol((int) $this->protocol, $sourceItem, $clientItem);
+			if($normalized !== $clientItem){
+				$normalized->setCount($clientItem->getCount());
+				return $normalized;
+			}
+		}
+
+		if(ProtocolCompatibility::requiresLegacyRedstoneMapping((int) $this->protocol) and $this->protocol013ClientItemMatches($sourceItem, $clientItem)){
+			$item = clone $sourceItem;
+			$item->setCount($clientItem->getCount());
+			return $item;
+		}
+
+		return $clientItem;
+	}
+
+	private function isProtocol013RecipeItemSafe(Item $item){
+		if(ProtocolCompatibility::hasLegacyItemSurrogateForProtocol((int) $this->protocol, $item)){
+			return true;
+		}
+
+		$mappedItem = ProtocolCompatibility::mapItemForProtocol((int) $this->protocol, $item, false);
+		$meta = $mappedItem->getDamage();
+		return !ProtocolCompatibility::isHiddenItemForProtocol((int) $this->protocol, $mappedItem->getId(), $meta === null ? 0 : (int) $meta);
+	}
+
+	private function isProtocol013RecipeSafe($recipe){
+		if($recipe instanceof ShapedRecipe){
+			if(!$this->isProtocol013RecipeItemSafe($recipe->getResult())){
+				return false;
+			}
+			foreach($recipe->getIngredientMap() as $row){
+				foreach($row as $item){
+					if($item instanceof Item and !$this->isProtocol013RecipeItemSafe($item)){
+						return false;
+					}
+				}
+			}
+		}elseif($recipe instanceof ShapelessRecipe){
+			if(!$this->isProtocol013RecipeItemSafe($recipe->getResult())){
+				return false;
+			}
+			foreach($recipe->getIngredientList() as $item){
+				if($item instanceof Item and !$this->isProtocol013RecipeItemSafe($item)){
+					return false;
+				}
+			}
+		}elseif($recipe instanceof FurnaceRecipe){
+			return $this->isProtocol013RecipeItemSafe($recipe->getInput()) and $this->isProtocol013RecipeItemSafe($recipe->getResult());
+		}
+
+		return true;
+	}
+
+	private function normalizeProtocol011CraftingItem(Item $item, bool $ingredient) : Item{
+		$item = clone $item;
+		if($item->getDamage() === -1 or $item->getDamage() === 0xffff){
+			$item->setDamage(null);
+		}
+
+		if($ingredient and $item->getId() !== Item::AIR and $item->getCount() > 0){
+			$item->setCount(1);
+		}
+
+		return $item;
+	}
+
+	private function isEmptyProtocol011CraftingItem(Item $item) : bool{
+		return $item->getId() === Item::AIR or $item->getCount() <= 0;
+	}
+
+	private function isProtocol011CraftingItemVisible(Item $item) : bool{
+		if($this->isEmptyProtocol011CraftingItem($item)){
+			return true;
+		}
+
+		$meta = $item->getDamage();
+		return !ProtocolCompatibility::isHiddenItemForProtocol((int) $this->protocol, $item->getId(), $meta === null ? 0 : (int) $meta);
+	}
+
+	private function protocol011CraftingItemMatches(Item $serverItem, Item $clientItem) : bool{
+		if($this->isEmptyProtocol011CraftingItem($serverItem) or $this->isEmptyProtocol011CraftingItem($clientItem)){
+			return $this->isEmptyProtocol011CraftingItem($serverItem) and $this->isEmptyProtocol011CraftingItem($clientItem);
+		}
+
+		if($serverItem->deepEquals($clientItem, $serverItem->getDamage() !== null, $serverItem->getCompoundTag() !== null)){
+			return true;
+		}
+
+		return ProtocolCompatibility::requiresLegacyRedstoneMapping((int) $this->protocol) and $this->protocol013ClientItemMatches($serverItem, $clientItem);
+	}
+
+	private function getProtocol011CraftingGridItem(array $grid, int $x, int $y, bool $columnMajor) : Item{
+		return $grid[$columnMajor ? ($x * 3 + $y) : ($y * 3 + $x)];
+	}
+
+	private function matchProtocol011ShapedCraftingRecipe(ShapedRecipe $recipe, array $grid, array &$ingredients, bool $columnMajor = false) : bool{
+		$minX = 3;
+		$minY = 3;
+		$maxX = -1;
+		$maxY = -1;
+		for($y = 0; $y < 3; ++$y){
+			for($x = 0; $x < 3; ++$x){
+				$item = $this->getProtocol011CraftingGridItem($grid, $x, $y, $columnMajor);
+				if(!$this->isEmptyProtocol011CraftingItem($item)){
+					$minX = min($minX, $x);
+					$minY = min($minY, $y);
+					$maxX = max($maxX, $x);
+					$maxY = max($maxY, $y);
+				}
+			}
+		}
+
+		if($maxX < $minX or $maxY < $minY){
+			return false;
+		}
+
+		$width = $maxX - $minX + 1;
+		$height = $maxY - $minY + 1;
+		if($width !== $recipe->getWidth() or $height !== $recipe->getHeight()){
+			return false;
+		}
+
+		$ingredients = [];
+		for($y = 0; $y < $height; ++$y){
+			for($x = 0; $x < $width; ++$x){
+				$clientItem = $this->getProtocol011CraftingGridItem($grid, $minX + $x, $minY + $y, $columnMajor);
+				$ingredient = $recipe->getIngredient($x, $y);
+				if($ingredient instanceof Item and !$this->isEmptyProtocol011CraftingItem($ingredient)){
+					if(!$this->protocol011CraftingItemMatches($ingredient, $clientItem)){
+						return false;
+					}
+
+					$normalized = $this->normalizeProtocol013ClientItem($ingredient, $clientItem);
+					$normalized->setCount(1);
+					$ingredients[] = $normalized;
+				}elseif(!$this->isEmptyProtocol011CraftingItem($clientItem)){
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	private function matchProtocol011ShapelessCraftingRecipe(ShapelessRecipe $recipe, array $grid, array &$ingredients) : bool{
+		$needed = $recipe->getIngredientList();
+		$ingredients = [];
+
+		foreach($grid as $clientItem){
+			if($this->isEmptyProtocol011CraftingItem($clientItem)){
+				continue;
+			}
+
+			$matched = false;
+			foreach($needed as $index => $neededItem){
+				if($this->protocol011CraftingItemMatches($neededItem, $clientItem)){
+					$normalized = $this->normalizeProtocol013ClientItem($neededItem, $clientItem);
+					$normalized->setCount(1);
+					$ingredients[] = $normalized;
+					$neededItem->setCount($neededItem->getCount() - 1);
+					if($neededItem->getCount() <= 0){
+						unset($needed[$index]);
+					}
+					$matched = true;
+					break;
+				}
+			}
+
+			if(!$matched){
+				return false;
+			}
+		}
+
+		return count($needed) === 0;
+	}
+
+	private function getProtocol011PackedShapedIngredientKey(Item $item) : string{
+		$meta = $item->getDamage();
+		return $item->getId() . ":" . ($meta === null ? "?" : (string) $meta) . ":" . (string) $item->getCompoundTag();
+	}
+
+	private function getProtocol011PackedShapedIngredients(ShapedRecipe $recipe) : array{
+		$groups = [];
+
+		for($y = 0; $y < $recipe->getHeight(); ++$y){
+			for($x = 0; $x < $recipe->getWidth(); ++$x){
+				$ingredient = $recipe->getIngredient($x, $y);
+				if(!($ingredient instanceof Item) or $this->isEmptyProtocol011CraftingItem($ingredient)){
+					continue;
+				}
+
+				$key = $this->getProtocol011PackedShapedIngredientKey($ingredient);
+				if(!isset($groups[$key])){
+					$groups[$key] = [
+						"item" => clone $ingredient,
+						"cells" => 0,
+						"declared" => 0,
+					];
+				}
+
+				++$groups[$key]["cells"];
+				$groups[$key]["declared"] = max($groups[$key]["declared"], (int) $ingredient->getCount());
+			}
+		}
+
+		$ingredients = [];
+		foreach($groups as $group){
+			$count = max($group["cells"], $group["declared"], 1);
+			for($i = 0; $i < $count; ++$i){
+				$item = clone $group["item"];
+				$item->setCount(1);
+				$ingredients[] = $item;
+			}
+		}
+
+		return $ingredients;
+	}
+
+	private function matchProtocol011PackedShapedCraftingRecipe(ShapedRecipe $recipe, array $grid, array &$ingredients) : bool{
+		$needed = $this->getProtocol011PackedShapedIngredients($recipe);
+		$ingredients = [];
+
+		foreach($grid as $clientItem){
+			if($this->isEmptyProtocol011CraftingItem($clientItem)){
+				continue;
+			}
+
+			$matched = false;
+			foreach($needed as $index => $neededItem){
+				if($this->protocol011CraftingItemMatches($neededItem, $clientItem)){
+					$normalized = $this->normalizeProtocol013ClientItem($neededItem, $clientItem);
+					$normalized->setCount(1);
+					$ingredients[] = $normalized;
+					unset($needed[$index]);
+					$matched = true;
+					break;
+				}
+			}
+
+			if(!$matched){
+				return false;
+			}
+		}
+
+		return count($needed) === 0;
+	}
+
+	/**
+	 * 0.11 客户端只上报合成格 + 结果，服务端反查配方。
+	 * 非 0.11 返回 null（不触碰 CraftingManager）。
+	 */
+	private function findProtocol011CraftingRecipe(array $grid, Item $result){
+		if(!$this->isProtocol011Player()){
+			return null;
+		}
+
+		foreach($this->server->getCraftingManager()->getRecipes() as $recipe){
+			if(!($recipe instanceof ShapedRecipe) and !($recipe instanceof ShapelessRecipe)){
+				continue;
+			}
+
+			if(($recipe instanceof BigShapedRecipe or $recipe instanceof BigShapelessRecipe) and $this->getProtocol011CraftingType() === 0){
+				continue;
+			}
+
+			if(!$this->isProtocol013RecipeSafe($recipe) or !$this->protocol011CraftingItemMatches($recipe->getResult(), $result)){
+				continue;
+			}
+
+			$ingredients = [];
+			if($recipe instanceof ShapedRecipe){
+				if($this->matchProtocol011ShapedCraftingRecipe($recipe, $grid, $ingredients)){
+					return [$recipe, $ingredients];
+				}
+
+				if($this->matchProtocol011ShapedCraftingRecipe($recipe, $grid, $ingredients, true)){
+					return [$recipe, $ingredients];
+				}
+
+				if($this->matchProtocol011PackedShapedCraftingRecipe($recipe, $grid, $ingredients)){
+					return [$recipe, $ingredients];
+				}
+			}
+
+			if($recipe instanceof ShapelessRecipe and $this->matchProtocol011ShapelessCraftingRecipe($recipe, $grid, $ingredients)){
+				return [$recipe, $ingredients];
+			}
+		}
+
+		return null;
+	}
+
+	private function normalizeProtocol011CraftingSlots(array $slots){
+		if(count($slots) >= 10){
+			return array_slice(array_values($slots), 0, 10);
+		}
+
+		if(count($slots) === 5){
+			$slots = array_pad($slots, 10, Item::get(Item::AIR, 0, 0));
+			$slots[9] = $slots[4];
+			$slots[4] = $slots[3];
+			$slots[3] = $slots[2];
+			$slots[2] = Item::get(Item::AIR, 0, 0);
+			$slots[5] = Item::get(Item::AIR, 0, 0);
+			$slots[6] = Item::get(Item::AIR, 0, 0);
+			$slots[7] = Item::get(Item::AIR, 0, 0);
+			$slots[8] = Item::get(Item::AIR, 0, 0);
+			return $slots;
+		}
+
+		return null;
+	}
+
+	private function awardCraftingResultAchievements(Item $result) : void{
+		if(!$this->isProtocol011Player()){
+			return;
+		}
+
+		switch($result->getId()){
+			case Item::WORKBENCH:
+				$this->awardAchievement("buildWorkBench");
+				break;
+			case Item::WOODEN_PICKAXE:
+				$this->awardAchievement("buildPickaxe");
+				break;
+			case Item::FURNACE:
+				$this->awardAchievement("buildFurnace");
+				break;
+			case Item::WOODEN_HOE:
+				$this->awardAchievement("buildHoe");
+				break;
+			case Item::BREAD:
+				$this->awardAchievement("makeBread");
+				break;
+			case Item::CAKE:
+				$this->awardAchievement("bakeCake");
+				$this->inventory->addItem(Item::get(Item::BUCKET, 0, 3));
+				break;
+			case Item::STONE_PICKAXE:
+			case Item::GOLD_PICKAXE:
+			case Item::IRON_PICKAXE:
+			case Item::DIAMOND_PICKAXE:
+				$this->awardAchievement("buildBetterPickaxe");
+				break;
+			case Item::WOODEN_SWORD:
+				$this->awardAchievement("buildSword");
+				break;
+			case Item::DIAMOND:
+				$this->awardAchievement("diamond");
+				break;
+		}
+	}
+
+	/**
+	 * 0.11 合成：客户端发送 ContainerSetContentPacket(SPECIAL_CRAFTING)，
+	 * 服务端反查配方、校验库存、扣材料并发结果。
+	 * 非 0.11 或非合成窗口返回 false，调用方继续原有分支。
+	 */
+	private function handleProtocol011CraftingContentPacket(ContainerSetContentPacket $packet) : bool{
+		if(!$this->isProtocol011Player() or $packet->windowid !== \pocketmine\network\protocol\v11\ContainerSetContentPacket::SPECIAL_CRAFTING){
+			return false;
+		}
+
+		if($this->spawned === false or !$this->isAlive()){
+			return true;
+		}
+
+		$slots = $this->normalizeProtocol011CraftingSlots(is_array($packet->slots) ? $packet->slots : []);
+		if($slots === null or !isset($slots[9]) or !($slots[9] instanceof Item)){
+			$this->inventory->sendContents($this);
+			return true;
+		}
+
+		$grid = [];
+		for($i = 0; $i < 9; ++$i){
+			if(!isset($slots[$i]) or !($slots[$i] instanceof Item)){
+				$this->inventory->sendContents($this);
+				return true;
+			}
+
+			$grid[$i] = $this->normalizeProtocol011CraftingItem($slots[$i], true);
+			if(!$this->isProtocol011CraftingItemVisible($grid[$i])){
+				$this->inventory->sendContents($this);
+				return true;
+			}
+		}
+
+		$result = $this->normalizeProtocol011CraftingItem($slots[9], false);
+		if($this->isEmptyProtocol011CraftingItem($result) or !$this->isProtocol011CraftingItemVisible($result)){
+			$this->inventory->sendContents($this);
+			return true;
+		}
+
+		$match = $this->findProtocol011CraftingRecipe($grid, $result);
+		if($match === null){
+			$this->server->getLogger()->debug("Unmatched 0.11 crafting recipe from player " . $this->getName() . ": " . $result . ", using: " . implode(", ", $grid));
+			$this->inventory->sendContents($this);
+			return true;
+		}
+
+		[$recipe, $ingredients] = $match;
+		$used = array_fill(0, $this->inventory->getSize(), 0);
+		$canCraft = true;
+
+		foreach($ingredients as $ingredient){
+			$slot = -1;
+			foreach($this->inventory->getContents() as $index => $item){
+				if($ingredient->getId() !== Item::AIR and $ingredient->deepEquals($item, $ingredient->getDamage() !== null, $ingredient->getCompoundTag() !== null) and ($item->getCount() - $used[$index]) >= 1){
+					$slot = $index;
+					++$used[$index];
+					break;
+				}
+			}
+
+			if($ingredient->getId() !== Item::AIR and $slot === -1){
+				$canCraft = false;
+				break;
+			}
+		}
+
+		if(!$canCraft){
+			$this->server->getLogger()->debug("0.11 crafting recipe from player " . $this->getName() . " failed inventory validation, using: " . implode(", ", $ingredients));
+			$this->inventory->sendContents($this);
+			return true;
+		}
+
+		$this->server->getPluginManager()->callEvent($ev = new CraftItemEvent($this, $ingredients, $recipe));
+		if($ev->isCancelled()){
+			$this->inventory->sendContents($this);
+			return true;
+		}
+
+		foreach($used as $slot => $count){
+			if($count === 0){
+				continue;
+			}
+
+			$item = $this->inventory->getItem($slot);
+			if($item->getCount() > $count){
+				$newItem = clone $item;
+				$newItem->setCount($item->getCount() - $count);
+			}else{
+				$newItem = Item::get(Item::AIR, 0, 0);
+			}
+
+			$this->inventory->setItem($slot, $newItem);
+		}
+
+		$recipeResult = $recipe->getResult();
+		$extraItem = $this->inventory->addItem($recipeResult);
+		if(count($extraItem) > 0){
+			foreach($extraItem as $item){
+				$this->level->dropItem($this, $item);
+			}
+		}
+
+		$this->awardCraftingResultAchievements($recipeResult);
+		$this->inventory->sendContents($this);
+		$this->inventory->sendHeldItem($this);
+		return true;
+	}
+
+	private function isTrackableConsumeItem(Item $item){
+		if($item->getId() === Item::BUCKET){
+			return $item->getDamage() === 1;
+		}
+
+		static $consumeItems = [
+			Item::APPLE => true,
+			Item::MUSHROOM_STEW => true,
+			Item::RABBIT_STEW => true,
+			Item::BEETROOT_SOUP => true,
+			Item::BREAD => true,
+			Item::RAW_PORKCHOP => true,
+			Item::COOKED_PORKCHOP => true,
+			Item::RAW_MUTTON => true,
+			Item::COOKED_MUTTON => true,
+			Item::RAW_BEEF => true,
+			Item::BEETROOT => true,
+			Item::STEAK => true,
+			Item::COOKED_CHICKEN => true,
+			Item::RAW_CHICKEN => true,
+			Item::MELON_SLICE => true,
+			Item::GOLDEN_APPLE => true,
+			Item::ENCHANTED_GOLDEN_APPLE => true,
+			Item::PUMPKIN_PIE => true,
+			Item::CARROT => true,
+			Item::POTATO => true,
+			Item::POISONOUS_POTATO => true,
+			Item::BAKED_POTATO => true,
+			Item::COOKIE => true,
+			Item::RAW_SALMON => true,
+			Item::CLOWN_FISH => true,
+			Item::GOLDEN_CARROT => true,
+			Item::PUFFER_FISH => true,
+			Item::RAW_RABBIT => true,
+			Item::COOKED_RABBIT => true,
+			Item::COOKED_SALMON => true,
+			Item::COOKED_FISH => true,
+			Item::RAW_FISH => true,
+			Item::POTION => true,
+			Item::ROTTEN_FLESH => true,
+			Item::SPIDER_EYE => true
+		];
+
+		return isset($consumeItems[$item->getId()]);
+	}
+
+	private function shouldLegacy011UseDirectFoodConsume(Item $item) : bool{
+		if(!$this->isProtocol011Player() or !$this->server->foodEnabled or !$this->foodEnabled or !$this->spawned or !$this->isAlive()){
+			return false;
+		}
+
+		return $this->getFood() < 20 and $this->isTrackableConsumeItem($item);
+	}
+
+	/**
+	 * 0.11 客户端在长按食物时不一定发送 ENTITY_EVENT，直接按手持物品进食。
+	 * 非 0.11 返回 false，调用方保持原有 eatFoodInHand 流程。
+	 */
+	private function consumeProtocol011FoodInHand(Item $item) : bool{
+		if(!$this->shouldLegacy011UseDirectFoodConsume($item)){
+			return false;
+		}
+
+		$slot = $this->inventory->getItemInHand();
+		if(!$this->shouldLegacy011UseDirectFoodConsume($slot)){
+			$this->inventory->sendHeldItem($this);
+			return false;
+		}
+
+		$this->eatFoodInHand();
+		$this->inventory->sendContents($this);
+		$this->inventory->sendHeldItem($this);
+		$this->lastEat = PHP_INT_MAX;
+		return true;
+	}
+
+	/**
+	 * 旧版客户端先以生存模式进入世界，登录完成后再切回创造模式。
+	 * 仅 0.11~0.13 生效；0.14/0.15 不会进入该延迟队列。
+	 */
+	public function applyDelayedCreativeGamemode(CallbackTask $task = null){
+		if(!$this->isLegacyPre014Player() or !$this->connected or $this->closed or $this->delayedCreativeGamemode === null){
+			return;
+		}
+
+		$gamemode = $this->delayedCreativeGamemode;
+		$this->delayedCreativeGamemode = null;
+
+		if($this->gamemode === Player::SURVIVAL){
+			$this->setGamemode($gamemode);
+		}
 	}
 
 	private function isProtocol015Player() : bool{
@@ -3153,6 +4741,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 				$blockVector = new Vector3($packet->x, $packet->y, $packet->z);
 
 				$this->craftingType = 0;
+				$this->resetProtocol011CraftingTableState();
 
 				if($packet->face >= 0 and $packet->face <= 5){ //Use Block, place
 					$this->setDataFlag(self::DATA_FLAGS, self::DATA_FLAG_ACTION, false);
@@ -3168,6 +4757,9 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 						$this->inventory->sendHeldItem($this);
 					}else{
 						$item = $this->inventory->getItemInHand();
+						if($this->consumeProtocol011FoodInHand($item)){
+							break;
+						}
 						$oldItem = clone $item;
 						if($this->level->useItemOn($blockVector, $item, $packet->face, $packet->fx, $packet->fy, $packet->fz, $this)){
 							if(!$item->deepEquals($oldItem) or $item->getCount() !== $oldItem->getCount()){
@@ -3208,6 +4800,10 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 					if($ev->isCancelled()){
 						$this->inventory->sendHeldItem($this);
+						break;
+					}
+
+					if($this->consumeProtocol011FoodInHand($item)){
 						break;
 					}
 
@@ -3968,6 +5564,15 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 				switch($packet->event){
 					case EntityEventPacket::USE_ITEM: //Eating
+						if($this->isProtocol011Player()){
+							if($this->lastEat !== PHP_INT_MAX and $this->shouldLegacy011UseDirectFoodConsume($this->inventory->getItemInHand())){
+								$this->consumeProtocol011FoodInHand($this->inventory->getItemInHand());
+							}else{
+								$this->inventory->sendHeldItem($this);
+							}
+							$this->lastEat = PHP_INT_MAX;
+							break;
+						}
 						//SEC-014: 限速检查移入 eatFoodInHand()（按包频率记录 lastEat），
 						//此处不再依赖 lastEat 判定，动画包（START_EATING/RELEASE）缺失也能限速
 						$this->eatFoodInHand();
@@ -4044,11 +5649,18 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 					}
 				}
 				break;
+			case ProtocolInfo::CONTAINER_SET_CONTENT_PACKET:
+				if($this->spawned === false or !$this->isAlive()){
+					break;
+				}
+				$this->handleProtocol011CraftingContentPacket($packet);
+				break;
 			case ProtocolInfo::CONTAINER_CLOSE_PACKET:
 				if($this->spawned === false or $packet->windowid === 0){
 					break;
 				}
 				$this->craftingType = 0;
+				$this->resetProtocol011CraftingTableState();
 				$this->currentTransaction = null;
 				if(isset($this->windowIndex[$packet->windowid])){
 					if($this->windowIndex[$packet->windowid] instanceof EnchantInventory){
@@ -5092,7 +6704,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 	 */
 	public function setMovementSpeed($amount){
 		$this->movementSpeed = $amount;
-		$this->getAttributeMap()->getAttribute(Attribute::MOVEMENT_SPEED)->setValue($amount);
+		$this->syncDepthStriderMovementSpeed();
 	}
 
 	/**
@@ -5399,6 +7011,25 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 			return -1;
 		}
+	}
+
+	/**
+	 * 0.12/0.13 交易完成后不能立即重开窗口，先完整关闭旧窗口（发包、
+	 * 还原玩家背包临时槽位、移除假方块），再由调用方结束流程。
+	 * 0.14 返回 false，继续使用原有 removeWindow + 延迟重开逻辑。
+	 */
+	public function closeLegacyVillagerTradeWindowLikeSimpleMenu(VillagerTradeInventory $inventory) : bool{
+		if(!ProtocolCompatibility::isProtocol012((int) ($this->protocol ?? 0)) and !ProtocolCompatibility::isProtocol013((int) ($this->protocol ?? 0))){
+			return false;
+		}
+
+		if($this->getWindowId($inventory) === -1){
+			return false;
+		}
+
+		$this->removeWindow($inventory);
+
+		return true;
 	}
 
 	public function removeWindow(Inventory $inventory){

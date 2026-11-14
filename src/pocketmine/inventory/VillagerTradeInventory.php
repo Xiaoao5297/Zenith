@@ -33,6 +33,7 @@ use pocketmine\nbt\tag\CompoundTag;
 use pocketmine\nbt\tag\IntTag;
 use pocketmine\nbt\tag\StringTag;
 use pocketmine\network\protocol\BlockEntityDataPacket;
+use pocketmine\network\protocol\ProtocolCompatibility;
 use pocketmine\network\protocol\UpdateBlockPacket;
 use pocketmine\Player;
 use pocketmine\scheduler\CallbackTask;
@@ -278,6 +279,10 @@ class VillagerTradeInventory extends CustomInventory{
 		}
 
 		$player->sendMessage($this->getTradeResultMessage($result));
+		if(ProtocolCompatibility::isProtocol012((int) $player->getProtocol()) or ProtocolCompatibility::isProtocol013((int) $player->getProtocol())){
+			$player->closeLegacyVillagerTradeWindowLikeSimpleMenu($this);
+			return $result;
+		}
 
 		$currentTradeIndex = $this->currentTradeIndex;
 		$player->removeWindow($this);

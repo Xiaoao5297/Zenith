@@ -28,6 +28,7 @@ use pocketmine\item\Tool;
 use pocketmine\nbt\tag\CompoundTag;
 use pocketmine\nbt\tag\IntTag;
 use pocketmine\nbt\tag\StringTag;
+use pocketmine\network\protocol\ProtocolCompatibility;
 use pocketmine\Player;
 use pocketmine\tile\EnchantTable;
 use pocketmine\tile\Tile;
@@ -90,6 +91,9 @@ class EnchantingTable extends Transparent{
 			//TODO lock
 			if($player->isCreative() and $player->getServer()->limitedCreative){
 				return true;
+			}
+			if(ProtocolCompatibility::isProtocol011((int) $player->getProtocol())){
+				return $player->handleProtocol011EnchantingTableInteraction($this, $item);
 			}
 			$tile = $this->getLevel()->getTile($this);
 			$enchantTable = null;

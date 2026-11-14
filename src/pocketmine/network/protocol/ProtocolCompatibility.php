@@ -78,6 +78,13 @@ final class ProtocolCompatibility{
 		return ProtocolCapabilities::isProtocol014($protocol);
 	}
 
+	/**
+	 * 0.11 / 0.12 / 0.13 —— 需要旧版玩法补丁、但不需要改动 0.14 路径。
+	 */
+	public static function isLegacyPre014Protocol(int $protocol) : bool{
+		return self::isProtocol011($protocol) or self::isProtocol012($protocol) or self::isProtocol013($protocol);
+	}
+
 	public static function isProtocol015(int $protocol) : bool{
 		return ProtocolCapabilities::isProtocol015($protocol);
 	}

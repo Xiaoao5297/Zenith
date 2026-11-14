@@ -48,7 +48,7 @@ class Stonecutter extends Solid{
 
 	public function onActivate(Item $item, Player $player = null){
 		if($player instanceof Player){
-			$player->craftingType = 2;
+			$player->markProtocol011CraftingTableOpen(2);
 		}
 
 		return true;
