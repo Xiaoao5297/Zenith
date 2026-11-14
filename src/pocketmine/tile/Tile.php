@@ -31,6 +31,8 @@ abstract class Tile extends Position{
 	const CAULDRON = "Cauldron";
 	const HOPPER = "Hopper";
 	const COMPARATOR = "Comparator";
+	const PISTON_ARM = "PistonArm";
+	const MOVING_BLOCK = "MovingBlock";
 
 	public static $tileCount = 1;
 

@@ -115,6 +115,7 @@ use pocketmine\tile\Furnace;
 use pocketmine\tile\Hopper;
 use pocketmine\tile\ItemFrame;
 use pocketmine\tile\MobSpawner;
+use pocketmine\tile\PistonArm;
 use pocketmine\tile\Sign;
 use pocketmine\tile\Skull;
 use pocketmine\tile\Tile;
@@ -3945,6 +3946,7 @@ private function lookupAddress($address) {
 		Tile::registerTile(Dropper::class);
 		Tile::registerTile(DLDetector::class);
 		Tile::registerTile(Cauldron::class);
+		Tile::registerTile(PistonArm::class);
 	}
 
 }

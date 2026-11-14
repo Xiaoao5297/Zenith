@@ -84,11 +84,16 @@ class Block extends Position implements Metadatable{
 
 	const POWERED_RAIL = 27;
 	const DETECTOR_RAIL = 28;
+	const STICKY_PISTON = 29;
 	const COBWEB = 30;
 	const TALL_GRASS = 31;
 	const BUSH = 32;
 	const DEAD_BUSH = 32;
+	const PISTON = 33;
+	const PISTON_HEAD = 34;
+	const PISTON_EXTENSION = 34;
 	const WOOL = 35;
+	const MOVING_BLOCK = 36;
 	const DANDELION = 37;
 	const ROSE = 38;
 	const POPPY = 38;
@@ -421,6 +426,10 @@ class Block extends Position implements Metadatable{
 			self::$list[self::RED_SANDSTONE_STAIRS] = RedSandstoneStairs::class;
 			self::$list[self::BED_BLOCK] = Bed::class;
 			self::$list[self::COBWEB] = Cobweb::class;
+			self::$list[self::PISTON] = Piston::class;
+			self::$list[self::STICKY_PISTON] = StickyPiston::class;
+			self::$list[self::PISTON_HEAD] = PistonHead::class;
+			self::$list[self::MOVING_BLOCK] = MovingBlock::class;
 			self::$list[self::TALL_GRASS] = TallGrass::class;
 			self::$list[self::DEAD_BUSH] = DeadBush::class;
 			self::$list[self::WOOL] = Wool::class;
@@ -877,6 +886,112 @@ class Block extends Position implements Metadatable{
 
 	public function getComparatorInputOverride(){
 		return 0;
+	}
+
+	/**
+	 * 活塞推动判定（移植自 InCore-II 的 Block）。
+	 *
+	 * Zenith 的 Tile 没有 InCore 的 isMovable()，这里用 method_exists 兜底：
+	 * 带 tile 的方块默认仍可被推动，由 PistonBase::captureMovableTile()/
+	 * restoreMovableTile() 负责搬 tile 的 NBT。
+	 *
+	 * @return bool
+	 */
+	public function canBePushedByPiston(){
+		static $immovable = [
+			self::BEDROCK => true,
+			self::OBSIDIAN => true,
+			self::GLOWING_OBSIDIAN => true,
+			self::NETHER_REACTOR => true,
+			self::INVISIBLE_BEDROCK => true,
+			self::MONSTER_SPAWNER => true,
+			self::END_PORTAL_FRAME => true,
+			self::PORTAL => true,
+			self::PISTON_HEAD => true,
+		];
+
+		if(isset($immovable[$this->id]) or $this->getHardness() < 0){
+			return false;
+		}
+
+		if($this instanceof PistonBase and $this->isExtended()){
+			return false;
+		}
+
+		if(!$this->isValid()){
+			return true;
+		}
+
+		$tile = $this->getLevel()->getTile($this);
+		if($tile === null){
+			return true;
+		}
+
+		return method_exists($tile, "isMovable") ? $tile->isMovable() : true;
+	}
+
+	public function canBePulledByPiston(){
+		return $this->canBePushedByPiston();
+	}
+
+	public function breaksWhenMovedByPiston(){
+		static $breakable = [
+			self::BED_BLOCK => true,
+			self::CAKE_BLOCK => true,
+			self::CACTUS => true,
+			self::COCOA_BLOCK => true,
+			self::DOOR_BLOCK => true,
+			self::IRON_DOOR_BLOCK => true,
+			self::SPRUCE_DOOR_BLOCK => true,
+			self::BIRCH_DOOR_BLOCK => true,
+			self::JUNGLE_DOOR_BLOCK => true,
+			self::ACACIA_DOOR_BLOCK => true,
+			self::DARK_OAK_DOOR_BLOCK => true,
+			self::ITEM_FRAME_BLOCK => true,
+			self::LADDER => true,
+			self::LEAVES => true,
+			self::LEAVES2 => true,
+			self::MELON_BLOCK => true,
+			self::SIGN_POST => true,
+			self::WALL_SIGN => true,
+			self::SKULL_BLOCK => true,
+			self::VINE => true,
+		];
+
+		return isset($breakable[$this->id]);
+	}
+
+	public function sticksToPiston(){
+		static $nonSticky = [
+			self::BED_BLOCK => true,
+			self::CAKE_BLOCK => true,
+			self::CACTUS => true,
+			self::COCOA_BLOCK => true,
+			self::DOOR_BLOCK => true,
+			self::IRON_DOOR_BLOCK => true,
+			self::SPRUCE_DOOR_BLOCK => true,
+			self::BIRCH_DOOR_BLOCK => true,
+			self::JUNGLE_DOOR_BLOCK => true,
+			self::ACACIA_DOOR_BLOCK => true,
+			self::DARK_OAK_DOOR_BLOCK => true,
+			self::ITEM_FRAME_BLOCK => true,
+			self::LADDER => true,
+			self::LEAVES => true,
+			self::LEAVES2 => true,
+			self::MELON_BLOCK => true,
+			self::SKULL_BLOCK => true,
+			self::VINE => true,
+		];
+
+		return !isset($nonSticky[$this->id]);
+	}
+
+	public function canStickToPiston(){
+		return $this->sticksToPiston();
+	}
+
+	public function canStickBlocks(){
+		return false;
 	}
 
 	public function onNeighborChange($side){

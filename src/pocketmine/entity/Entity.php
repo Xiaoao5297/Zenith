@@ -1645,6 +1645,23 @@ abstract class Entity extends Location implements Metadatable{
         return $this->onGround === true;
     }
 
+    /**
+     * 活塞推动判定（移植自 InCore-II entity/Entity）。
+     *
+     * @return bool
+     */
+    public function canBePushedByPiston(){
+        return true;
+    }
+
+    /**
+     * 活塞推动回调（移植自 InCore-II entity/Entity），默认不做事。
+     *
+     * @param Block|null $piston
+     */
+    public function onPushByPiston($piston = null){
+    }
+
     public function kill(){
         $this->health = 0;
         $this->removeAllEffects();

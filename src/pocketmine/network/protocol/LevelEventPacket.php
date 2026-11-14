@@ -68,6 +68,10 @@ class LevelEventPacket extends DataPacket{
 	const EVENT_SOUND_SPLASH = 3506;
 	const EVENT_SOUND_GRAY_SPLASH = 3507;//TODO: fix name
 
+	//活塞音效（移植自 InCore-II，MCPE 原生 1083/1084）
+	const EVENT_SOUND_PISTON_IN = 1083;
+	const EVENT_SOUND_PISTON_OUT = 1084;
+
 	const EVENT_SET_DATA = 4000;
 
 	const EVENT_PLAYERS_SLEEPING = 9800;
