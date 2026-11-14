@@ -110,6 +110,8 @@ class BackupManager{
 	private $running = false;
 	/** @var string|null */
 	private $runningTier = null;
+	/** @var bool 本进程是否已完成启动时的调度对齐 */
+	private $bootAligned = false;
 	/** @var string */
 	private $lastMessage = "";
 	/** @var string */
@@ -220,25 +222,22 @@ class BackupManager{
 			return;
 		}
 		$now = time();
+
+		// 启动对齐：每个进程只在首个 tick 执行一次，避免停机后补跑造成启动风暴
+		if(!$this->bootAligned){
+			$this->bootAligned = true;
+			$this->alignSchedules($now);
+			return;
+		}
+
 		foreach($this->tiers as $name => $t){
 			if($t["interval"] <= 0){
 				continue;
 			}
 			$state = $this->stateDir . $name . ".last";
 			if(!is_file($state)){
-				// 首次见到该时段：若已有快照则按其时间，否则视为已到期以便尽快开始
-				$snaps = $this->listSnapshots($name);
-				$last = 0;
-				if(count($snaps) > 0){
-					$dt = \DateTime::createFromFormat("Ymd-His", $snaps[count($snaps) - 1]);
-					if($dt !== false){
-						$last = $dt->getTimestamp();
-					}
-				}
-				if($last <= 0){
-					$last = $now - $t["interval"];
-				}
-				@file_put_contents($state, $last);
+				// 运行时状态文件丢失：从当前时间起算一个完整 interval，不立即补跑
+				@file_put_contents($state, $now);
 				continue;
 			}
 			$last = (int) @file_get_contents($state);
@@ -246,6 +245,43 @@ class BackupManager{
 				$this->runBackup($name);
 				return;
 			}
+		}
+	}
+
+	/**
+	 * 启动时对齐各时段的计时，不补跑停机期间错过的备份。
+	 *
+	 * 旧实现对每个时段用 `now - interval`（或最近快照时间）初始化，等于启动瞬间
+	 * 所有时段同时到期；而 tick 每 30 秒只执行一个时段，于是表现为
+	 * “每 30 秒备份一次”的瀑布式全量备份。
+	 *
+	 * 现在：
+	 *  - 状态文件缺失（全新安装/被清理）：从当前时间起算一个完整 interval；
+	 *  - 状态文件已过期：把计时推进到该时段自身周期的相位点，等到下一个周期点再备份。
+	 * 相位按“累计运行时间”推进，因此频繁重启也不会让长周期时段永远轮不到。
+	 */
+	private function alignSchedules($now){
+		$aligned = [];
+		foreach($this->tiers as $name => $t){
+			if($t["interval"] <= 0){
+				continue;
+			}
+			$state = $this->stateDir . $name . ".last";
+			if(!is_file($state)){
+				@file_put_contents($state, $now);
+				continue;
+			}
+			$last = (int) @file_get_contents($state);
+			$elapsed = $now - $last;
+			if($elapsed < $t["interval"]){
+				continue;
+			}
+			// 只抹掉“多出来的周期”，保留已累计运行时间的相位
+			@file_put_contents($state, $now - ($elapsed % $t["interval"]));
+			$aligned[] = $name;
+		}
+		if(count($aligned) > 0){
+			$this->server->getLogger()->info("[Backup] 启动对齐：已错过的时段 [" . implode(", ", $aligned) . "] 不补跑，按原周期继续");
 		}
 	}
 
