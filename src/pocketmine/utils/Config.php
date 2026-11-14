@@ -51,6 +51,10 @@ class Config{
 	private $correct = false;
 	/** @var integer */
 	private $type = Config::DETECT;
+	/** @var bool 载入时不要自动写回（例如 properties 解析失败，避免覆盖原文件） */
+	private $skipAutoSaveOnLoad = false;
+	/** @var bool 载入时内容被规范化（BOM/编码修复）过，需要写回磁盘 */
+	private $forceAutoSaveOnLoad = false;
 
 	public static $formats = [
 		"properties" => Config::PROPERTIES,
@@ -110,6 +114,8 @@ class Config{
 	 */
 	public function load($file, $type = Config::DETECT, $default = []){
 		$this->correct = true;
+		$this->skipAutoSaveOnLoad = false;
+		$this->forceAutoSaveOnLoad = false;
 		$this->type = (int) $type;
 		$this->file = $file;
 		if(!is_array($default)){
@@ -133,7 +139,15 @@ class Config{
 				switch($this->type){
 					case Config::PROPERTIES:
 					case Config::CNF:
-						$this->parseProperties($content);
+						$rawContent = $content;
+						$content = $this->normalizePropertiesContent($content);
+						$this->config = $this->parseProperties($content);
+						$this->skipAutoSaveOnLoad = $this->shouldSkipPropertiesAutoSave($content, $this->config);
+						$this->forceAutoSaveOnLoad = !$this->skipAutoSaveOnLoad
+							and is_string($rawContent)
+							and is_string($content)
+							and $rawContent !== $content
+							and count($this->config) > 0;
 						break;
 					case Config::JSON:
 						$this->config = json_decode($content, true);
@@ -156,7 +170,8 @@ class Config{
 				if(!is_array($this->config)){
 					$this->config = $default;
 				}
-				if($this->fillDefaults($default, $this->config) > 0){
+				$changed = $this->fillDefaults($default, $this->config);
+				if(($changed > 0 or $this->forceAutoSaveOnLoad) and !$this->skipAutoSaveOnLoad){
 					$this->save();
 				}
 			}else{
@@ -200,6 +215,11 @@ class Config{
 					case Config::ENUM:
 						$content = implode("\r\n", array_keys($this->config));
 						break;
+				}
+
+				if(($this->type === Config::PROPERTIES or $this->type === Config::CNF) and $this->isPropertiesContentUnchanged($content)){
+					//内容没有变化时不重写文件，避免只刷新注释头里的时间戳
+					return true;
 				}
 
 				if($async){
@@ -474,30 +494,432 @@ class Config{
 	}
 
 	/**
+	 * 把 properties 文件内容规范化为 UTF-8：去掉 BOM、修复乱码、必要时按常见中文编码重解码。
+	 *
+	 * @param string $content
+	 *
+	 * @return string
+	 */
+	private function normalizePropertiesContent($content){
+		if(!is_string($content) or $content === ""){
+			return (string) $content;
+		}
+
+		$convertedFromBom = $this->convertPropertiesBomEncodedContent($content);
+		if(is_string($convertedFromBom)){
+			$content = $convertedFromBom;
+		}
+
+		$content = $this->stripUtf8Bom($content);
+		if($this->isValidUtf8($content)){
+			$repaired = $this->repairUtf8MojibakePropertiesContent($content);
+			if(is_string($repaired)){
+				return $repaired;
+			}
+			return $content;
+		}
+
+		foreach($this->getPropertiesEncodingGuesses($content) as $encoding){
+			$converted = $this->convertEncodedPropertiesContent($content, $encoding);
+			if(is_string($converted) and $converted !== ""){
+				$converted = $this->stripUtf8Bom($converted);
+				if($this->isValidUtf8($converted)){
+					return $converted;
+				}
+			}
+		}
+
+		return $content;
+	}
+
+	/**
+	 * 处理 UTF-16/UTF-32 文件开头的 BOM。没有 BOM 时返回 null（表示"未处理"）。
+	 *
+	 * @param string $content
+	 *
+	 * @return string|null
+	 */
+	private function convertPropertiesBomEncodedContent($content){
+		$boms = [
+			"\x00\x00\xFE\xFF" => "UTF-32BE",
+			"\xFF\xFE\x00\x00" => "UTF-32LE",
+			"\xFE\xFF" => "UTF-16BE",
+			"\xFF\xFE" => "UTF-16LE",
+		];
+
+		foreach($boms as $bom => $encoding){
+			if(strpos($content, $bom) === 0){
+				return $this->convertEncodedPropertiesContent(substr($content, strlen($bom)), $encoding);
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * 内容不是合法 UTF-8 时，按这些编码依次尝试重解码。
+	 *
+	 * @param string $content
+	 *
+	 * @return string[]
+	 */
+	private function getPropertiesEncodingGuesses($content){
+		$guesses = [];
+		if(strpos($content, "\x00") !== false){
+			$guesses[] = "UTF-16LE";
+			$guesses[] = "UTF-16BE";
+			$guesses[] = "UTF-32LE";
+			$guesses[] = "UTF-32BE";
+		}
+		$guesses[] = "GB18030";
+		$guesses[] = "GBK";
+		$guesses[] = "BIG5";
+
+		return array_values(array_unique($guesses));
+	}
+
+	/**
+	 * 用 iconv / mbstring 把内容从 $encoding 转成 UTF-8，都不可用时返回 false。
+	 *
+	 * @param string $content
+	 * @param string $encoding
+	 *
+	 * @return string|false
+	 */
+	private function convertEncodedPropertiesContent($content, $encoding){
+		if(function_exists("iconv")){
+			$converted = @iconv($encoding, "UTF-8//IGNORE", $content);
+			if(is_string($converted) and $converted !== ""){
+				return $converted;
+			}
+		}
+
+		if(function_exists("mb_convert_encoding")){
+			$converted = @mb_convert_encoding($content, "UTF-8", $encoding);
+			if(is_string($converted) and $converted !== ""){
+				return $converted;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * 修复"本身就是合法 UTF-8、但字符是 GBK 乱码"的内容（例：娴嬭瘯 -> 测试）。
+	 * 修复不成立时返回 null。
+	 *
+	 * @param string $content
+	 *
+	 * @return string|null
+	 */
+	private function repairUtf8MojibakePropertiesContent($content){
+		foreach(["GB18030", "GBK"] as $encoding){
+			$repaired = $this->reencodePropertiesContent($content, $encoding);
+			if(is_string($repaired) and $repaired !== "" and $repaired !== $content and $this->isValidUtf8($repaired)){
+				return $repaired;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * @param string $content
+	 * @param string $encoding
+	 *
+	 * @return string|false
+	 */
+	private function reencodePropertiesContent($content, $encoding){
+		if(function_exists("iconv")){
+			$converted = @iconv("UTF-8", $encoding . "//IGNORE", $content);
+			if(is_string($converted) and $converted !== ""){
+				return $converted;
+			}
+		}
+
+		if(function_exists("mb_convert_encoding")){
+			$converted = @mb_convert_encoding($content, $encoding, "UTF-8");
+			if(is_string($converted) and $converted !== ""){
+				return $converted;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * 去掉开头的 UTF-8 BOM（EF BB BF）。
+	 *
+	 * @param string $content
+	 *
+	 * @return string
+	 */
+	private function stripUtf8Bom($content){
+		return substr($content, 0, 3) === "\xEF\xBB\xBF" ? substr($content, 3) : $content;
+	}
+
+	/**
+	 * @param string $content
+	 *
+	 * @return bool
+	 */
+	private function isValidUtf8($content){
+		return is_string($content) and preg_match('//u', $content) === 1;
+	}
+
+	/**
 	 * @param $content
 	 */
 	private function parseProperties($content){
-		if(preg_match_all('/([a-zA-Z0-9\-_\.]*)=([^\r\n]*)/u', $content, $matches) > 0){ //false or 0 matches
-			foreach($matches[1] as $i => $k){
-				$v = trim($matches[2][$i]);
-				switch(strtolower($v)){
-					case "on":
-					case "true":
-					case "yes":
-						$v = true;
-						break;
-					case "off":
-					case "false":
-					case "no":
-						$v = false;
-						break;
+		$result = [];
+		$content = str_replace(["\r\n", "\r"], "\n", (string) $content);
+		foreach(explode("\n", $content) as $line){
+			$line = $this->stripUtf8Bom($line);
+			$trimmed = trim($line);
+			if($trimmed === ""){
+				continue;
+			}
+
+			$prefix = $trimmed[0];
+			if($prefix === "#" or $prefix === ";" or $prefix === "!"){
+				continue;
+			}
+
+			$separatorPos = strpos($line, "=");
+			$colonPos = strpos($line, ":");
+			if($separatorPos === false or ($colonPos !== false and $colonPos < $separatorPos)){
+				$separatorPos = $colonPos;
+			}
+			if($separatorPos === false){
+				continue;
+			}
+
+			$k = trim(substr($line, 0, $separatorPos));
+			if($k === ""){
+				continue;
+			}
+
+			$k = $this->decodePropertiesString($k);
+			$v = $this->decodePropertiesString(trim(substr($line, $separatorPos + 1)));
+			switch(strtolower($v)){
+				case "on":
+				case "true":
+				case "yes":
+					$v = true;
+					break;
+				case "off":
+				case "false":
+				case "no":
+					$v = false;
+					break;
+			}
+
+			if(isset($result[$k])){
+				$logger = class_exists(__NAMESPACE__ . "\\MainLogger", false) ? MainLogger::getLogger() : null;
+				if($logger !== null){
+					$logger->debug("[Config] Repeated property " . $k . " on file " . $this->file);
 				}
-				if(isset($this->config[$k])){
-					MainLogger::getLogger()->debug("[Config] Repeated property " . $k . " on file " . $this->file);
-				}
-				$this->config[$k] = $v;
+			}
+			$result[$k] = $v;
+		}
+
+		return $result;
+	}
+
+	/**
+	 * 还原 properties 里的转义：\t \n \r \f 以及 \uXXXX（含代理对）。
+	 *
+	 * @param string $value
+	 *
+	 * @return string
+	 */
+	private function decodePropertiesString($value){
+		$length = strlen($value);
+		$result = "";
+		for($i = 0; $i < $length; ++$i){
+			$char = $value[$i];
+			if($char !== "\\"){
+				$result .= $char;
+				continue;
+			}
+
+			if(++$i >= $length){
+				$result .= "\\";
+				break;
+			}
+
+			$escape = $value[$i];
+			switch($escape){
+				case "t":
+					$result .= "\t";
+					break;
+				case "n":
+					$result .= "\n";
+					break;
+				case "r":
+					$result .= "\r";
+					break;
+				case "f":
+					$result .= "\f";
+					break;
+				case "u":
+					$decoded = $this->decodeUnicodeEscapeSequence($value, $i);
+					if($decoded === null){
+						$result .= "\\u";
+					}else{
+						$result .= $decoded["char"];
+						$i = $decoded["offset"];
+					}
+					break;
+				default:
+					$result .= $escape;
+					break;
 			}
 		}
+
+		return $result;
+	}
+
+	/**
+	 * $uOffset 指向 "\u" 里的 "u"。返回解码出的字符与新的读取偏移，格式不对时返回 null。
+	 *
+	 * @param string $value
+	 * @param int    $uOffset
+	 *
+	 * @return array|null
+	 */
+	private function decodeUnicodeEscapeSequence($value, $uOffset){
+		if($uOffset + 4 >= strlen($value)){
+			return null;
+		}
+
+		$hex = substr($value, $uOffset + 1, 4);
+		if(!ctype_xdigit($hex)){
+			return null;
+		}
+
+		$codeUnit = hexdec($hex);
+		$offset = $uOffset + 4;
+		if($codeUnit >= 0xD800 and $codeUnit <= 0xDBFF){
+			if($offset + 6 < strlen($value) and $value[$offset + 1] === "\\" and $value[$offset + 2] === "u"){
+				$lowHex = substr($value, $offset + 3, 4);
+				if(ctype_xdigit($lowHex)){
+					$lowUnit = hexdec($lowHex);
+					if($lowUnit >= 0xDC00 and $lowUnit <= 0xDFFF){
+						$codeUnit = 0x10000 + (($codeUnit - 0xD800) << 10) + ($lowUnit - 0xDC00);
+						$offset += 6;
+					}
+				}
+			}
+		}
+
+		return [
+			"char" => $this->encodeUnicodeCodepoint($codeUnit),
+			"offset" => $offset,
+		];
+	}
+
+	/**
+	 * 把一个 Unicode 码位编码成 UTF-8 字节。
+	 *
+	 * @param int $codepoint
+	 *
+	 * @return string
+	 */
+	private function encodeUnicodeCodepoint(int $codepoint){
+		if(function_exists("mb_convert_encoding")){
+			return mb_convert_encoding(pack("N", $codepoint), "UTF-8", "UCS-4BE");
+		}
+
+		if(function_exists("iconv")){
+			$converted = @iconv("UCS-4BE", "UTF-8//IGNORE", pack("N", $codepoint));
+			if(is_string($converted) and $converted !== ""){
+				return $converted;
+			}
+		}
+
+		return "";
+	}
+
+	/**
+	 * 解析结果为空、但文件里明明有 "键=值" 行时不要自动写回，否则会用默认值覆盖掉读不懂的内容。
+	 *
+	 * @param string $content 已规范化的内容
+	 * @param array  $parsed  解析结果
+	 *
+	 * @return bool
+	 */
+	private function shouldSkipPropertiesAutoSave($content, array $parsed){
+		if(count($parsed) > 0){
+			return false;
+		}
+
+		$content = str_replace("\x00", "", str_replace(["\r\n", "\r"], "\n", (string) $content));
+		foreach(explode("\n", $content) as $line){
+			$line = $this->stripUtf8Bom($line);
+			$trimmed = trim($line);
+			if($trimmed === ""){
+				continue;
+			}
+
+			$prefix = $trimmed[0];
+			if($prefix === "#" or $prefix === ";" or $prefix === "!"){
+				continue;
+			}
+
+			if(strpos($trimmed, "=") !== false or strpos($trimmed, ":") !== false){
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * 磁盘上已有文件且"键=值"部分与即将写入的内容一致时，跳过实际写入。
+	 *
+	 * @param string $content 即将写入的完整内容
+	 *
+	 * @return bool
+	 */
+	private function isPropertiesContentUnchanged($content){
+		if(!is_string($content) or !is_file($this->file)){
+			return false;
+		}
+
+		$existing = @file_get_contents($this->file);
+		if(!is_string($existing)){
+			return false;
+		}
+
+		return $this->getPropertiesBodyLines($existing) === $this->getPropertiesBodyLines($content);
+	}
+
+	/**
+	 * 取出 properties 内容里的有效行（忽略注释与空行），用于比较内容是否真的变了。
+	 *
+	 * @param string $content
+	 *
+	 * @return string[]
+	 */
+	private function getPropertiesBodyLines($content){
+		$lines = [];
+		foreach(explode("\n", str_replace(["\r\n", "\r"], "\n", (string) $content)) as $line){
+			//这里故意不剥 BOM：带 BOM 的文件必须被判定为"有变化"，否则修复后的内容写不回去
+			$trimmed = trim($line);
+			if($trimmed === ""){
+				continue;
+			}
+
+			$prefix = $trimmed[0];
+			if($prefix === "#" or $prefix === ";" or $prefix === "!"){
+				continue;
+			}
+
+			$lines[] = $trimmed;
+		}
+
+		return $lines;
 	}
 
 }
