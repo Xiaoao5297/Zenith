@@ -83,6 +83,11 @@ final class BatchCodec{
 				return false;
 			}
 		}
+		// 流未正常结束（截断/缺少结束标记）必须整体失败：
+		// 否则上层会拿到部分解压数据并尝试解析出不确定的包。
+		if(@inflate_get_status($context) !== ZLIB_STREAM_END){
+			return false;
+		}
 		$tail = @inflate_add($context, "", ZLIB_FINISH);
 		if($tail === false){
 			return false;
