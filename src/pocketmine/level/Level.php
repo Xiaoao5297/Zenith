@@ -46,12 +46,15 @@ use pocketmine\block\SnowLayer;
 use pocketmine\block\Sugarcane;
 use pocketmine\block\Wheat;
 use pocketmine\block\CocoaBlock;
+use pocketmine\entity\AgeableSpawnHelper;
 use pocketmine\entity\Arrow;
 use pocketmine\entity\Entity;
 use pocketmine\entity\Item as DroppedItem;
+use pocketmine\entity\NaturalMobSpawnRules;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\event\block\BlockUpdateEvent;
+use pocketmine\event\entity\EntityGenerateEvent;
 use pocketmine\event\level\ChunkLoadEvent;
 use pocketmine\event\level\ChunkPopulateEvent;
 use pocketmine\event\level\ChunkUnloadEvent;
@@ -196,6 +199,9 @@ class Level implements ChunkManager, Metadatable{
 	private $chunkCache = [];
 
 	private $cacheChunks = false;
+
+	/** @var array|false|null 反矿透选项缓存, false 表示当前世界不启用 */
+	private $antiXrayOptions = null;
 
 	private $sendTimeTicker = 0;
 
@@ -3187,6 +3193,11 @@ class Level implements ChunkManager, Metadatable{
 
 		$index = Level::chunkHash($x, $z);
 
+		//A1: 反矿透必须在写入 chunkCache 之前完成, 保证缓存与最终发送的 payload 一致
+		if(($antiXray = $this->getAntiXrayOptions()) !== false){
+			$payload = AntiXrayObfuscator::obfuscateChunkPayload($payload, $antiXray);
+		}
+
 		if(!isset($this->chunkCache[$index]) and $this->cacheChunks and $this->server->getMemoryManager()->canUseChunkCache()){
 			$this->chunkCache[$index] = Player::getChunkCacheFromData($x, $z, $payload, $ordering);
 			$this->sendChunkFromCache($x, $z);
@@ -3205,6 +3216,56 @@ class Level implements ChunkManager, Metadatable{
 			unset($this->chunkSendTasks[$index]);
 		}
 		$this->timings->syncChunkSendTimer->stopTiming();
+	}
+
+	/**
+	 * A1: 解析反矿透配置, 结果按世界缓存.
+	 *
+	 * @return array|false false 表示当前世界不启用
+	 */
+	private function getAntiXrayOptions(){
+		if($this->antiXrayOptions !== null){
+			return $this->antiXrayOptions;
+		}
+		if(!(bool) $this->getServer()->getProperty("anti-xray.enabled", false)){
+			return $this->antiXrayOptions = false;
+		}
+
+		$worlds = $this->getServer()->getProperty("anti-xray.worlds", ["world"]);
+		if(!is_array($worlds)){
+			$worlds = [$worlds];
+		}
+		$matched = false;
+		foreach($worlds as $world){
+			if(strcasecmp((string) $world, $this->getFolderName()) === 0 or strcasecmp((string) $world, $this->getName()) === 0){
+				$matched = true;
+				break;
+			}
+		}
+		if(!$matched){
+			return $this->antiXrayOptions = false;
+		}
+
+		$isNether = $this->getDimension() === self::DIMENSION_NETHER;
+		$options = [
+			"mode" => (string) $this->getServer()->getProperty("anti-xray.mode", AntiXrayObfuscator::MODE_OBFUSCATOR),
+			"scanChunkHeightLimit" => (int) $this->getServer()->getProperty("anti-xray.scan-chunk-height-limit", 4),
+			"fakeBlock" => (int) $this->getServer()->getProperty(
+				$isNether ? "anti-xray.nether-fake-block" : "anti-xray.overworld-fake-block",
+				$isNether ? Block::NETHERRACK : Block::STONE
+			),
+		];
+
+		$ores = $this->getServer()->getProperty("anti-xray.ores", []);
+		if(is_array($ores) and count($ores) > 0){
+			$options["ores"] = $ores;
+		}
+		$filters = $this->getServer()->getProperty("anti-xray.filters", []);
+		if(is_array($filters) and count($filters) > 0){
+			$options["filters"] = $filters;
+		}
+
+		return $this->antiXrayOptions = $options;
 	}
 
 	/**

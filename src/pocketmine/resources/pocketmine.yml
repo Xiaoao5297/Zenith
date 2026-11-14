@@ -25,6 +25,26 @@ settings:
  #If set to auto, it'll try to detect the number of cores (or use 2)
  async-workers: auto
 
+#Anti-Xray: 在区块包中混淆地下矿物, 提高透视作弊的成本.
+#仅对 worlds 中列出的世界生效, 修改后需重载世界或重启服务器.
+anti-xray:
+ #是否启用
+ enabled: false
+ #混淆模式: obfuscator(整体混淆) 或 hidden(只隐藏矿物)
+ mode: obfuscator
+ #扫描高度(1-15, 每单位 16 格), 默认只处理地表以下 4 层
+ scan-chunk-height-limit: 4
+ #主世界伪方块 ID(默认石头)
+ overworld-fake-block: 1
+ #下界伪方块 ID(默认下界岩)
+ nether-fake-block: 87
+ #生效世界名称(文件夹名或显示名, 不区分大小写)
+ worlds: [world]
+ #自定义矿物 ID 列表, 留空使用默认
+ ores: []
+ #自定义过滤方块 ID 列表, 留空使用默认
+ filters: []
+
 memory:
  #Global soft memory limit in megabytes. Set to 0 to disable
  #This will trigger low-memory-triggers and fire an event to free memory when the usage goes over this
