@@ -18,6 +18,7 @@ use pocketmine\entity\Attribute;
 use pocketmine\entity\Effect;
 use pocketmine\entity\Egg;
 use pocketmine\entity\Entity;
+use pocketmine\entity\LeashKnot;
 use pocketmine\entity\FallingSand;
 use pocketmine\entity\Fireball;
 use pocketmine\entity\FishingHook;
@@ -3921,6 +3922,9 @@ private function lookupAddress($address) {
 		Entity::registerEntity(MinecartChest::class);
 		Entity::registerEntity(MinecartHopper::class);
 		Entity::registerEntity(MinecartTNT::class);
+
+		//B2: 拴绳结实体, 由 Lead 在栅栏上创建
+		Entity::registerEntity(LeashKnot::class);
 
 		Entity::registerEntity(Human::class, true);
 	}

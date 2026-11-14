@@ -36,6 +36,7 @@ use pocketmine\nbt\tag\DoubleTag;
 use pocketmine\nbt\tag\ListTag;
 use pocketmine\nbt\tag\FloatTag;
 use pocketmine\nbt\tag\IntTag;
+use pocketmine\nbt\tag\LongTag;
 use pocketmine\nbt\tag\ShortTag;
 use pocketmine\nbt\tag\StringTag;
 use pocketmine\network\protocol\MobEffectPacket;
@@ -168,6 +169,8 @@ abstract class Entity extends Location implements Metadatable{
         self::DATA_SHOW_NAMETAG => [self::DATA_TYPE_BYTE, 1],
         self::DATA_SILENT => [self::DATA_TYPE_BYTE, 0],
         self::DATA_NO_AI => [self::DATA_TYPE_BYTE, 0],
+        self::DATA_LEAD_HOLDER => [self::DATA_TYPE_LONG, -1],
+        self::DATA_LEAD => [self::DATA_TYPE_BYTE, 0],
     ];
 
     public $passenger = null;
@@ -568,6 +571,28 @@ abstract class Entity extends Location implements Metadatable{
         $this->namedtag->OnGround = new ByteTag("OnGround", $this->onGround == true ? 1 : 0);
         $this->namedtag->Invulnerable = new ByteTag("Invulnerable", $this->invulnerable == true ? 1 : 0);
 
+        // 拴绳状态持久化：挂在栅栏上时只存栅栏坐标，由 LeashKnot 重建；
+        // 被其它实体牵引时存持有者实体 id。
+        if($this->isLeashed()){
+            $this->namedtag->Leashed = new ByteTag("Leashed", 1);
+            $holder = $this->getLeashHolder();
+            if($holder instanceof LeashKnot){
+                $this->namedtag->Leash = new CompoundTag("Leash", [
+                    new IntTag("X", (int) floor($holder->x)),
+                    new IntTag("Y", (int) floor($holder->y)),
+                    new IntTag("Z", (int) floor($holder->z)),
+                ]);
+                unset($this->namedtag->LeashHolder);
+            }else{
+                $this->namedtag->LeashHolder = new LongTag("LeashHolder", $this->getLeashHolderEid());
+                unset($this->namedtag->Leash);
+            }
+        }else{
+            unset($this->namedtag->Leashed);
+            unset($this->namedtag->Leash);
+            unset($this->namedtag->LeashHolder);
+        }
+
         if(count($this->effects) > 0){
             $effects = [];
             foreach($this->effects as $effect){
@@ -612,6 +637,8 @@ abstract class Entity extends Location implements Metadatable{
                 $this->addEffect($effect);
             }
         }
+
+        $this->restoreLeashFromNBT();
     }
 
     protected function addAttributes(){
@@ -1708,6 +1735,14 @@ abstract class Entity extends Location implements Metadatable{
             $this->closed = true;
             $this->removeEffect(Effect::HEALTH_BOOST);
             $this->despawnFromAll();
+            // 实体消失时松开所有指向它的拴绳，避免悬挂的 leash 指向无效实体
+            if($this->level !== null){
+                foreach($this->level->getEntities() as $entity){
+                    if($entity !== $this and $entity instanceof Entity and $entity->isLeashedTo($this)){
+                        $entity->unleash();
+                    }
+                }
+            }
             if($this->linkedType != 0 and $this->linkedEntity !== null){
                 $this->linkedEntity->setLinked(0, $this);
             }
@@ -1750,6 +1785,83 @@ abstract class Entity extends Location implements Metadatable{
         }
 
         return false;
+    }
+
+    /**
+     * 拴绳 API（移植自 InCore-II entity/Entity.php）。
+     * 状态只存在 metadata 里：DATA_LEAD_HOLDER 存持有者实体 id，
+     * DATA_LEAD 存是否被牵引，真正的绳子渲染交给客户端。
+     */
+    public function isLeashed() : bool{
+        return (int) $this->getDataProperty(self::DATA_LEAD) === 1 and $this->getLeashHolderEid() > 0;
+    }
+
+    public function getLeashHolderEid() : int{
+        return (int) $this->getDataProperty(self::DATA_LEAD_HOLDER);
+    }
+
+    /**
+     * @return Entity|null
+     */
+    public function getLeashHolder(){
+        if($this->level === null or $this->getLeashHolderEid() <= 0){
+            return null;
+        }
+
+        return $this->level->getEntity($this->getLeashHolderEid());
+    }
+
+    public function isLeashedTo(Entity $holder) : bool{
+        return $this->isLeashed() and $this->getLeashHolderEid() === $holder->getId();
+    }
+
+    public function setLeashedTo(Entity $holder) : bool{
+        if($holder === $this or !$holder->isAlive()){
+            return false;
+        }
+
+        $this->setDataProperty(self::DATA_LEAD_HOLDER, self::DATA_TYPE_LONG, $holder->getId());
+        $this->setDataProperty(self::DATA_LEAD, self::DATA_TYPE_BYTE, 1);
+        return true;
+    }
+
+    public function unleash() : bool{
+        if(!$this->isLeashed()){
+            return false;
+        }
+
+        $this->setDataProperty(self::DATA_LEAD_HOLDER, self::DATA_TYPE_LONG, -1);
+        $this->setDataProperty(self::DATA_LEAD, self::DATA_TYPE_BYTE, 0);
+        return true;
+    }
+
+    /**
+     * 从 NBT 恢复拴绳状态：Leash 记录栅栏坐标（对应 LeashKnot），
+     * LeashHolder 记录持有者实体 id。
+     */
+    protected function restoreLeashFromNBT(){
+        if($this instanceof LeashKnot or !isset($this->namedtag->Leashed) or $this->namedtag["Leashed"] <= 0){
+            return;
+        }
+
+        if(isset($this->namedtag->Leash) and $this->namedtag->Leash instanceof CompoundTag){
+            $tag = $this->namedtag->Leash;
+            if($this->level !== null and isset($tag->X) and isset($tag->Y) and isset($tag->Z)){
+                $block = $this->level->getBlock(new Vector3((int) $tag["X"], (int) $tag["Y"], (int) $tag["Z"]));
+                if(LeashKnot::isSupportedFence($block)){
+                    $knot = LeashKnot::getOrCreate($this->level, $block);
+                    if($knot instanceof LeashKnot){
+                        $this->setLeashedTo($knot);
+                        return;
+                    }
+                }
+            }
+        }
+
+        if(isset($this->namedtag->LeashHolder)){
+            $this->setDataProperty(self::DATA_LEAD_HOLDER, self::DATA_TYPE_LONG, (int) $this->namedtag["LeashHolder"]);
+            $this->setDataProperty(self::DATA_LEAD, self::DATA_TYPE_BYTE, 1);
+        }
     }
 
     public function linkEntity(Entity $entity){

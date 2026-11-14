@@ -725,6 +725,16 @@ class Item{
 			self::$list[self::MAP] = Map::class;
 			self::$list[self::FILLED_MAP] = FilledMap::class;
 
+			//B2: 拴绳、马具与命名牌 (0.15 物品, 使用前由各类内部做协议校验)
+			self::$list[self::SADDLE] = Saddle::class;
+			self::$list[self::CARROT_ON_A_STICK] = CarrotOnAStick::class;
+			self::$list[self::LEATHER_HORSE_ARMOR] = LeatherHorseArmor::class;
+			self::$list[self::IRON_HORSE_ARMOR] = IronHorseArmor::class;
+			self::$list[self::GOLDEN_HORSE_ARMOR] = GoldenHorseArmor::class;
+			self::$list[self::DIAMOND_HORSE_ARMOR] = DiamondHorseArmor::class;
+			self::$list[Lead::LEAD] = Lead::class;
+			self::$list[NameTag::NAME_TAG] = NameTag::class;
+
 			for($i = 0; $i < 256; ++$i){
 				if(Block::$list[$i] !== null){
 					self::$list[$i] = Block::$list[$i];

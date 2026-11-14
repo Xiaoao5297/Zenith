@@ -108,6 +108,7 @@ use pocketmine\inventory\ShapelessRecipe;
 use pocketmine\inventory\SimpleTransactionGroup;
 use pocketmine\item\FoodSource;
 use pocketmine\item\Item;
+use pocketmine\item\Lead;
 use pocketmine\item\Potion;
 use pocketmine\item\Map;
 use pocketmine\level\ChunkLoader;
@@ -3730,6 +3731,15 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 				){
 					$cancelled = true;
+				}
+
+				//B2: 手持拴绳右键实体 -> 牵引 (0.15+ 客户端, 由 Lead 内部校验协议与状态)
+				if($packet->action === InteractPacket::ACTION_RIGHT_CLICK and $target instanceof Entity and !($target instanceof Player) and $this->getInventory()->getItemInHand() instanceof Lead){
+					$handItem = $this->getInventory()->getItemInHand();
+					if($target->distanceSquared($this) <= 49 and $handItem->leashEntity($this, $target)){
+						$this->getInventory()->sendHeldItem($this);
+					}
+					break;
 				}
 
 				if($target instanceof Horse){
