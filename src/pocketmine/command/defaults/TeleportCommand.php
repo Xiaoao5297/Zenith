@@ -23,6 +23,7 @@ namespace pocketmine\command\defaults;
 
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
+use pocketmine\command\TargetSelector;
 use pocketmine\event\TranslationContainer;
 use pocketmine\math\Vector3;
 use pocketmine\Player;
@@ -56,25 +57,43 @@ class TeleportCommand extends VanillaCommand{
 			return true;
 		}
 
-		$target = null;
-		$origin = $sender;
+		//第一个参数允许是实体选择器（@a/@p/@r/@e/@s）；普通玩家名路径保持原有行为
+		$selector = new TargetSelector($sender->getServer());
+		$selectorUsed = $selector->isSelector($args[0]);
+		$targets = [];
 
-		if(count($args) === 1 or count($args) === 3){
-			if($sender instanceof Player){
-				$target = $sender;
-			}else{
+		if($selectorUsed){
+			try{
+				$targets = $selector->matchEntities($sender, $args[0]);
+			}catch(\InvalidArgumentException $e){
+				$sender->sendMessage(TextFormat::RED . "Invalid selector " . $args[0] . ": " . $e->getMessage());
+
+				return true;
+			}
+
+			if(count($targets) === 0){
+				$sender->sendMessage(TextFormat::RED . "No targets matched selector " . $args[0]);
+
+				return true;
+			}
+
+			if($playerTpOpen && !$this->testPermissionSilent($sender)){
+				foreach($targets as $target){
+					if($target !== $sender){
+						$sender->sendMessage(new TranslationContainer(TextFormat::RED . "%commands.generic.permission"));
+
+						return true;
+					}
+				}
+			}
+		}elseif(count($args) === 3){
+			// /tp x y z：把发送者自己传送到坐标（保持旧行为）
+			if(!($sender instanceof Player)){
 				$sender->sendMessage(TextFormat::RED . "Please provide a player!");
 
 				return true;
 			}
-			if(count($args) === 1){
-				$target = $sender->getServer()->getPlayer($args[0]);
-				if($target === null){
-					$sender->sendMessage(TextFormat::RED . "Can't find player " . $args[0]);
-
-					return true;
-				}
-			}
+			$targets = [$sender];
 		}else{
 			$target = $sender->getServer()->getPlayer($args[0]);
 			if($target === null){
@@ -82,8 +101,28 @@ class TeleportCommand extends VanillaCommand{
 
 				return true;
 			}
-			if(count($args) === 2){
-				$origin = $target;
+			$targets = [$target];
+		}
+
+		if(count($args) < 3){
+			// /tp <目标> 或 /tp <目标> <目的地>：只能作用于单个目标
+			if(count($targets) !== 1){
+				$sender->sendMessage(TextFormat::RED . "Selector " . $args[0] . " matched " . count($targets) . " targets, but this form needs exactly one");
+
+				return true;
+			}
+
+			$origin = $targets[0];
+			$target = $origin;
+
+			if(count($args) === 1){
+				if(!($sender instanceof Player)){
+					$sender->sendMessage(TextFormat::RED . "Please provide a player!");
+
+					return true;
+				}
+				$origin = $sender;
+			}else{
 				$target = $sender->getServer()->getPlayer($args[1]);
 				if($target === null){
 					$sender->sendMessage(TextFormat::RED . "Can't find player " . $args[1]);
@@ -91,39 +130,83 @@ class TeleportCommand extends VanillaCommand{
 					return true;
 				}
 			}
-		}
 
-		if(count($args) < 3){
 			$origin->teleport($target);
-			Command::broadcastCommandMessage($sender, new TranslationContainer("commands.tp.success", [$origin->getName(), $target->getName()]));
+			Command::broadcastCommandMessage($sender, new TranslationContainer("commands.tp.success", [$this->getTargetName($origin), $this->getTargetName($target)]));
 
 			return true;
-		}elseif($target->getLevel() !== null){
-			if(count($args) === 4 or count($args) === 6){
-				$pos = 1;
-			}else{
-				$pos = 0;
+		}
+
+		if($selectorUsed){
+			// /tp @a x y z [yaw pitch]：坐标从第二个参数开始
+			if(count($args) !== 4 and count($args) !== 6){
+				$sender->sendMessage(new TranslationContainer("commands.generic.usage", [$this->usageMessage]));
+
+				return true;
+			}
+			$pos = 1;
+		}elseif(count($args) === 4 or count($args) === 6){
+			$pos = 1;
+		}else{
+			$pos = 0;
+		}
+
+		$teleported = 0;
+		foreach($targets as $target){
+			if(!($target instanceof Vector3) or $this->getTargetLevel($target) === null){
+				continue;
 			}
 
-			$x = $this->getRelativeDouble($target->x, $sender, $args[$pos++]);
-			$y = $this->getRelativeDouble($target->y, $sender, $args[$pos++], 0, 128);
-			$z = $this->getRelativeDouble($target->z, $sender, $args[$pos++]);
+			$offset = $pos;
+			$x = $this->getRelativeDouble($target->x, $sender, $args[$offset++]);
+			$y = $this->getRelativeDouble($target->y, $sender, $args[$offset++], 0, 128);
+			$z = $this->getRelativeDouble($target->z, $sender, $args[$offset++]);
 			$yaw = $target->getYaw();
 			$pitch = $target->getPitch();
 
-			if(count($args) === 6 or (count($args) === 5 and $pos === 3)){
-				$yaw = $args[$pos++];
-				$pitch = $args[$pos++];
+			if(count($args) === 6 or (count($args) === 5 and $offset === 3)){
+				$yaw = $args[$offset++];
+				$pitch = $args[$offset++];
 			}
 
 			$target->teleport(new Vector3($x, $y, $z), $yaw, $pitch);
-			Command::broadcastCommandMessage($sender, new TranslationContainer("commands.tp.success.coordinates", [$target->getName(), round($x, 2), round($y, 2), round($z, 2)]));
-
-			return true;
+			++$teleported;
+			Command::broadcastCommandMessage($sender, new TranslationContainer("commands.tp.success.coordinates", [$this->getTargetName($target), round($x, 2), round($y, 2), round($z, 2)]));
 		}
 
-		$sender->sendMessage(new TranslationContainer("commands.generic.usage", [$this->usageMessage]));
+		if($teleported === 0){
+			$sender->sendMessage(new TranslationContainer("commands.generic.usage", [$this->usageMessage]));
+		}
 
 		return true;
+	}
+
+	/**
+	 * 选择器可能匹配到非玩家实体，Entity 没有 getName()。
+	 *
+	 * @param mixed $target
+	 *
+	 * @return string
+	 */
+	private function getTargetName($target){
+		if($target instanceof Player){
+			return $target->getName();
+		}
+		if(is_object($target) and method_exists($target, "getNameTag") and $target->getNameTag() !== ""){
+			return $target->getNameTag();
+		}
+		return "entity";
+	}
+
+	/**
+	 * @param mixed $target
+	 *
+	 * @return \pocketmine\level\Level|null
+	 */
+	private function getTargetLevel($target){
+		if(is_object($target) and method_exists($target, "getLevel")){
+			return $target->getLevel();
+		}
+		return null;
 	}
 }

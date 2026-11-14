@@ -23,6 +23,8 @@ namespace pocketmine\command\defaults;
 
 use pocketmine\command\Command;
 use pocketmine\command\CommandSender;
+use pocketmine\command\TargetSelector;
+use pocketmine\entity\Entity;
 use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\event\TranslationContainer;
 use pocketmine\Player;
@@ -58,19 +60,47 @@ class KillCommand extends VanillaCommand{
 				return true;
 			}
 
-			$player = $sender->getServer()->getPlayer($args[0]);
+			//参数可以是实体选择器（@a/@p/@r/@e/@s）；普通玩家名路径保持原有行为
+			$selector = new TargetSelector($sender->getServer());
+			if($selector->isSelector($args[0])){
+				try{
+					$targets = $selector->matchEntities($sender, $args[0]);
+				}catch(\InvalidArgumentException $e){
+					$sender->sendMessage(TextFormat::RED . "Invalid selector " . $args[0] . ": " . $e->getMessage());
 
-			if($player instanceof Player){
-				$sender->getServer()->getPluginManager()->callEvent($ev = new EntityDamageEvent($player, EntityDamageEvent::CAUSE_SUICIDE, 1000));
-
-				if($ev->isCancelled()){
 					return true;
 				}
 
-				$player->setLastDamageCause($ev);
-				$player->setHealth(0);
+				if(count($targets) === 0){
+					$sender->sendMessage(TextFormat::RED . "No targets matched selector " . $args[0]);
 
-				Command::broadcastCommandMessage($sender, new TranslationContainer("commands.kill.successful", [$player->getName()]));
+					return true;
+				}
+
+				$killed = 0;
+				foreach($targets as $target){
+					if(!($target instanceof Entity) or !$target->isAlive()){
+						continue;
+					}
+					if($this->killEntity($sender, $target)){
+						++$killed;
+						Command::broadcastCommandMessage($sender, new TranslationContainer("commands.kill.successful", [$this->getTargetName($target)]));
+					}
+				}
+
+				if($killed === 0){
+					$sender->sendMessage(TextFormat::RED . "No living targets matched selector " . $args[0]);
+				}
+
+				return true;
+			}
+
+			$player = $sender->getServer()->getPlayer($args[0]);
+
+			if($player instanceof Player){
+				if($this->killEntity($sender, $player)){
+					Command::broadcastCommandMessage($sender, new TranslationContainer("commands.kill.successful", [$player->getName()]));
+				}
 			}else{
 				$sender->sendMessage(new TranslationContainer(TextFormat::RED . "%commands.generic.player.notFound"));
 			}
@@ -85,15 +115,9 @@ class KillCommand extends VanillaCommand{
 				return true;
 			}
 
-			$sender->getServer()->getPluginManager()->callEvent($ev = new EntityDamageEvent($sender, EntityDamageEvent::CAUSE_SUICIDE, 1000));
-
-			if($ev->isCancelled()){
-				return true;
+			if($this->killEntity($sender, $sender)){
+				$sender->sendMessage(new TranslationContainer("commands.kill.successful", [$sender->getName()]));
 			}
-
-			$sender->setLastDamageCause($ev);
-			$sender->setHealth(0);
-			$sender->sendMessage(new TranslationContainer("commands.kill.successful", [$sender->getName()]));
 		}else{
 			$sender->sendMessage(new TranslationContainer("commands.generic.usage", [$this->usageMessage]));
 
@@ -101,5 +125,43 @@ class KillCommand extends VanillaCommand{
 		}
 
 		return true;
+	}
+
+	/**
+	 * 对单个实体触发自杀伤害事件并置零血量。
+	 *
+	 * @param CommandSender $sender
+	 * @param Entity        $entity
+	 *
+	 * @return bool 事件是否未被取消
+	 */
+	private function killEntity(CommandSender $sender, Entity $entity){
+		$sender->getServer()->getPluginManager()->callEvent($ev = new EntityDamageEvent($entity, EntityDamageEvent::CAUSE_SUICIDE, 1000));
+
+		if($ev->isCancelled()){
+			return false;
+		}
+
+		$entity->setLastDamageCause($ev);
+		$entity->setHealth(0);
+
+		return true;
+	}
+
+	/**
+	 * Entity 没有 getName()，选择器可能匹配到非玩家实体。
+	 *
+	 * @param Entity $entity
+	 *
+	 * @return string
+	 */
+	private function getTargetName(Entity $entity){
+		if($entity instanceof Player){
+			return $entity->getName();
+		}
+		if($entity->getNameTag() !== ""){
+			return $entity->getNameTag();
+		}
+		return "entity";
 	}
 }
