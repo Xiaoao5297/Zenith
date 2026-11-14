@@ -45,6 +45,15 @@ anti-xray:
  #自定义过滤方块 ID 列表, 留空使用默认
  filters: []
 
+#下界与下界传送门
+nether:
+ #是否启用下界传送门 (黑曜石框架点燃、传送与坐标 1:8 缩放). 默认 false, 关闭时点燃/传送全部 no-op.
+ enabled: false
+ #是否在启动时加载/生成下界维度 (旧键, 与 enabled 任一为 true 即可点燃传送门; 真正传送仍需本项为 true)
+ allow-nether: false
+ #下界世界的文件夹名; Level 只有在文件夹名等于该值且 allow-nether 为 true 时才标记为下界维度
+ level-name: "nether"
+
 memory:
  #Global soft memory limit in megabytes. Set to 0 to disable
  #This will trigger low-memory-triggers and fire an event to free memory when the usage goes over this

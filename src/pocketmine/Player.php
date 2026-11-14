@@ -179,6 +179,7 @@ use pocketmine\tile\Spawnable;
 use pocketmine\tile\Tile;
 use pocketmine\utils\TextFormat;
 use pocketmine\utils\MapColor;
+use pocketmine\utils\NetherPortalHelper;
 use raklib\Binary;
 
 /**
@@ -1829,7 +1830,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 
 				if(!($revert = $ev->isCancelled())){ //Yes, this is intended
 					//$teleported = false;
-					if($this->server->netherEnabled){
+					if(NetherPortalHelper::isEnabled($this->getLevel())){
 						if($this->isInsideOfPortal()){
 							if($this->portalTime == 0){
 								$this->portalTime = $this->server->getTick();
@@ -1982,46 +1983,17 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		$this->timings->startTiming();
 
 		if($this->spawned){
-			if($this->server->netherEnabled){
+			//A5: 下界传送走 NetherPortalHelper, 由它完成维度解析、坐标缩放与目标传送门搜索.
+			//目标世界缺失时 helper 只记录一次告警并返回 null, 这里直接 no-op.
+			if(NetherPortalHelper::isEnabled($this->getLevel())){
 				if(($this->isCreative() or $this->isSurvival() and $this->server->getTick() - $this->portalTime >= $this->server->portalCooldownTicks) and $this->portalTime > 0){
-					if($this->server->netherLevel instanceof Level){
-						if($this->getLevel() != $this->server->netherLevel){
-							$this->fromPos = $this->getPosition();
-							$this->fromPos->x = ((int) $this->fromPos->x) + 0.5;
-							$this->fromPos->z = ((int) $this->fromPos->z) + 0.5;
-							$this->teleport($this->shouldResPos = $this->server->netherLevel->getSafeSpawn());
-						}elseif($this->fromPos instanceof Position){
-							if(!($this->getLevel()->isChunkLoaded($this->fromPos->x, $this->fromPos->z))){
-								$this->getLevel()->loadChunk($this->fromPos->x, $this->fromPos->z);
-							}
-							$add = [1, 0, -1, 0, 0, 1, 0, -1];
-							$tempos = null;
-							for($j = 2; $j < 5; $j++){
-								for($i = 0; $i < 4; $i++){
-									if($this->fromPos->getLevel()->getBlock($this->temporalVector->fromObjectAdd($this->fromPos, $add[$i] * $j, 0, $add[$i + 4] * $j))->getId() === Block::AIR){
-										if($this->fromPos->getLevel()->getBlock($this->temporalVector->fromObjectAdd($this->fromPos, $add[$i] * $j, 1, $add[$i + 4] * $j))->getId() === Block::AIR){
-											$tempos = $this->fromPos->add($add[$i] * $j, 0, $add[$i + 4] * $j);
-											//$this->getLevel()->getServer()->getLogger()->debug($tempos);
-											break;
-										}
-									}
-								}
-								if($tempos != null){
-									break;
-								}
-							}
-							if($tempos == null){
-								$tempos = $this->fromPos->add(mt_rand(-2, 2), 0, mt_rand(-2, 2));
-							}
-							$this->teleport($this->shouldResPos = $tempos);
-							$add = null;
-							$tempos = null;
-							$this->fromPos = null;
-						}else{
-							$this->teleport($this->shouldResPos = $this->server->getDefaultLevel()->getSafeSpawn());
-						}
-						$this->portalTime = 0;
+					$targetLevel = NetherPortalHelper::getDestinationLevel($this->getLevel());
+					$target = $targetLevel instanceof Level ? NetherPortalHelper::convertPosBetweenNetherAndOverworld($this->getPosition(), $targetLevel) : null;
+					if($target instanceof Position){
+						$this->fromPos = null;
+						$this->teleport($this->shouldResPos = $target);
 					}
+					$this->portalTime = 0;
 				}
 			}
 			$this->processMovement($tickDiff);

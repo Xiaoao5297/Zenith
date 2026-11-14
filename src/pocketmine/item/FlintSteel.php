@@ -28,6 +28,7 @@ use pocketmine\block\Solid;
 use pocketmine\level\Level;
 use pocketmine\Player;
 use pocketmine\math\Vector3;
+use pocketmine\utils\NetherPortalHelper;
 
 class FlintSteel extends Tool{
 	/** @var Vector3 */
@@ -45,7 +46,15 @@ class FlintSteel extends Tool{
 	}
 
 	public function onActivate(Level $level, Player $player, Block $block, Block $target, $face, $fx, $fy, $fz){
-		if($target->getId() === Block::OBSIDIAN and $player->getServer()->netherEnabled){//黑曜石 4*5最小 23*23最大
+		if($target->getId() === Block::OBSIDIAN and NetherPortalHelper::isEnabled($level)){//黑曜石 4*5最小 23*23最大
+			//A5: 先用 NetherPortalHelper 做完整框架校验 (内部尺寸/上下边框), 失败再回退到下面的旧算法.
+			if(NetherPortalHelper::createPortal($level, $target)){
+				if($player->isSurvival()){
+					$this->useOn($block, 2);
+					$player->getInventory()->setItemInHand($this);
+				}
+				return true;
+			}
 			//$level->setBlock($block, new Fire(), true);
 			$tx = $target->getX();
 			$ty = $target->getY();
