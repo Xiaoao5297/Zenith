@@ -95,9 +95,9 @@ class Temple extends PopulatorObject{
                 for ($zz = $z - 10; $zz <= $z + 10; $zz++)
                     if (!isset($this->overridable[$level->getBlockIdAt($xx, $yy, $zz)]))
                         return false;
-		if($random->nextBoundedInt(3) == 0){ //限制沙漠神殿刷新的程度
-			return true;
-		}
+		// 移植自 InCore-II：密度已由 populator 的区域候选点限制（32×32 区块一个候选，
+		// 与原版 spacing 一致），这里不再叠加 1/3 随机，否则结构重生成判定不稳定。
+		return true;
     }
 
     /**

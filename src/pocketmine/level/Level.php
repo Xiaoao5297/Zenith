@@ -46,11 +46,15 @@ use pocketmine\block\SnowLayer;
 use pocketmine\block\Sugarcane;
 use pocketmine\block\Wheat;
 use pocketmine\block\CocoaBlock;
+use pocketmine\entity\Ageable;
 use pocketmine\entity\AgeableSpawnHelper;
 use pocketmine\entity\Arrow;
+use pocketmine\entity\Bat;
 use pocketmine\entity\Entity;
 use pocketmine\entity\Item as DroppedItem;
 use pocketmine\entity\NaturalMobSpawnRules;
+use pocketmine\entity\Stray;
+use pocketmine\entity\Witch;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\event\block\BlockUpdateEvent;
@@ -133,7 +137,10 @@ use pocketmine\level\generator\normal\object\Stronghold as StrongholdObject;
 use pocketmine\level\generator\normal\object\StrongholdLoot;
 use pocketmine\level\generator\normal\object\Temple as DesertTempleObject;
 use pocketmine\level\generator\normal\object\VillageSmithyChestLoot;
+use pocketmine\level\generator\normal\object\DeferredStructureMobs;
+use pocketmine\level\generator\normal\object\PillagerOutpost as PillagerOutpostObject;
 use pocketmine\level\generator\normal\object\WoodlandMansion as WoodlandMansionObject;
+use pocketmine\level\generator\normal\populator\VillagePopulator;
 use pocketmine\level\generator\normal\object\WoodlandMansionLoot;
 use pocketmine\level\generator\populator\Dungeon as DungeonPopulator;
 use pocketmine\level\generator\populator\Mineshaft as MineshaftPopulator;
@@ -3006,6 +3013,83 @@ class Level implements ChunkManager, Metadatable{
 		$this->processDeferredSpawnerMarkers($chunk);
 		$this->processDeferredStructureChests($chunk);
 		$this->processDeferredMineshaftMinecarts($chunk);
+		$this->processDeferredStructureMobs($chunk);
+	}
+
+	/**
+	 * B4: 消费村庄/前哨站/府邸写入的延迟生物标记（移植自 InCore-II）。
+	 */
+	private function shouldProcessDeferredStructureMobs(FullChunk $chunk) : bool{
+		if($this->getDimension() !== self::DIMENSION_NORMAL){
+			return false;
+		}
+		if($chunk->getProvider() === null){
+			return false;
+		}
+		return !$this->server->isWorldNaturalMobSpawnDisabled($this);
+	}
+
+	private function processDeferredStructureMobs(FullChunk $chunk){
+		if(!$this->shouldProcessDeferredStructureMobs($chunk)){
+			return;
+		}
+
+		foreach($chunk->getBlockExtraDataArray() as $index => $value){
+			$marker = (int) $value;
+			$entityId = $this->getDeferredStructureMobEntityId($marker);
+			if($entityId === 0){
+				continue;
+			}
+
+			$this->getChunkExtraDataXYZ($index, $x, $y, $z);
+			$worldX = ($chunk->getX() << 4) + $x;
+			$worldZ = ($chunk->getZ() << 4) + $z;
+
+			if($marker === PillagerOutpostObject::MARKER_RAIDER_ZOMBIE){
+				$nbt = DeferredStructureMobs::createRaiderZombieNBT($worldX + 0.5, $y, $worldZ + 0.5);
+			}else{
+				$profession = $entityId === Villager::NETWORK_ID
+					? DeferredStructureMobs::createVillagerProfession((int) $this->getSeed(), $worldX + 0.5, $worldZ + 0.5)
+					: -1;
+				$health = $entityId === IronGolem::NETWORK_ID ? DeferredStructureMobs::IRON_GOLEM_HEALTH : DeferredStructureMobs::DEFAULT_HEALTH;
+				$nbt = DeferredStructureMobs::createMobNBT($worldX + 0.5, $y, $worldZ + 0.5, $health, $profession);
+			}
+
+			$entity = Entity::createEntity($entityId, $chunk, $nbt);
+			if($entity !== null){
+				if($marker === PillagerOutpostObject::MARKER_RAIDER_ZOMBIE and $entity instanceof Zombie){
+					$entity->setMobEquipment(DeferredStructureMobs::createRaiderZombieArmor(), Item::get(Item::AIR, 0, 0));
+					$entity->setNameTag(DeferredStructureMobs::RAIDER_ZOMBIE_NAME);
+					$entity->setNameTagVisible(true);
+				}elseif($entity instanceof Ageable){
+					AgeableSpawnHelper::maybeSetBaby($entity, AgeableSpawnHelper::PNX_NATURAL_BABY_CHANCE);
+				}
+				$entity->spawnToAll();
+			}
+
+			$chunk->setBlockExtraData($x, $y, $z, 0);
+		}
+	}
+
+	private function getDeferredStructureMobEntityId(int $marker) : int{
+		switch($marker){
+			case VillagePopulator::MARKER_VILLAGER:
+				return Villager::NETWORK_ID;
+			case VillagePopulator::MARKER_IRON_GOLEM:
+				return IronGolem::NETWORK_ID;
+			case PillagerOutpostObject::MARKER_STRAY:
+				return Stray::NETWORK_ID;
+			case PillagerOutpostObject::MARKER_RAIDER_ZOMBIE:
+				return Zombie::NETWORK_ID;
+			case WoodlandMansionObject::MARKER_EVOKER:
+				return Witch::NETWORK_ID;
+			case WoodlandMansionObject::MARKER_VINDICATOR:
+				return Zombie::NETWORK_ID;
+			case WoodlandMansionObject::MARKER_ALLAY:
+				return Bat::NETWORK_ID;
+			default:
+				return 0;
+		}
 	}
 
 	private function processDeferredSpawnerMarkers(FullChunk $chunk){
