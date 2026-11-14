@@ -114,10 +114,12 @@ use pocketmine\tile\Tile;
 use pocketmine\entity\Blaze;
 use pocketmine\entity\CaveSpider;
 use pocketmine\entity\Creeper;
+use pocketmine\entity\IronGolem;
 use pocketmine\entity\MinecartChest;
 use pocketmine\entity\Silverfish;
 use pocketmine\entity\Skeleton;
 use pocketmine\entity\Spider;
+use pocketmine\entity\Villager;
 use pocketmine\entity\Zombie;
 use pocketmine\level\generator\hell\object\NetherFortressLoot;
 use pocketmine\level\generator\hell\populator\NetherFortressPopulator;
@@ -870,6 +872,8 @@ class Level implements ChunkManager, Metadatable{
 		if(($currentTick % 2) === 0) $this->tickChunks();
 		$this->timings->doTickTiles->stopTiming();
 
+		$this->tickNaturalMobSpawning($currentTick);
+
 		if(count($this->changedBlocks) > 0){
 			if(count($this->players) > 0){
 				foreach($this->changedBlocks as $index => $blocks){
@@ -1132,6 +1136,261 @@ class Level implements ChunkManager, Metadatable{
 		if($this->clearChunksOnTick){
 			$this->chunkTickList = [];
 		}
+	}
+
+	/**
+	 * 自然刷怪的保守实现（移植自 InCore-II 的 NaturalMobSpawnRules）。
+	 *
+	 * 只在玩家附近的地表尝试生成：水面/洞穴/下界空中规则留给后续模块。
+	 * 周期取自 ticks-per.monster-spawns / ticks-per.animal-spawns（配置值小于
+	 * 难度默认周期时按默认周期，避免每 tick 全量扫描）；上限仍按 spawn-limits.*
+	 * 的四类计数生效。
+	 */
+	private function tickNaturalMobSpawning(int $currentTick){
+		if(count($this->players) === 0 or $this->server->isWorldNaturalMobSpawnDisabled($this)){
+			return;
+		}
+
+		$difficulty = max(0, min(3, (int) $this->server->getDifficulty()));
+		$hostileDefaultPeriod = self::getNaturalSpawnPeriodForDifficulty($difficulty);
+		$friendlyDefaultPeriod = self::getNaturalSpawnPeriodForDifficulty(2);
+		$hostilePeriod = max($hostileDefaultPeriod, (int) $this->server->getProperty("ticks-per.monster-spawns", $hostileDefaultPeriod));
+		$friendlyPeriod = max($friendlyDefaultPeriod, (int) $this->server->getProperty("ticks-per.animal-spawns", $friendlyDefaultPeriod));
+
+		$runHostile = $difficulty > 0 && ($currentTick % max(1, $hostilePeriod)) === 0;
+		$runFriendly = ($currentTick % max(1, $friendlyPeriod)) === 0;
+		if(!$runHostile && !$runFriendly){
+			return;
+		}
+
+		$limits = [
+			NaturalMobSpawnRules::SPAWN_CATEGORY_MONSTERS => (int) $this->server->getProperty("spawn-limits.monsters", 70),
+			NaturalMobSpawnRules::SPAWN_CATEGORY_ANIMALS => (int) $this->server->getProperty("spawn-limits.animals", 15),
+			NaturalMobSpawnRules::SPAWN_CATEGORY_WATER_ANIMALS => (int) $this->server->getProperty("spawn-limits.water-animals", 5),
+			NaturalMobSpawnRules::SPAWN_CATEGORY_AMBIENT => (int) $this->server->getProperty("spawn-limits.ambient", 15)
+		];
+		$categoryCounts = $this->getNaturalSpawnCategoryCounts();
+		$hostileAttempts = max(1, $difficulty);
+		$friendlyAttempts = 2;
+
+		foreach($this->players as $player){
+			if(!($player instanceof Player) or $player->closed){
+				continue;
+			}
+
+			if($runHostile){
+				for($i = 0; $i < $hostileAttempts; ++$i){
+					if($this->tryNaturalLandSpawn($player, true, $limits, $difficulty, $categoryCounts)){
+						break;
+					}
+				}
+			}
+
+			if($runFriendly){
+				for($i = 0; $i < $friendlyAttempts; ++$i){
+					if($this->tryNaturalLandSpawn($player, false, $limits, $difficulty, $categoryCounts)){
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	private static function getNaturalSpawnPeriodForDifficulty(int $difficulty) : int{
+		switch(max(0, min(3, $difficulty))){
+			case 0:
+				return 20 * 60;
+			case 1:
+				return 20 * 30;
+			case 2:
+				return 20 * 18;
+			case 3:
+				return 20 * 12;
+			default:
+				return 20 * 30;
+		}
+	}
+
+	/**
+	 * @return int[]
+	 */
+	private function getNaturalSpawnCategoryCounts() : array{
+		$counts = [
+			NaturalMobSpawnRules::SPAWN_CATEGORY_MONSTERS => 0,
+			NaturalMobSpawnRules::SPAWN_CATEGORY_ANIMALS => 0,
+			NaturalMobSpawnRules::SPAWN_CATEGORY_WATER_ANIMALS => 0,
+			NaturalMobSpawnRules::SPAWN_CATEGORY_AMBIENT => 0
+		];
+
+		foreach($this->entities as $entity){
+			if(!($entity instanceof Entity)){
+				continue;
+			}
+
+			$category = NaturalMobSpawnRules::getEntitySpawnCategory((int) $entity::NETWORK_ID);
+			if($category !== "" && isset($counts[$category])){
+				++$counts[$category];
+			}
+		}
+
+		return $counts;
+	}
+
+	private function countNaturalSpawnEntitiesById(int $entityId) : int{
+		$count = 0;
+		foreach($this->entities as $entity){
+			if($entity instanceof Entity && (int) $entity::NETWORK_ID === $entityId){
+				++$count;
+			}
+		}
+
+		return $count;
+	}
+
+	private function tryNaturalLandSpawn(Player $player, bool $hostile, array $limits, int $difficulty, array &$categoryCounts) : bool{
+		$angle = deg2rad(mt_rand(0, 359));
+		$distance = mt_rand(8, 30);
+		$x = (int) floor($player->x + cos($angle) * $distance);
+		$z = (int) floor($player->z + sin($angle) * $distance);
+
+		$chunk = $this->getChunk($x >> 4, $z >> 4, false);
+		if(!($chunk instanceof FullChunk) or !$chunk->isPopulated()){
+			return false;
+		}
+
+		$localX = $x & 0x0f;
+		$localZ = $z & 0x0f;
+		$groundY = (int) $chunk->getHighestBlockAt($localX, $localZ);
+		if($groundY < 1 or $groundY > 123){
+			return false;
+		}
+		if($chunk->getBlockId($localX, $groundY + 1, $localZ) !== Block::AIR or $chunk->getBlockId($localX, $groundY + 2, $localZ) !== Block::AIR){
+			return false;
+		}
+
+		$pos = new Position($x + 0.5, $groundY + 1, $z + 0.5, $this);
+		$inVillage = $this->getBiomeId($x, $z) === Biome::VILLAGE;
+
+		if($hostile){
+			if(!NaturalMobSpawnRules::canSpawnHostileAt($this, $pos) && !NaturalMobSpawnRules::canSpawnDaytimeDesertHuskAt($this, $pos)){
+				return false;
+			}
+		}elseif(!NaturalMobSpawnRules::canSpawnPassiveAt($this, $pos)){
+			return false;
+		}
+
+		$entityIds = NaturalMobSpawnRules::selectLandEntityGroupIds($this, $pos, $inVillage);
+		if(count($entityIds) === 0){
+			return false;
+		}
+
+		$spawned = false;
+		$index = 0;
+		foreach($entityIds as $entityId){
+			$entityId = (int) $entityId;
+			$position = $index === 0 ? $pos : $this->findNaturalGroupSpawnPosition($pos, $index);
+			++$index;
+			if(!($position instanceof Position)){
+				continue;
+			}
+			if($hostile !== NaturalMobSpawnRules::isHostileEntityId($entityId)){
+				continue;
+			}
+
+			$limit = NaturalMobSpawnRules::getEntitySpawnLimit($entityId, $inVillage, $difficulty, $limits);
+			if($limit <= 0){
+				break;
+			}
+
+			if($inVillage && ($entityId === Villager::NETWORK_ID || $entityId === IronGolem::NETWORK_ID)){
+				$count = $this->countNaturalSpawnEntitiesById($entityId);
+			}else{
+				$category = NaturalMobSpawnRules::getEntitySpawnCategory($entityId);
+				$count = isset($categoryCounts[$category]) ? $categoryCounts[$category] : $limit;
+			}
+			if($count >= $limit){
+				break;
+			}
+
+			if($this->spawnNaturalEntityAt($entityId, $position)){
+				$spawned = true;
+				$category = NaturalMobSpawnRules::getEntitySpawnCategory($entityId);
+				if($category !== "" && isset($categoryCounts[$category])){
+					++$categoryCounts[$category];
+				}
+			}
+		}
+
+		return $spawned;
+	}
+
+	private function findNaturalGroupSpawnPosition(Position $center, int $index){
+		$offsets = [
+			[1, 0],
+			[-1, 0],
+			[0, 1],
+			[0, -1],
+			[2, 1],
+			[-2, -1],
+			[1, -2],
+			[-1, 2],
+			[2, -2],
+			[-2, 2]
+		];
+		$offset = $offsets[($index - 1) % count($offsets)];
+		$x = (int) floor($center->x) + $offset[0];
+		$z = (int) floor($center->z) + $offset[1];
+		$baseY = (int) floor($center->y);
+
+		for($y = $baseY + 1; $y >= $baseY - 3; --$y){
+			if($this->getBlockIdAt($x, $y, $z) !== Block::AIR or $this->getBlockIdAt($x, $y + 1, $z) !== Block::AIR){
+				continue;
+			}
+			if(Block::get($this->getBlockIdAt($x, $y - 1, $z))->isNormalBlock()){
+				return new Position($x + 0.5, $y, $z + 0.5, $this);
+			}
+		}
+
+		return null;
+	}
+
+	private function spawnNaturalEntityAt(int $entityId, Position $pos) : bool{
+		$this->server->getPluginManager()->callEvent($ev = new EntityGenerateEvent($pos, $entityId, EntityGenerateEvent::CAUSE_AI_HOLDER));
+		if($ev->isCancelled()){
+			return false;
+		}
+
+		$pos = $ev->getPosition();
+		$chunk = $this->getChunk($pos->getFloorX() >> 4, $pos->getFloorZ() >> 4, false);
+		if(!($chunk instanceof FullChunk)){
+			return false;
+		}
+
+		$nbt = new CompoundTag("", [
+			"Pos" => new ListTag("Pos", [
+				new DoubleTag("", $pos->x),
+				new DoubleTag("", $pos->y),
+				new DoubleTag("", $pos->z)
+			]),
+			"Motion" => new ListTag("Motion", [
+				new DoubleTag("", 0),
+				new DoubleTag("", 0),
+				new DoubleTag("", 0)
+			]),
+			"Rotation" => new ListTag("Rotation", [
+				new FloatTag("", mt_rand() / mt_getrandmax() * 360),
+				new FloatTag("", 0)
+			])
+		]);
+		$entity = Entity::createEntity($entityId, $chunk, $nbt);
+		if(!($entity instanceof Entity)){
+			return false;
+		}
+
+		AgeableSpawnHelper::maybeSetBaby($entity, AgeableSpawnHelper::PNX_NATURAL_BABY_CHANCE);
+		$entity->spawnToAll();
+
+		return true;
 	}
 
 	public function __debugInfo(){

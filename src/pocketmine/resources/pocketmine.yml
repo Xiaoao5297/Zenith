@@ -159,11 +159,13 @@ chunk-generation:
  population-queue-size: 2
 
 ticks-per:
+ #自然刷怪尝试间隔（tick）。低于难度默认周期（简单 600 / 普通 360 / 困难 240）时按默认周期
  animal-spawns: 400
  monster-spawns: 1
  autosave: 6000
  cache-cleanup: 900
 spawn-limits:
+ #每类自然生成生物的单世界上限（敌对生物还会按难度缩放，和平难度为 0）
   monsters: 70
   animals: 15
   water-animals: 5
