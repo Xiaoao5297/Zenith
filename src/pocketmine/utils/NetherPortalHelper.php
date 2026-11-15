@@ -46,7 +46,7 @@ final class NetherPortalHelper{
 	}
 
 	/**
-	 * 下界传送门总开关: pocketmine.yml 的 nether.enabled, 兼容旧的 nether.allow-nether (Server::$netherEnabled).
+	 * 下界传送门总开关: world.yml 的 nether.enabled, 兼容旧的 nether.allow-nether (Server::$netherEnabled).
 	 * 两者都未开启时所有写操作直接 no-op, 不会因为缺少下界世界而崩溃.
 	 */
 	public static function isEnabled(Level $level) : bool{
@@ -98,7 +98,7 @@ final class NetherPortalHelper{
 			}
 		}
 
-		self::warnOnce($level, "无法解析传送门目标世界, 本次不传送 (检查 pocketmine.yml 的 nether.enabled / nether.allow-nether 与 nether.level-name)");
+		self::warnOnce($level, "无法解析传送门目标世界, 本次不传送 (检查 world.yml 的 nether.enabled / nether.allow-nether 与 nether.level-name)");
 
 		return null;
 	}

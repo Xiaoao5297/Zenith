@@ -1,0 +1,99 @@
+# ============================================================
+#  Zenith 服务端配置 - 进程 / 网络 / 全局开关 (server.yml)
+# ============================================================
+# 本文件由原 pocketmine.yml 的 settings / memory / network /
+# ticks-per / aliases 拆出，键名与旧版完全一致。
+# 老服务器首次启动会自动迁移旧配置，并把旧文件改名为
+# pocketmine.yml.old，迁移只补缺失的键，不会覆盖已有值。
+
+settings:
+ #服务器端本地化使用的三字母语言代码
+ #语言代码列表: https://en.wikipedia.org/wiki/List_of_ISO_639-2_codes
+ language: "chs"
+ #把服务端语言强制下发给客户端 (false = 由设备自己决定)
+ force-language: false
+ #服务器关闭时踢出玩家所显示的消息
+ shutdown-message: "服务器已关闭！"
+ #允许通过 Query 列出插件
+ query-plugins: true
+ #插件使用已废弃 API 时在控制台提示
+ deprecated-verbose: true
+ #启动时默认开启插件与核心性能分析
+ enable-profiling: false
+ #tick 耗时小于等于该值时只记录结果，不输出告警 (默认 20)
+ profile-report-trigger: 20
+ #AsyncTask 工作线程数量。
+ #用于插件异步任务、世界生成、压缩与网络通信。
+ #建议设置为 CPU 核心数附近；auto 表示自动探测 (至少 2)。
+ async-workers: auto
+
+memory:
+ #全局软内存上限 (MB)，0 = 不限制
+ #超过后触发 low-memory-triggers 事件来释放内存
+ global-limit: 0
+
+ #主线程软内存上限 (MB)，0 = 不限制
+ #超过后触发 low-memory-triggers 事件来释放内存
+ main-limit: 0
+
+ #主线程硬内存上限 (MB)，0 = 不限制
+ #超过该值会直接停止服务器
+ main-hard-limit: 1024
+
+ #内存检测周期 (tick，默认 1 秒一次)
+ check-rate: 20
+
+ #低内存时继续重复触发 low-memory-triggers 与事件
+ continuous-trigger: true
+
+ #仅在 memory.continuous-trigger 开启时生效；以 memory.check-rate 为单位 (默认 30 秒)
+ continuous-trigger-rate: 30
+
+ garbage-collection:
+  #手动触发垃圾回收的周期 (tick，默认 30 分钟)，0 = 禁用
+  #只影响主线程，其它线程自行回收
+  period: 36000
+
+  #为工作线程派发异步垃圾回收任务
+  collect-async-worker: true
+
+  #低内存时触发
+  low-memory-trigger: true
+
+ max-chunks:
+  #每个玩家可加载的区块上限，会覆盖 chunk-sending.max-chunks
+  trigger-limit: 28
+
+  #触发时回收区块
+  trigger-chunk-collect: true
+
+  #低内存时触发
+  low-memory-trigger: true
+
+ world-caches:
+  disable-chunk-cache: true
+  low-memory-trigger: true
+
+
+network:
+ #批处理包的大小阈值 (字节)，只有达到该阈值的包会被压缩
+ #0 = 全部压缩，-1 = 不压缩
+ batch-threshold: 256
+ #发送批处理包时的压缩等级。越高越省带宽但越耗 CPU
+ compression-level: 2
+ #用 AsyncTask 压缩，会多半个/一个 tick 的延迟，但降低主线程压力
+ async-compression: true
+ #实验性功能，仅 Windows：尝试用 UPnP 自动端口映射
+ upnp-forwarding: false
+
+ticks-per:
+ #自然刷怪尝试间隔 (tick)。低于难度默认周期 (简单 600 / 普通 360 / 困难 240) 时按默认周期
+ animal-spawns: 400
+ monster-spawns: 1
+ autosave: 6000
+ cache-cleanup: 900
+
+aliases:
+ #命令别名示例:
+ #showtheversion: version
+ #savestop: [save-all, stop]

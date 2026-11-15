@@ -58,6 +58,10 @@ class BackupManager{
 		. "  - resource_packs\n"
 		. "  - pocketmine.yml\n"
 		. "  - genisys.yml\n"
+		. "  - server.yml\n"
+		. "  - world.yml\n"
+		. "  - gameplay.yml\n"
+		. "  - debug.yml\n"
 		. "  - server.properties\n"
 		. "  - permissions.yml\n"
 		. "  - ops.txt\n"
@@ -72,7 +76,8 @@ class BackupManager{
 
 	const DEFAULT_INCLUDE = [
 		"config", "players", "player", "maps", "worlds", "plugins", "resource_packs",
-		"pocketmine.yml", "genisys.yml", "server.properties", "permissions.yml",
+		"pocketmine.yml", "genisys.yml", "server.yml", "world.yml", "gameplay.yml", "debug.yml",
+		"server.properties", "permissions.yml",
 		"ops.txt", "banned.txt", "banned-ips.txt", "whitelist.txt", "white-list.txt",
 		"src", "start.sh", "php.ini", "PocketMine-MP.phar"
 	];

@@ -122,6 +122,7 @@ use pocketmine\tile\Tile;
 use pocketmine\utils\Binary;
 use pocketmine\utils\Color;
 use pocketmine\utils\Config;
+use pocketmine\utils\ConfigGroup;
 use pocketmine\utils\LevelException;
 use pocketmine\utils\MainLogger;
 use pocketmine\utils\ServerException;
@@ -176,6 +177,51 @@ class Server{
 	const PLAYER_MSG_TYPE_MESSAGE = 0;
 	const PLAYER_MSG_TYPE_TIP = 1;
 	const PLAYER_MSG_TYPE_POPUP = 2;
+
+	/**
+	 * 拆分后的核心配置文件名 => 该文件负责的顶层键。
+	 * 键名与旧的 pocketmine.yml / genisys.yml 完全一致，老配置可以原样迁移。
+	 */
+	const CORE_CONFIG_KEYS = [
+		"server.yml" => ["settings", "memory", "network", "ticks-per", "aliases"],
+		"world.yml" => ["anti-xray", "level-settings", "chunk-sending", "chunk-ticking", "chunk-generation", "spawn-limits", "worlds", "level", "world", "nether", "ender", "skyworld"],
+		"gameplay.yml" => ["player", "server", "redstone", "ai"],
+		"debug.yml" => ["debug"],
+	];
+
+	/**
+	 * 旧配置文件名 => [顶层键 => 新配置文件名]。
+	 * 未列出的键 (config / synapse / dserver) 随功能删除，迁移时静默忽略。
+	 */
+	const LEGACY_CONFIG_KEYS = [
+		"pocketmine.yml" => [
+			"settings" => "server.yml",
+			"memory" => "server.yml",
+			"network" => "server.yml",
+			"ticks-per" => "server.yml",
+			"aliases" => "server.yml",
+			"anti-xray" => "world.yml",
+			"nether" => "world.yml",
+			"level-settings" => "world.yml",
+			"chunk-sending" => "world.yml",
+			"chunk-ticking" => "world.yml",
+			"chunk-generation" => "world.yml",
+			"spawn-limits" => "world.yml",
+			"worlds" => "world.yml",
+			"debug" => "debug.yml",
+		],
+		"genisys.yml" => [
+			"level" => "world.yml",
+			"player" => "gameplay.yml",
+			"nether" => "world.yml",
+			"ender" => "world.yml",
+			"skyworld" => "world.yml",
+			"world" => "world.yml",
+			"server" => "gameplay.yml",
+			"redstone" => "gameplay.yml",
+			"ai" => "gameplay.yml",
+		],
+	];
 
 	/** @var Server */
 	private static $instance = null;
@@ -310,7 +356,7 @@ class Server{
 
 	private $propertyCache = [];
 
-	/** @var Config */
+	/** @var ConfigGroup */
 	private $config;
 
 	/** @var Player[] */
@@ -517,6 +563,10 @@ class Server{
 		$map = [
 			"pocketmine.yml" => "pocketmine.yml",
 			"genisys.yml" => "genisys.yml",
+			"server.yml" => "server.yml",
+			"world.yml" => "world.yml",
+			"gameplay.yml" => "gameplay.yml",
+			"debug.yml" => "debug.yml",
 			"server.properties" => "server.properties",
 			"ops.txt" => "ops.txt",
 			"white-list.txt" => "white-list.txt",
@@ -544,6 +594,218 @@ class Server{
 		}
 		if(count($moved) > 0){
 			$this->logger->info("[配置] 已自动迁移到 config/ : " . implode(", ", $moved));
+		}
+	}
+
+	/**
+	 * 确保拆分后的核心配置文件存在；不存在时从 resources 复制模板。
+	 *
+	 * @param string $name
+	 *
+	 * @return string 实际使用的文件路径 (沿用 getConfigFile() 的根目录兼容语义)
+	 */
+	private function ensureCoreConfig($name) : string{
+		$path = $this->getConfigFile($name);
+		if(!is_file($path)){
+			$content = @file_get_contents($this->filePath . "src/pocketmine/resources/" . $name);
+			if(is_string($content)){
+				@file_put_contents($path, $content);
+			}
+		}
+
+		return $path;
+	}
+
+	/**
+	 * 查找旧配置文件的真实位置 (config/ 优先，其次服务器根目录)。
+	 *
+	 * @param string $name
+	 *
+	 * @return string|null
+	 */
+	private function findLegacyConfig($name){
+		$configPath = $this->getConfigPath() . $name;
+		if(is_file($configPath)){
+			return $configPath;
+		}
+		$rootPath = $this->dataPath . $name;
+		if(is_file($rootPath)){
+			return $rootPath;
+		}
+
+		return null;
+	}
+
+	/**
+	 * 把旧的 pocketmine.yml / genisys.yml 拆进 server.yml / world.yml / gameplay.yml / debug.yml。
+	 *
+	 * 规则:
+	 *  - 只写新文件里缺的键；新文件是本次启动刚创建的 (fresh) 时，旧值覆盖模板默认值，
+	 *    这样老服务器升级后不会丢配置；已经存在的拆分配置永远不被覆盖。
+	 *  - pocketmine.yml 在 genisys.yml 之后处理，两者同名的 nether 节以 pocketmine.yml 为准。
+	 *  - 迁移成功后旧文件改名为 *.yml.old；已存在同名备份时追加时间戳，保证幂等。
+	 *  - YAML 解析失败只告警，保留旧文件并继续用新配置启动，不崩服。
+	 *
+	 * @param array $configEntries 元素: ["config" => Config, "keys" => string[], "fresh" => bool]
+	 */
+	private function migrateSplitConfigs(array $configEntries) : void{
+		$legacyNames = array_keys(self::LEGACY_CONFIG_KEYS);
+		$pending = [];
+		foreach($legacyNames as $legacyName){
+			$path = $this->findLegacyConfig($legacyName);
+			if($path !== null){
+				$pending[$legacyName] = $path;
+			}
+		}
+		if(count($pending) === 0){
+			return;
+		}
+
+		// genisys.yml 先处理，pocketmine.yml 后处理，保证同名节 (nether) 以 pocketmine.yml 为准。
+		$order = ["genisys.yml", "pocketmine.yml"];
+		foreach($order as $legacyName){
+			if(!isset($pending[$legacyName])){
+				continue;
+			}
+
+			$legacyPath = $pending[$legacyName];
+			try{
+				$content = @file_get_contents($legacyPath);
+				$data = is_string($content) ? @yaml_parse(Config::fixYAMLIndexes($content)) : null;
+			}catch(\Throwable $e){
+				$data = null;
+			}
+			if(!is_array($data)){
+				$this->logger->warning("[配置] " . $legacyName . " 解析失败，已保留原文件，本次跳过迁移");
+				continue;
+			}
+
+			$migrated = 0;
+			$targetNames = [];
+			try{
+				foreach(self::LEGACY_CONFIG_KEYS[$legacyName] as $key => $targetName){
+					if(!array_key_exists($key, $data) or !isset($configEntries[$targetName])){
+						continue;
+					}
+					$entry = $configEntries[$targetName];
+					$migrated += $this->mergeLegacyConfigValue($entry["config"], [$key], $data[$key], $entry["fresh"] === true);
+					$targetNames[$targetName] = true;
+				}
+
+				foreach($targetNames as $targetName => $unused){
+					// 用保留注释的写回方式，迁移后新文件里的中文注释仍然在。
+					$this->saveCoreConfigPreservingComments($configEntries[$targetName]["config"], $this->getConfigFile($targetName));
+				}
+			}catch(\Throwable $e){
+				$this->logger->warning("[配置] 从 " . $legacyName . " 迁移时出错 (" . $e->getMessage() . ")，已保留原文件");
+				continue;
+			}
+
+			$backupPath = $this->backupLegacyConfig($legacyPath);
+			if($backupPath === null){
+				$this->logger->warning("[配置] 已从 " . $legacyName . " 迁移 " . $migrated . " 个键，但旧文件改名失败，已保留原文件");
+			}else{
+				$this->logger->info("[配置] 已从 " . $legacyName . " 迁移 " . $migrated . " 个键到 " . implode(", ", array_keys($targetNames)) . "，旧文件已改名为 " . basename($backupPath));
+			}
+		}
+	}
+
+	/**
+	 * 把旧配置的一个子树深合并进目标 Config。
+	 *
+	 * @param Config $config
+	 * @param array  $path      当前键路径
+	 * @param mixed  $value     旧值
+	 * @param bool   $overwrite true = 覆盖目标已有值，false = 只补缺失的键
+	 *
+	 * @return int 实际写入的叶子键数量
+	 */
+	private function mergeLegacyConfigValue(Config $config, array $path, $value, bool $overwrite) : int{
+		if($value === null){
+			return 0;
+		}
+
+		if(is_array($value) and count($value) > 0 and !$this->isSequentialList($value)){
+			$count = 0;
+			foreach($value as $childKey => $childValue){
+				$count += $this->mergeLegacyConfigValue($config, array_merge($path, [$childKey]), $childValue, $overwrite);
+			}
+
+			return $count;
+		}
+
+		$dotted = implode(".", $path);
+		if($overwrite or $config->getNested($dotted) === null){
+			$config->setNested($dotted, $value);
+
+			return 1;
+		}
+
+		return 0;
+	}
+
+	/**
+	 * 判断数组是不是顺序列表 (0..n-1)，列表当成一个整体写入，不再递归。
+	 *
+	 * @param array $value
+	 *
+	 * @return bool
+	 */
+	private function isSequentialList(array $value) : bool{
+		$expected = 0;
+		foreach($value as $key => $unused){
+			if($key !== $expected){
+				return false;
+			}
+			++$expected;
+		}
+
+		return true;
+	}
+
+	/**
+	 * 把旧配置文件改名成 *.old；已有同名备份时追加时间戳，重复执行不报错。
+	 *
+	 * @param string $path
+	 *
+	 * @return string|null 备份路径，失败时返回 null (此时旧文件保持原样)
+	 */
+	private function backupLegacyConfig($path){
+		$target = $path . ".old";
+		if(file_exists($target)){
+			$stamp = date("Ymd-His");
+			$target = $path . ".old." . $stamp;
+			$suffix = 1;
+			while(file_exists($target)){
+				$target = $path . ".old." . $stamp . "-" . $suffix;
+				++$suffix;
+			}
+		}
+
+		if(@rename($path, $target)){
+			return $target;
+		}
+		if(@copy($path, $target)){
+			@unlink($path);
+
+			return $target;
+		}
+
+		return null;
+	}
+
+	/**
+	 * 保存一份核心配置，并尽量保留磁盘原文里的注释。
+	 *
+	 * @param Config $config
+	 * @param string $path
+	 */
+	private function saveCoreConfigPreservingComments(Config $config, $path) : void{
+		$content = @file_get_contents($path);
+		if(is_string($content)){
+			@file_put_contents($path, $this->writeAdvancedConfigDataPreservingComments($content, $config->getAll()));
+		}else{
+			$config->save(false);
 		}
 	}
 
@@ -1895,40 +2157,45 @@ class Server{
 			$this->about();
 
 			$this->migrateLegacyConfigs();
-			$this->getLogger()->info($this->getLanguage()->translateString("pocketmine.loading.pocketmine.yml"));
+			$this->getLogger()->info("[配置] 正在加载 server.yml / world.yml / gameplay.yml / debug.yml ...");
 
 			@mkdir($this->getConfigPath(), 0777, true);
-			$pocketmineYml = $this->getConfigFile("pocketmine.yml");
-			if(!file_exists($pocketmineYml)){
-				$content = file_get_contents($this->filePath . "src/pocketmine/resources/pocketmine.yml");
-				if($version->isDev()){
-					$content = str_replace("preferred-channel: stable", "preferred-channel: beta", $content);
-				}
-				@file_put_contents($pocketmineYml, $content);
+			$configPaths = [];
+			$configEntries = [];
+			foreach(self::CORE_CONFIG_KEYS as $name => $keys){
+				// 迁移前记录文件是否已存在：本次才创建的 "fresh" 文件允许被旧配置覆盖。
+				$existed = is_file($this->getConfigFile($name));
+				$configPaths[$name] = $this->ensureCoreConfig($name);
+				$configEntries[$name] = [
+					"config" => new Config($configPaths[$name], Config::YAML, []),
+					"keys" => $keys,
+					"fresh" => !$existed,
+				];
 			}
-			$this->config = new Config($configPath = $pocketmineYml, Config::YAML, []);
+
+			$groupEntries = [];
+			foreach($configEntries as $entry){
+				$groupEntries[] = ["config" => $entry["config"], "keys" => $entry["keys"]];
+			}
+			$this->config = new ConfigGroup($groupEntries);
+			$this->migrateSplitConfigs($configEntries);
+
 			$nowLang = $this->getProperty("settings.language", "eng");
 			if($defaultLang != "unknown" and $nowLang != $defaultLang){
-				@file_put_contents($configPath, str_replace('language: "' . $nowLang . '"', 'language: "' . $defaultLang . '"', file_get_contents($configPath)));
-				$this->config->reload();
-				unset($this->propertyCache["settings.language"]);
-			}
-            // $this->logger->info($this->getLanguage()->translateString("pocketmine.existsyml.pm", [$name]));
-			// $this->logger->info("正在加载genisys.yml...");
-			$this->getLogger()->info($this->getLanguage()->translateString("pocketmine.loading.genisys.yml"));
-
-			$lang = $this->getProperty("settings.language", BaseLang::FALLBACK_LANGUAGE);
-			if(file_exists($this->filePath . "src/pocketmine/resources/genisys_$lang.yml")){
-				$content = file_get_contents($this->filePath . "src/pocketmine/resources/genisys_$lang.yml");
-			}else{
-				$content = file_get_contents($this->filePath . "src/pocketmine/resources/genisys_eng.yml");
+				$serverYml = $configPaths["server.yml"];
+				$content = @file_get_contents($serverYml);
+				if(is_string($content)){
+					$replaced = str_replace('language: "' . $nowLang . '"', 'language: "' . $defaultLang . '"', $content);
+					if($replaced !== $content){
+						@file_put_contents($serverYml, $replaced);
+						$configEntries["server.yml"]["config"]->reload();
+						unset($this->propertyCache["settings.language"]);
+					}
+				}
 			}
 
-			$genisysYml = $this->getConfigFile("genisys.yml");
-			if(!file_exists($genisysYml)){
-				@file_put_contents($genisysYml, $content);
-			}
-			$this->advancedConfig = new Config($genisysYml, Config::YAML, []);
+			// 玩法配置与主配置使用同一组文件：getProperty / getAdvancedProperty / world.* 写回都走 ConfigGroup。
+			$this->advancedConfig = $this->config;
 
 			$this->loadAdvancedConfig();
 
@@ -3203,10 +3470,10 @@ private function lookupAddress($address) {
 	/**
 	 * @param             $variable
 	 * @param null        $defaultValue
-	 * @param Config|null $cfg
+	 * @param Config|ConfigGroup|null $cfg
 	 * @return bool|mixed|null
 	 */
-	public function getAdvancedProperty($variable, $defaultValue = null, Config $cfg = null){
+	public function getAdvancedProperty($variable, $defaultValue = null, $cfg = null){
 		$vars = explode(".", $variable);
 		$base = array_shift($vars);
 		if($cfg == null) $cfg = $this->advancedConfig;
@@ -3323,7 +3590,7 @@ private function lookupAddress($address) {
 	}
 
 	private function getWorldGameruleOverride($level, string $rule){
-		if(!($this->advancedConfig instanceof Config)){
+		if(!($this->advancedConfig instanceof ConfigGroup)){
 			return null;
 		}
 
@@ -3345,7 +3612,7 @@ private function lookupAddress($address) {
 	}
 
 	private function persistWorldGameruleValue($level, string $rule, $value) : void{
-		if(!($this->advancedConfig instanceof Config)){
+		if(!($this->advancedConfig instanceof ConfigGroup)){
 			return;
 		}
 
@@ -3425,13 +3692,28 @@ private function lookupAddress($address) {
 		sort($list, SORT_NATURAL | SORT_FLAG_CASE);
 		$this->worldBehaviorConfig[$behavior] = $this->normalizeWorldNameList($list);
 
-		if($this->advancedConfig instanceof Config){
+		if($this->advancedConfig instanceof ConfigGroup){
 			$this->advancedConfig->setNested("world." . $behavior, $list);
 			$this->saveAdvancedConfig();
 		}
 	}
 
+	/**
+	 * 保存 world 规则。拆分配置后 world.* 属于 world.yml，只重写该文件并保留其中的注释。
+	 */
 	private function saveAdvancedConfig() : void{
+		if($this->advancedConfig instanceof ConfigGroup){
+			$worldConfig = $this->advancedConfig->getOwnerConfig("world");
+			if($worldConfig === null){
+				$this->advancedConfig->save(false);
+
+				return;
+			}
+			$path = $this->getConfigFile("world.yml");
+			$this->saveCoreConfigPreservingComments($worldConfig, $path);
+
+			return;
+		}
 		if($this->advancedConfig instanceof Config){
 			$path = $this->getConfigFile("genisys.yml");
 			$content = file_get_contents($path);

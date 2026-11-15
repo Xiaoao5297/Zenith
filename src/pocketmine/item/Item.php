@@ -1574,7 +1574,7 @@ class Item{
 
 		$enchantments = [];
 
-		// 从 genisys.yml 读取附魔等级上限，默认 30（原版最高附魔等级）
+		// 附魔等级上限，默认 30（原版最高附魔等级）
 		$server = \pocketmine\Server::getInstance();
 		$maxLevel = 30;
 		if($server !== null){
