@@ -28,6 +28,9 @@ class BaseLang{
 
 	const FALLBACK_LANGUAGE = "eng";
 
+	/** 语言根目录：每个语言一个子目录，内含 messages.ini 与 installer.ini */
+	const LANG_DIRECTORY = "src/pocketmine/lang/";
+
 	protected $langName;
 
 	protected $lang = [];
@@ -38,11 +41,47 @@ class BaseLang{
 		$this->langName = strtolower($lang);
 
 		if($path === null){
-			$path = \pocketmine\PATH . "src/pocketmine/lang/locale/";
+			$path = \pocketmine\PATH . self::LANG_DIRECTORY;
 		}
 
-		$this->loadLang($path . $this->langName . ".ini", $this->lang);
-		$this->loadLang($path . $fallback . ".ini", $this->fallbackLang);
+		if(!is_file($path . $this->langName . "/messages.ini")){
+			$this->langName = $fallback;
+		}
+
+		$this->loadLang($path . $this->langName . "/messages.ini", $this->lang);
+		$this->loadLang($path . $fallback . "/messages.ini", $this->fallbackLang);
+	}
+
+	public static function getFallbackLanguage() : string{
+		return self::FALLBACK_LANGUAGE;
+	}
+
+	/**
+	 * 扫描 lang/<code>/messages.ini 枚举可用语言代码
+	 *
+	 * @return string[]
+	 */
+	public static function getAvailableLanguages() : array{
+		$languages = [];
+
+		$base = \pocketmine\PATH . self::LANG_DIRECTORY;
+		if(!is_dir($base)){
+			return $languages;
+		}
+
+		foreach(new \DirectoryIterator($base) as $dir){
+			if($dir->isDot() or !$dir->isDir()){
+				continue;
+			}
+
+			if(is_file($dir->getPathname() . "/messages.ini")){
+				$languages[] = $dir->getFilename();
+			}
+		}
+
+		sort($languages);
+
+		return $languages;
 	}
 
 	public function getName() : string{
