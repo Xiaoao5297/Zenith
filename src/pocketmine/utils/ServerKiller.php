@@ -31,6 +31,15 @@ class ServerKiller extends Thread{
 		$this->time = $time;
 	}
 
+	/**
+	 * 只用 sleep + kill, 不需要父进程的类加载器.
+	 * 保存 Server 的 loader 会让 pthreads 在 start() 时序列化整个 loader 链,
+	 * 在部分插件环境下抛 "Serialization of 'Closure' is not allowed",
+	 * 导致关服最后一步异常退出.
+	 */
+	public function setClassLoader(\ClassLoader $loader = null){
+	}
+
 	public function run(){
 		$start = time() + 1;
 		$this->synchronized(function(){

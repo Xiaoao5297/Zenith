@@ -3649,7 +3649,12 @@ class Level implements ChunkManager, Metadatable{
 		if($this->antiXrayOptions !== null){
 			return $this->antiXrayOptions;
 		}
-		if(!(bool) $this->getServer()->getProperty("anti-xray.enabled", false)){
+		$enabled = $this->getServer()->getProperty("anti-xray.enabled", false);
+		if(is_string($enabled)){
+			//配置里写成 "false"/"no"/"0" 时 (bool) 会得到 true, 这里显式识别
+			$enabled = !in_array(strtolower(trim($enabled)), ["", "0", "false", "no", "off"], true);
+		}
+		if(!$enabled){
 			return $this->antiXrayOptions = false;
 		}
 
@@ -3686,6 +3691,8 @@ class Level implements ChunkManager, Metadatable{
 		if(is_array($filters) and count($filters) > 0){
 			$options["filters"] = $filters;
 		}
+
+		$this->getServer()->getLogger()->info("反矿透已启用: 世界=\"" . $this->getName() . "\", 模式=" . $options["mode"] . ", 扫描高度=" . $options["scanChunkHeightLimit"] . ", 伪方块=" . $options["fakeBlock"]);
 
 		return $this->antiXrayOptions = $options;
 	}

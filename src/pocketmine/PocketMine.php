@@ -496,14 +496,22 @@ namespace pocketmine {
 		$thread->quit();
 	}
 
-	$killer = new ServerKiller(8);
-	$killer->start();
+	$killer = null;
+	try{
+		$killer = new ServerKiller(8);
+		$killer->start();
+	}catch(\Throwable $e){
+		$logger->debug("ServerKiller 启动失败, 跳过强制终止看门狗: " . $e->getMessage());
+		$killer = null;
+	}
 
 	$logger->shutdown();
 	$logger->join();
 
 	//pthreads: 进程退出前必须 join 所有线程, 否则段错误
-	$killer->quit();
+	if($killer instanceof ServerKiller){
+		$killer->quit();
+	}
 
 	echo "Server has stopped" . Terminal::$FORMAT_RESET . "\n";
 
