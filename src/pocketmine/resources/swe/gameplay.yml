@@ -1,0 +1,119 @@
+# ============================================================
+#  Zenith Gameplay configuration - Swedish (swe) template (gameplay.yml)
+# ============================================================
+#  Comment language: English.
+#  Key names, order, values and indentation match resources/gameplay.yml.
+#  Split out of the legacy genisys.yml sections player / server / redstone / ai.
+#  Old servers migrate automatically on first start; the old file is renamed genisys.yml.old.
+#  Removed sections (config / synapse / dserver) are silently ignored on migration.
+
+player:
+ #Enable or disable the hunger system
+ hunger: true
+ #Minimum health a player can have from starvation damage
+ hunger-health: 10
+ #Hunger timer, default: 3000
+ hunger-timer: 3000
+ #Enable the experience system
+ experience: true
+ #Keep the inventory when a player dies
+ keep-inventory: true
+ #Inventory slot count
+ inventory-num: 36
+ #Clear the inventory when switching to creative mode
+ auto-clear-inventory : false
+ #Keep experience when a player dies
+ keep-experience: true
+ #Set this below 10 if players crash on join. -1 disables it
+ chunk-radius: -1
+ #Max enchantment level (default 30, vanilla behaviour; Item.php clamps illegal levels to this)
+ max-enchant-level: 30
+ #Attack cooldown in seconds (default 0.15)
+ attack-cooldown: 0.15
+ #Inventory transaction timeout in seconds (default 2)
+ transaction-timeout: 2
+ #Max entities per chunk (default 64)
+ max-entities-per-chunk: 64
+ #Spawn invulnerability in ticks (default 60 = 3s)
+ spawn-invulnerability-ticks: 60
+ #Portal cooldown in ticks (default 80 = 4s)
+ portal-cooldown-ticks: 80
+ #Starvation damage interval in ticks (default 20 = 1s)
+ starvation-interval: 20
+ #Food usage while sprinting (default 500)
+ food-usage-sprint: 500
+ #Food usage while walking (default 250)
+ food-usage-walk: 250
+ #Health regeneration interval in ticks (default 80 = 4s)
+ regeneration-interval: 80
+ #Food threshold for health regeneration (default 18)
+ regeneration-food-threshold: 18
+ #Max block interaction distance (default 13)
+ interact-distance: 13
+ #Spawn protection radius (default 16, -1 disables it)
+ spawn-protection-radius: 16
+ #Web panel port (0 disables it, default 8080)
+ web-panel-port: 8080
+
+server:
+ #Pre-generate experience data, 0 = disabled
+ experience-cache: 65535
+ #Allow iron golems to spawn
+ allow-iron-golem: false
+ #Allow snow golems to spawn
+ allow-snow-golem: false
+ #Allow anvils and enchanting tables
+ allow-anvilandenchanttable: true
+ #Disable server.log
+ disable-log: false
+ #Update the console window title (some terminals such as Termux scroll to the bottom because of it; set false to stop)
+ console-title: true
+ #Enable the automatic anti-fly (deprecated: flight checks are handled by the built-in anticheat FlyCheck; this option no longer takes effect)
+# anti-fly: true
+ #Warn when the average TPS drops below this value (default 15, minimum 1)
+ #tick-overload-threshold: 15
+ #anti-fast-eat: true
+ #Enable asynchronous chunk requests
+ async-chunk-request: true
+ #How players are notified on join
+ #0 = message, 1 = tip, 2 = popup
+ player-msg-type: 0
+ login-msg: "§3@player joined the game"
+ logout-msg: "§3@player left the game"
+ #Read crafting recipes from a json file
+ recipes-from-json: false
+ #Read creative items from a json file
+ creative-items-from-json: false
+ #Minecart movement: free, follow rails or disabled
+ #-1 = disabled, 0 = free, 1 = follow rails, 2 = auto
+ minecart-moving-type: 0
+ #Enable movement checks (players are no longer pulled back)
+ check-movement: true
+ #Enable limited creative mode (cannot drop items or interact with chests etc.)
+ limited-creative: false
+ #Show block break particles
+ destroy-block-particle: true
+ #Enable splash potions
+ allow-splash-potion: true
+ #Enable the advanced command selector
+ advanced-command-selector: false
+
+redstone:
+ ##########################################
+ ###Enable or disable the redstone system###
+ ##########################################
+ #If false, redstone will not work#
+ ##########################################
+ enable: true
+ #Allow frequency pulses
+ frequency-pulse: true
+ #Pulse frequency, default: 1 second
+ pulse-frequency: 1
+
+ai:
+ #Master AI switch
+ enable: true
+ #Whether creeper explosions destroy blocks
+ creeper-explode-destroy-block: false
+ #Allow mobs to spawn automatically
+ mobgenerate: true

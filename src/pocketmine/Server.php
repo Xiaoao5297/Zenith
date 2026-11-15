@@ -244,6 +244,9 @@ class Server{
 	/** @var Config */
 	private $whitelist = null;
 
+	/** @var string|null 核心配置模板的语言代码缓存 (见 getCoreConfigLanguage()) */
+	private $coreConfigLanguage = null;
+
 	/** @var bool */
 	private $isRunning = true;
 
@@ -598,7 +601,52 @@ class Server{
 	}
 
 	/**
+	 * 读取核心配置模板使用的语言代码 (settings.language)。
+	 *
+	 * 规则:
+	 *  - server.yml 已存在时读 settings.language，否则回退 eng；
+	 *  - 结果缓存在 $coreConfigLanguage，避免每次复制模板都重新解析 YAML；
+	 *    server.yml 由本次启动新建时会作废一次缓存，让后续模板用新文件里的语言；
+	 *  - 只接受小写字母与数字，非法值 (包含 .. / 路径分隔符等) 一律回退 eng，
+	 *    因为该值会被拼进 resources/<lang>/ 模板路径。
+	 *
+	 * @return string
+	 */
+	private function getCoreConfigLanguage() : string{
+		if($this->coreConfigLanguage !== null){
+			return $this->coreConfigLanguage;
+		}
+
+		$lang = "eng";
+		$serverConfigPath = $this->getConfigFile("server.yml");
+		if(is_file($serverConfigPath)){
+			try{
+				$serverConfig = new Config($serverConfigPath, Config::YAML);
+				$value = $serverConfig->getNested("settings.language", "eng");
+				if(is_string($value)){
+					$lang = $value;
+				}
+			}catch(\Throwable $e){
+				$lang = "eng";
+			}
+		}
+
+		$lang = strtolower(trim($lang));
+		if(preg_match('/^[a-z0-9]{1,16}$/', $lang) !== 1){
+			$lang = "eng";
+		}
+
+		$this->coreConfigLanguage = $lang;
+
+		return $lang;
+	}
+
+	/**
 	 * 确保拆分后的核心配置文件存在；不存在时从 resources 复制模板。
+	 *
+	 * 模板优先取语言目录 resources/<lang>/<name> (语言来自 settings.language)，
+	 * 该目录下没有对应文件时回退到 resources/<name>，保证只提供了部分语言的
+	 * 目录也能正常启动。
 	 *
 	 * @param string $name
 	 *
@@ -607,9 +655,18 @@ class Server{
 	private function ensureCoreConfig($name) : string{
 		$path = $this->getConfigFile($name);
 		if(!is_file($path)){
-			$content = @file_get_contents($this->filePath . "src/pocketmine/resources/" . $name);
+			$resourceRoot = $this->filePath . "src/pocketmine/resources/";
+			$content = @file_get_contents($resourceRoot . $this->getCoreConfigLanguage() . "/" . $name);
+			if(!is_string($content)){
+				$content = @file_get_contents($resourceRoot . $name);
+			}
 			if(is_string($content)){
 				@file_put_contents($path, $content);
+				if($name === "server.yml"){
+					// 刚复制出的 server.yml 自带默认 settings.language，丢掉复制前算出的
+					// 语言缓存，让本次启动后续的模板按新文件里的语言选择目录。
+					$this->coreConfigLanguage = null;
+				}
 			}
 		}
 

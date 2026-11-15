@@ -1,0 +1,149 @@
+# ============================================================
+#  Zenith 世界配置 - 区块 / 维度 / 世界规则 (world.yml)
+# ============================================================
+# 本文件由原 pocketmine.yml 的 level-settings / chunk-sending /
+# chunk-ticking / chunk-generation / spawn-limits / anti-xray /
+# worlds 与 genisys.yml 的 level / nether / ender / skyworld /
+# world 合并而成，键名与旧版完全一致。
+# 老服务器首次启动会自动迁移，旧文件改名为 *.yml.old。
+
+#Anti-Xray: 在区块包中混淆地下矿物, 提高透视作弊的成本.
+#仅对 worlds 中列出的世界生效, 修改后需重载世界或重启服务器.
+anti-xray:
+ #是否启用
+ enabled: false
+ #混淆模式: obfuscator(整体混淆) 或 hidden(只隐藏矿物)
+ mode: obfuscator
+ #扫描高度(1-15, 每单位 16 格), 默认只处理地表以下 4 层
+ scan-chunk-height-limit: 4
+ #主世界伪方块 ID(默认石头)
+ overworld-fake-block: 1
+ #下界伪方块 ID(默认下界岩)
+ nether-fake-block: 87
+ #生效世界名称(文件夹名或显示名, 不区分大小写)
+ worlds: [world]
+ #自定义矿物 ID 列表, 留空使用默认
+ ores: []
+ #自定义过滤方块 ID 列表, 留空使用默认
+ filters: []
+
+level-settings:
+ #新建世界时使用的默认格式
+ default-format: leveldb
+ #载入时把非默认格式转换成默认格式
+ #注意: 该功能目前尚未实现
+ convert-format: false
+ #自动调整世界 tick 速率以维持 20 tick/秒
+ auto-tick-rate: false
+ auto-tick-rate-limit: 20
+ #基础 tick 速率 (1 = 20 tick/秒, 2 = 10 tick/秒, 以此类推)
+ base-tick-rate: 1
+ #即使其它设置不允许，也每个 tick 都更新玩家
+ always-tick-players: false
+
+chunk-sending:
+ #每 tick 发给玩家的区块数量
+ per-tick: 1
+ #每个玩家周围发送的区块数量
+ max-chunks: 32
+ #生成玩家前需要发送的区块数量
+ spawn-threshold: 28
+ #在内存里缓存区块的序列化副本，加快发送
+ #适合玩家集中加入的静态世界
+ cache-chunks: true
+
+chunk-ticking:
+ #每 tick 处理的区块数量上限
+ per-tick: 16
+ #玩家周围参与 tick 的区块半径
+ tick-radius: 3
+ #区块加载时异步补光；开启后方块改动的天空光也走更新队列（B6），关闭则保持旧行为
+ light-updates: false
+ clear-tick-list: true
+
+chunk-generation:
+ #等待生成的区块队列上限
+ queue-size: 2
+ #等待填充 (populate) 的区块队列上限
+ population-queue-size: 2
+
+spawn-limits:
+ #每类自然生成生物的单世界上限（敌对生物还会按难度缩放，和平难度为 0）
+  monsters: 70
+  animals: 15
+  water-animals: 5
+  ambient: 15
+
+worlds:
+ #这里的设置会覆盖 server.properties 里的生成器，并允许加载多个世界
+ #示例:
+ #world:
+ # seed: 404
+ # generator: FLAT:2;7,59x1,3x3,2;1;decoration(treecount=80 grasscount=45)
+
+#以下 level / world / nether / ender / skyworld 来自原 genisys.yml，
+#键名保持不变，避免老配置失效。
+level:
+ #设置是否开启天气系统
+ weather: true
+ #天气随机持续时间
+ weather-random-duration-min: 6000
+ weather-random-duration-max: 12000
+ #随机闪电间隔，默认为10秒，0 = 禁用
+ lightning-time: 20000
+ #设置闪电是否带火
+ lightning-fire: false
+ #设置是否启用火的蔓延
+ fire-spread: false
+
+world:
+ #是否自然生成要塞 (MCPE 0.14 默认: false)
+ generate-stronghold: false
+ #按世界名单禁用自然刷怪 (填写世界文件夹名, 多个用逗号分隔)
+ no-natural-mob-spawn: []
+ #按世界名单禁用生物掉落与经验
+ no-mob-death-drops-and-experience: []
+ #按世界名单禁用苦力怕破坏方块
+ no-creeper-block-damage: []
+ #按世界名单禁用TNT破坏方块
+ no-tnt-block-damage: []
+ #按世界名单禁用饥饿与生命恢复
+ no-hunger-health-regeneration: []
+ #按世界名单禁用作物生长 (randomTickSpeed)
+ no-crop-growth: []
+ #按世界名单禁用非生物实体掉落
+ no-non-living-entity-drops: []
+ #按世界名单开启死亡不掉落
+ keep-inventory: []
+ #按世界名单禁用昼夜循环
+ do-daylight-cycle: []
+
+#下界与下界传送门
+#注意: 原 pocketmine.yml 与 genisys.yml 各有一个 nether 节, 现已合并为下面这一节。
+#enabled / allow-nether / level-name 的含义沿用 pocketmine.yml:
+#  enabled      传送门总开关 (黑曜石框架点燃、传送与坐标 1:8 缩放)
+#  allow-nether 启动时加载/生成下界维度, 并让同名世界被标记为下界维度
+#genisys.yml 里同名的 nether.allow-nether / nether.level-name 含义相同,
+#迁移时如果本文件已有值则保留本文件的值。
+nether:
+ #是否启用下界传送门 (黑曜石框架点燃、传送与坐标 1:8 缩放). 默认 false, 关闭时点燃/传送全部 no-op.
+ enabled: false
+ #是否在启动时加载/生成下界维度 (旧键, 与 enabled 任一为 true 即可点燃传送门; 真正传送仍需本项为 true)
+ allow-nether: false
+ #下界世界的文件夹名; Level 只有在文件夹名等于该值且 allow-nether 为 true 时才标记为下界维度
+ level-name: "nether"
+
+ender:
+ #选择是否允许末地，末地维度会自动生成
+ allow-ender: true
+ #末地维度的名称
+ level-name: "ender"
+
+skyworld:
+ #选择是否允许天域，天域维度会自动生成
+ allow-skyworld: false
+ #天域维度的名称
+ level-name: "skyworld"
+ spawn-x: 0
+ spawn-y: 64
+ spawn-z: -50

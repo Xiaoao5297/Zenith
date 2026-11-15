@@ -1,0 +1,149 @@
+# ============================================================
+#  Zenith World configuration - Dutch (nld) template (world.yml)
+# ============================================================
+#  Comment language: English.
+#  Key names, order, values and indentation match resources/world.yml.
+#  Merged from the legacy pocketmine.yml sections (anti-xray / level-settings /
+#  chunk-* / spawn-limits / worlds) and the genisys.yml dimension sections.
+#  Old servers migrate automatically on first start; old files are renamed *.yml.old.
+
+#Anti-Xray: obfuscate underground ores in chunk packets to make x-ray cheats harder.
+#Only applies to the worlds listed below; reload the world or restart the server after changing it.
+anti-xray:
+ #Enable anti-xray
+ enabled: false
+ #Obfuscation mode: obfuscator (everything) or hidden (ores only)
+ mode: obfuscator
+ #Scanned height (1-15, 16 blocks each), default covers the 4 layers below the surface
+ scan-chunk-height-limit: 4
+ #Overworld fake block ID (default stone)
+ overworld-fake-block: 1
+ #Nether fake block ID (default netherrack)
+ nether-fake-block: 87
+ #Worlds this applies to (folder or display name, case-insensitive)
+ worlds: [world]
+ #Custom ore ID list, leave empty for the defaults
+ ores: []
+ #Custom filtered block ID list, leave empty for the defaults
+ filters: []
+
+level-settings:
+ #Default format used when creating a world
+ default-format: leveldb
+ #Convert non-default formats to the default one on load
+ #Note: this is not implemented yet
+ convert-format: false
+ #Automatically adjust the world tick rate to keep 20 ticks per second
+ auto-tick-rate: false
+ auto-tick-rate-limit: 20
+ #Base tick rate (1 = 20 ticks/s, 2 = 10 ticks/s, and so on)
+ base-tick-rate: 1
+ #Tick players every tick even when other settings would not
+ always-tick-players: false
+
+chunk-sending:
+ #Chunks sent to each player per tick
+ per-tick: 1
+ #Chunks sent around each player
+ max-chunks: 32
+ #Chunks that must be sent before a player is spawned
+ spawn-threshold: 28
+ #Cache serialized chunk copies in memory to speed up sending
+ #Suited to static worlds where players join together
+ cache-chunks: true
+
+chunk-ticking:
+ #Max chunks processed per tick
+ per-tick: 16
+ #Radius of chunks ticked around each player
+ tick-radius: 3
+ #Async light updates when chunks load; when enabled, sky light from block changes also goes through the update queue (B6), disabled keeps the old behaviour
+ light-updates: false
+ clear-tick-list: true
+
+chunk-generation:
+ #Max queued chunks waiting to be generated
+ queue-size: 2
+ #Max queued chunks waiting to be populated
+ population-queue-size: 2
+
+spawn-limits:
+ #Per-world cap per natural spawn category (hostile mobs also scale with difficulty and are 0 on peaceful)
+  monsters: 70
+  animals: 15
+  water-animals: 5
+  ambient: 15
+
+worlds:
+ #Settings here override the generator from server.properties and allow loading multiple worlds
+ #Example:
+ #world:
+ # seed: 404
+ # generator: FLAT:2;7,59x1,3x3,2;1;decoration(treecount=80 grasscount=45)
+
+#The level / world / nether / ender / skyworld sections below come from the legacy genisys.yml;
+#key names are unchanged so old configurations keep working.
+level:
+ #Enable the weather system
+ weather: true
+ #Weather random duration
+ weather-random-duration-min: 6000
+ weather-random-duration-max: 12000
+ #Random lightning interval, default 10 seconds, 0 = disabled
+ lightning-time: 20000
+ #Whether lightning starts fires
+ lightning-fire: false
+ #Enable fire spread
+ fire-spread: false
+
+world:
+ #Whether strongholds generate naturally (MCPE 0.14 default: false)
+ generate-stronghold: false
+ #Disable natural mob spawning per world (world folder names, comma separated)
+ no-natural-mob-spawn: []
+ #Disable mob drops and experience per world
+ no-mob-death-drops-and-experience: []
+ #Disable creeper block damage per world
+ no-creeper-block-damage: []
+ #Disable TNT block damage per world
+ no-tnt-block-damage: []
+ #Disable hunger and health regeneration per world
+ no-hunger-health-regeneration: []
+ #Disable crop growth per world (randomTickSpeed)
+ no-crop-growth: []
+ #Disable non-living entity drops per world
+ no-non-living-entity-drops: []
+ #Keep the inventory on death per world
+ keep-inventory: []
+ #Disable the day/night cycle per world
+ do-daylight-cycle: []
+
+#Nether and nether portals
+#Note: the legacy pocketmine.yml and genisys.yml each had a nether section; they are merged here.
+#enabled / allow-nether / level-name keep the pocketmine.yml meaning:
+#  enabled      master portal switch (igniting obsidian frames, teleporting and 1:8 scaling)
+#  allow-nether load/generate the nether dimension at startup and mark that world as nether
+#genisys.yml had nether.allow-nether / nether.level-name with the same meaning;
+#on migration, values already in this file win.
+nether:
+ #Enable nether portals (igniting obsidian frames, teleporting and 1:8 scaling). Default false; when off, igniting and teleporting are no-ops.
+ enabled: false
+ #Load/generate the nether dimension at startup (legacy key; portals ignite when either this or enabled is true, but teleporting still requires this to be true)
+ allow-nether: false
+ #Nether world folder name; a Level is only marked as nether when its folder name matches and allow-nether is true
+ level-name: "nether"
+
+ender:
+ #Allow the End; the dimension is generated automatically
+ allow-ender: true
+ #End dimension name
+ level-name: "ender"
+
+skyworld:
+ #Allow the skyworld; the dimension is generated automatically
+ allow-skyworld: false
+ #Skyworld dimension name
+ level-name: "skyworld"
+ spawn-x: 0
+ spawn-y: 64
+ spawn-z: -50

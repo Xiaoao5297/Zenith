@@ -52,6 +52,10 @@ php tests/run-tests.php
 
 旧版本的 `pocketmine.yml` 与 `genisys.yml` 会在启动时自动拆分迁移，原文件改名为 `*.yml.old`；
 迁移只补缺失键，不覆盖已存在的新配置。确认无误后可删除 `.old` 文件。
+
+模板按语言放在 `src/pocketmine/resources/<语言缩写>/`（`gameplay.yml`、`world.yml`），
+启动时按 `server.yml` 的 `settings.language` 选择，取不到就回退根目录的单份模板。
+目前 `chs` 为中文注释，`eng` 为英文注释，其余语言为英文注释加少量常用键本地化。
 - 打开观察：
 
 ```text

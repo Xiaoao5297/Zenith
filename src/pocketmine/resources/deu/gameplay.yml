@@ -1,0 +1,119 @@
+# ============================================================
+#  Zenith Gameplay configuration - German (deu) template (gameplay.yml)
+# ============================================================
+#  Comment language: German for the legacy genisys keys, English elsewhere.
+#  Key names, order, values and indentation match resources/gameplay.yml.
+#  Split out of the legacy genisys.yml sections player / server / redstone / ai.
+#  Old servers migrate automatically on first start; the old file is renamed genisys.yml.old.
+#  Removed sections (config / synapse / dserver) are silently ignored on migration.
+
+player:
+ #Hungersystem ein- oder ausschalten
+ hunger: true
+ #Mindestlebenspunkte bei Hungerschaden
+ hunger-health: 10
+ #Hunger-Timer, Standard: 3000
+ hunger-timer: 3000
+ #Erfahrungssystem aktivieren
+ experience: true
+ #Inventar beim Tod behalten
+ keep-inventory: true
+ #Anzahl der Inventarplätze
+ inventory-num: 36
+ #Inventar beim Wechsel in den Kreativmodus leeren
+ auto-clear-inventory : false
+ #Erfahrung beim Tod behalten
+ keep-experience: true
+ #Bei Abstürzen beim Beitreten auf unter 10 setzen. -1 deaktiviert es
+ chunk-radius: -1
+ #Max enchantment level (default 30, vanilla behaviour; Item.php clamps illegal levels to this)
+ max-enchant-level: 30
+ #Attack cooldown in seconds (default 0.15)
+ attack-cooldown: 0.15
+ #Inventory transaction timeout in seconds (default 2)
+ transaction-timeout: 2
+ #Max entities per chunk (default 64)
+ max-entities-per-chunk: 64
+ #Spawn invulnerability in ticks (default 60 = 3s)
+ spawn-invulnerability-ticks: 60
+ #Portal cooldown in ticks (default 80 = 4s)
+ portal-cooldown-ticks: 80
+ #Starvation damage interval in ticks (default 20 = 1s)
+ starvation-interval: 20
+ #Food usage while sprinting (default 500)
+ food-usage-sprint: 500
+ #Food usage while walking (default 250)
+ food-usage-walk: 250
+ #Health regeneration interval in ticks (default 80 = 4s)
+ regeneration-interval: 80
+ #Food threshold for health regeneration (default 18)
+ regeneration-food-threshold: 18
+ #Max block interaction distance (default 13)
+ interact-distance: 13
+ #Spawn protection radius (default 16, -1 disables it)
+ spawn-protection-radius: 16
+ #Web panel port (0 disables it, default 8080)
+ web-panel-port: 8080
+
+server:
+ #Erfahrungsdaten vorab erzeugen, 0 = deaktiviert
+ experience-cache: 65535
+ #Eisengolems spawnen lassen
+ allow-iron-golem: false
+ #Schneegolems spawnen lassen
+ allow-snow-golem: false
+ #Amboss und Zaubertisch erlauben
+ allow-anvilandenchanttable: true
+ #server.log deaktivieren
+ disable-log: false
+ #Konsolentitel aktualisieren (manche Terminals wie Termux scrollen dadurch nach unten; false beendet das)
+ console-title: true
+ #Automatisches Anti-Fly aktivieren (veraltet: Flugprüfungen übernimmt das eingebaute Anticheat FlyCheck; diese Option wirkt nicht mehr)
+# anti-fly: true
+ #Warnung, wenn die durchschnittliche TPS unter diesen Wert fällt (Standard 15, Minimum 1)
+ #tick-overload-threshold: 15
+ #anti-fast-eat: true
+ #Asynchrone Chunk-Anfragen aktivieren
+ async-chunk-request: true
+ #Art der Benachrichtigung beim Beitreten
+ #0 = Nachricht, 1 = Hinweis, 2 = Popup
+ player-msg-type: 0
+ login-msg: "§3@player joined the game"
+ logout-msg: "§3@player left the game"
+ #Rezepte aus einer JSON-Datei lesen
+ recipes-from-json: false
+ #Kreativ-Items aus einer JSON-Datei lesen
+ creative-items-from-json: false
+ #Bewegung der Lore: frei, auf Schienen oder deaktiviert
+ #-1 = deaktiviert, 0 = frei, 1 = auf Schienen, 2 = automatisch
+ minecart-moving-type: 0
+ #Bewegungsprüfung aktivieren (Spieler werden nicht mehr zurückgezogen)
+ check-movement: true
+ #Eingeschränkter Kreativmodus (keine Items wegwerfen, keine Interaktion mit Truhen usw.)
+ limited-creative: false
+ #Partikel beim Blockabbau anzeigen
+ destroy-block-particle: true
+ #Wurftränke aktivieren
+ allow-splash-potion: true
+ #Erweiterten Befehlsselektor aktivieren
+ advanced-command-selector: false
+
+redstone:
+ ##########################################
+ ###Redstone-System ein- oder ausschalten###
+ ##########################################
+ #Bei false funktioniert Redstone nicht#
+ ##########################################
+ enable: true
+ #Frequenzimpulse erlauben
+ frequency-pulse: true
+ #Impulsfrequenz, Standard: 1 Sekunde
+ pulse-frequency: 1
+
+ai:
+ #KI-Hauptschalter
+ enable: true
+ #Ob Creeper-Explosionen Blöcke zerstören
+ creeper-explode-destroy-block: false
+ #Kreaturen automatisch spawnen lassen
+ mobgenerate: true

@@ -1,0 +1,119 @@
+# ============================================================
+#  Zenith 玩法配置 - 玩家 / 服务端玩法 / 红石 / AI (gameplay.yml)
+# ============================================================
+# 本文件由原 genisys.yml 的 player / server / redstone / ai 拆出，
+# 键名与旧版完全一致。
+# 老服务器首次启动会自动迁移，旧文件改名为 genisys.yml.old。
+# 原 genisys.yml 的 config / synapse / dserver 节已随功能删除，
+# 迁移时会静默忽略这些键。
+
+player:
+ #饥饿系统的开关
+ hunger: true
+ #当玩家因饥饿而受到攻击时的最低生命值
+ hunger-health: 10
+ #饥饿计时器，默认: 3000
+ hunger-timer: 3000
+ #选择是否开启经验系统
+ experience: true
+ #选择玩家死亡时是否保留物品栏
+ keep-inventory: true
+ #物品栏的空间大小
+ inventory-num: 36
+ #当游戏模式切换为创造模式时自动清空物品栏
+ auto-clear-inventory : false
+ #选择玩家死亡时是否保留经验
+ keep-experience: true
+ #如果玩家加入时崩溃，请将此值设置为10以下。禁用=-1
+ chunk-radius: -1
+ #附魔等级上限 (默认 30，原版行为；Item.php 会把非法附魔等级压到该值以内)
+ max-enchant-level: 30
+ #攻击冷却时间 (秒，默认 0.15)
+ attack-cooldown: 0.15
+ #物品栏事务超时时间 (秒，默认 2)
+ transaction-timeout: 2
+ #每个区块的实体数量上限 (默认 64)
+ max-entities-per-chunk: 64
+ #出生点无敌时间 (tick，默认 60 = 3 秒)
+ spawn-invulnerability-ticks: 60
+ #传送门冷却时间 (tick，默认 80 = 4 秒)
+ portal-cooldown-ticks: 80
+ #饥饿伤害间隔 (tick，默认 20 = 1 秒)
+ starvation-interval: 20
+ #疾跑时的食物消耗速率 (默认 500)
+ food-usage-sprint: 500
+ #行走时的食物消耗速率 (默认 250)
+ food-usage-walk: 250
+ #生命恢复间隔 (tick，默认 80 = 4 秒)
+ regeneration-interval: 80
+ #触发生命恢复的食物值阈值 (默认 18)
+ regeneration-food-threshold: 18
+ #方块交互距离上限 (默认 13)
+ interact-distance: 13
+ #出生点保护半径 (默认 16，-1 = 禁用)
+ spawn-protection-radius: 16
+ #Web 面板端口 (0 = 禁用，默认 8080)
+ web-panel-port: 8080
+
+server:
+ #预生成经验数据，0=禁用
+ experience-cache: 65535
+ #选择是否允许生成铁傀儡
+ allow-iron-golem: false
+ #选择是否允许生成雪傀儡
+ allow-snow-golem: false
+ #选择是否允许使用铁砧和附魔台
+ allow-anvilandenchanttable: true
+ #选择是否禁用 server.log
+ disable-log: false
+ #选择是否刷新控制台窗口标题（某些终端如 Termux 会因此滚动到底部，可设为 false）
+ console-title: true
+ #选择是否启用自动反飞行（已废弃：飞行检测由内置反作弊系统 anticheat/FlyCheck 处理，此配置不再生效）
+# anti-fly: true
+ #平均 TPS 低于该值时的告警 (默认 15，最小 1)
+ #tick-overload-threshold: 15
+ #anti-fast-eat: true
+ #选择是否启用异步区块请求
+ async-chunk-request: true
+ #选择玩家加入时的提醒方式
+ #0 = 消息, 1 = 提示, 2 = 弹出窗口
+ player-msg-type: 0
+ login-msg: "§3@player joined the game"
+ logout-msg: "§3@player left the game"
+ #选择是否从 json 文件读取合成配方
+ recipes-from-json: false
+ #选择是否从 json 文件读取创造模式物品
+ creative-items-from-json: false
+ #选择矿车的移动方式，自由移动、跟随轨道或禁用
+ #-1=禁用, 0=自由移动, 1=跟随轨道, 2=自动
+ minecart-moving-type: 0
+ #选择是否启用移动检查（不再拉回玩家）
+ check-movement: true
+ #设置是否启用受限创造模式（不能丢弃物品，不能与箱子等交互）
+ limited-creative: false
+ #设置是否添加方块破坏粒子效果
+ destroy-block-particle: true
+ #设置是否启用喷溅药水
+ allow-splash-potion: true
+ #设置是否启用高级命令选择器
+ advanced-command-selector: false
+
+redstone:
+ ##########################################
+ ###选择是否允许红石系统###
+ ##########################################
+ #如果为 false，则红石将不会工作#
+ ##########################################
+ enable: true
+ #选择是否允许频率脉冲
+ frequency-pulse: true
+ #设置脉冲频率, 默认: 1秒
+ pulse-frequency: 1
+
+ai:
+ #AI 总开关
+ enable: true
+ #苦力怕爆炸时是否破坏方块
+ creeper-explode-destroy-block: false
+ #选择是否允许生物自动生成
+ mobgenerate: true
