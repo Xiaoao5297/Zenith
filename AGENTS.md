@@ -31,6 +31,8 @@ Zenith — PocketMine-MP 分叉（Genisys / SCAXE 血统），纯 PHP 实现，�
 ## 目录边界
 
 - `src/pocketmine/` 核心；`src/raklib/` 网络层；`src/spl/` SPL 兼容层。
+- 配置按主题拆四个文件：`server.yml`（基础/内存/网络/ticks/别名）、`world.yml`（反矿透/区块/世界/维度）、`gameplay.yml`（玩家/红石/AI/Genisys 玩法开关）、`debug.yml`（调试）；另有 `anticheat.yml`、`config/backup.yml`、`raklib.yml`。`Server` 用 `utils/ConfigGroup.php` 合并读取，新增键要同步 `Server::CORE_CONFIG_KEYS` 与 `src/pocketmine/resources/` 模板；旧 `pocketmine.yml`/`genisys.yml` 启动时自动迁移为 `*.yml.old`。
+- 语言文件按代码分目录：`src/pocketmine/lang/<code>/messages.ini`（服务端文案）与 `installer.ini`（安装向导），缺失回退 `eng`。
 - 多协议：核心协议 70（0.14.x），另有 v11（0.11–0.13）与 v84（0.15）包族。`src/pocketmine/network/compat/` 是编解码/翻译层（`PacketCodecRegistry`、`BatchCodec`、`translators/`），`network/protocol/<family>/` 是各包族实现。改包结构要同时考虑入站转换与出站转换。
 - 反作弊：`src/pocketmine/anticheat/check/`（Fly/Speed/NoFall/Reach/…），统一经 `ViolationManager` 出 alert/punish；阈值在 `src/pocketmine/resources/anticheat.yml`，提示文案在 `anticheat_messages.yml`。
 - `docs/audit-2026-11-01.md`：审计条目（是什么/为什么/怎么做/怎么测），修完对应问题要补记。

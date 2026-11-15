@@ -19,10 +19,10 @@ php tests/run-tests.php
 预期输出结尾：
 
 ```
-161/161 passed
+519/519 passed
 ```
 
-- 数字随用例增加而增长，以实际输出为准（`feat/incore-port` 分支当前为 161 个用例）。
+- 数字随用例增加而增长，以实际输出为准（`feat/incore-port` 分支当前为 519 个用例）。
 
 - 零依赖，只需要 PHP CLI（7.3 / 7.4），不需要开服务器、不需要 Composer/PHPUnit。
 - 运行器自动扫描 `tests/*Test.php`，新增测试文件无需改 `run-tests.php`。
@@ -36,7 +36,22 @@ php tests/run-tests.php
   - `anticheat.yml` —— 反作弊总配置
   - `anticheat_messages.yml` —— 违规提示文案
 - 备份配置在 `config/backup.yml`。
-- 高级开关在 `genisys.yml`（`server.*` 段读取）。
+- 高级开关在 `gameplay.yml`（`server.*` 段读取）。
+
+### 0.3 配置文件总览
+
+| 文件 | 内容 |
+|---|---|
+| `server.yml` | 基础（语言、自动保存）、内存、网络、`ticks-per`、命令别名 |
+| `world.yml` | 反矿透、世界规则、区块发送/计时/生成、刷怪上限、世界列表、天气/火焰/闪电、下界/末地/空岛 |
+| `gameplay.yml` | 玩家（饥饿/回血/经验）、Genisys 玩法开关（铁砧、傀儡、经验缓存）、红石、AI |
+| `debug.yml` | 调试等级、`/status`、`/gc` 等调试命令 |
+| `anticheat.yml` / `anticheat_messages.yml` | 反作弊阈值与提示文案 |
+| `config/backup.yml` | 自动备份 |
+| `raklib.yml` | UDP 底层 |
+
+旧版本的 `pocketmine.yml` 与 `genisys.yml` 会在启动时自动拆分迁移，原文件改名为 `*.yml.old`；
+迁移只补缺失键，不覆盖已存在的新配置。确认无误后可删除 `.old` 文件。
 - 打开观察：
 
 ```text
@@ -253,7 +268,7 @@ php tests/run-tests.php
 2. 正常长按吃完一个食物，再吃第二个。
 3. 创造模式吃蘑菇煲。
 4. 生存模式吃蘑菇煲。
-5. 在 `genisys.yml` 设置 `server.anti-fast-eat: false` 后重复步骤 1。
+5. 在 `gameplay.yml` 设置 `server.anti-fast-eat: false` 后重复步骤 1。
 
 **预期**：
 - 1：最多每 1.5 秒生效一次，被拒绝的包服务端回滚背包（`sendContents`）。
@@ -262,7 +277,7 @@ php tests/run-tests.php
 - 4：食物减 1，返还 1 个空碗。
 - 5：恢复旧行为（限速关闭），可作对照。
 
-**失败排查**：`Player::EAT_MIN_INTERVAL = 1.5`，检查点在 `eatFoodInHand()` 的消耗分支；限速记录按成功进食时间，被拒绝的包不更新记录（不会卡死）。`anti-fast-eat` 是 `genisys.yml` 里的 `server.anti-fast-eat`。
+**失败排查**：`Player::EAT_MIN_INTERVAL = 1.5`，检查点在 `eatFoodInHand()` 的消耗分支；限速记录按成功进食时间，被拒绝的包不更新记录（不会卡死）。`anti-fast-eat` 是 `gameplay.yml` 里的 `server.anti-fast-eat`。
 
 ---
 
@@ -446,7 +461,7 @@ class Main extends PluginBase implements Listener{
 
 ### 5.1 A1 反矿透（Anti-Xray）
 
-配置文件：`src/pocketmine/resources/pocketmine.yml` 顶层 `anti-xray:` 节。
+配置文件：`src/pocketmine/resources/world.yml` 顶层 `anti-xray:` 节（旧版为 `pocketmine.yml`，启动时自动迁移）。
 
 ```yaml
 anti-xray:
@@ -490,7 +505,7 @@ anti-xray:
 
 ### 5.3 A4 目标选择器（`/tp` `/kill` `/effect`）
 
-前置：OP 账号；`pocketmine.yml` 的 `settings.player-tp` 保持默认。
+前置：OP 账号；`server.yml` 的 `settings.player-tp` 保持默认。
 
 | 命令 | 预期 |
 |---|---|
@@ -537,7 +552,7 @@ anti-xray:
 
 ### 5.5 A5 下界传送门（NetherPortalHelper）
 
-配置：`pocketmine.yml` 的 `nether:` 节。
+配置：`world.yml` 的 `nether:` 节（旧版为 `pocketmine.yml`）。
 
 ```yaml
 nether:
@@ -556,7 +571,7 @@ nether:
 6. 主世界 `enabled: false` → 打火石对黑曜石无反应，原有 `/setblock` 等逻辑不受影响。
 
 注意：
-- 目标世界缺失时 helper 只警告一次并 no-op，不会抛异常；排查时先看 `nether.level-name` 是否与 `pocketmine.yml` / `server.properties` 里实际世界名一致。
+- 目标世界缺失时 helper 只警告一次并 no-op，不会抛异常；排查时先看 `nether.level-name` 是否与 `world.yml` / `server.properties` 里实际世界名一致。
 - 传送门不会在目的地自动建门（与旧实现一致）。
 
 ### 5.6 B2 拴绳与马具
@@ -583,7 +598,7 @@ nether:
 
 1. 夜晚在草地（光照 ≤7）等待，应刷新僵尸/骷髅/蜘蛛/苦力怕；白天不应刷新敌对生物。
 2. 平原/森林/沙漠生物群系刷被动生物（羊/牛/猪/鸡），数量受 `spawn-limits.animals` 限制。
-3. `pocketmine.yml` 的 `spawn-limits.monsters` 改成 5 → 世界内敌对生物明显减少；改回 70 恢复。
+3. `world.yml` 的 `spawn-limits.monsters` 改成 5 → 世界内敌对生物明显减少；改回 70 恢复。
 4. 难度设为和平 → 不再刷敌对生物；简单/普通/困难的刷怪间隔分别约 600/360/240 tick。
 5. `ticks-per.monster-spawns` 调小不会低于难度默认周期（有下限保护）。
 6. 观察 `EntityGenerateEvent`：装了监听器的插件应能收到 `CAUSE_AI_HOLDER` 并取消刷怪。
@@ -599,7 +614,7 @@ nether:
 `Level::updateBlockSkyLight()` 由空实现改为入队，`Level::doTick()` 在 `tickChunks()` 之后调用
 `executeQueuedLightUpdates()` 排空队列。
 
-**默认关闭**：只有 `server.properties` / `pocketmine.yml`（也可用 CLI `--chunk-ticking.light-updates=true`）
+**默认关闭**：只有 `server.properties` / `world.yml`（也可用 CLI `--chunk-ticking.light-updates=true`）
 设置 `chunk-ticking.light-updates: true` 时才走队列；关闭时 `updateBlockSkyLight()` 保持历史上的 no-op，
 世界光照数据与升级前完全一致。
 
@@ -648,7 +663,7 @@ nether:
 
 验证步骤：
 
-1. 开启红石（`pocketmine.yml` 的 `redstone.enable: true`）重启。
+1. 开启红石（`gameplay.yml` 的 `redstone.enable: true`）重启。
 2. 放置活塞 + 拉杆：通电后活塞头伸出，断电收回；粘性活塞收回时把方块拉回。
 3. 推 1–12 格方块链：超过 12 格不应推动并应发出失败音效（无动画）。
 4. 黑曜石/基岩/刷怪笼等不可推方块：活塞不应推出方块头。

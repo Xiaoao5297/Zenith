@@ -69,5 +69,5 @@ Player::sendNextChunk() -> Player::doFirstSpawn()
 
 ## 建议
 
-- 正式服建议额外关闭 `genisys.yml` 的 `async-chunk-request`，降低竞态。
+- 正式服建议额外关闭 `gameplay.yml` 的 `level.async-chunk-request`，降低竞态。
 - 定期用只读脚本扫描 `worlds/*/region/*.mcr`，发现 `corrupt-quarantine/` 目录即说明又有损坏事件。
