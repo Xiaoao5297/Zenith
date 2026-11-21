@@ -12,6 +12,17 @@ use pocketmine\utils\Random;
 
 abstract class Mob extends Creature{
 
+	/**
+	 * 跨 1 格台阶的高度。
+	 *
+	 * 原版生物能直接走上一格高的台阶（脚部平滑抬高，不跳）。
+	 * 之前这里沿用 Entity 的默认值 0，所有生物只能靠 0.42 的跳跃硬上；
+	 * 跳跃峰值只有约 1.1 格，抬升过程中水平位移还会被台阶侧面清零，
+	 * 于是表现为反复起跳、原地回弹、速度极慢。设为 1.0 后交给
+	 * Entity::move() 的 stepHeight 逻辑处理，跳跃只作为极端情况兜底。
+	 */
+	protected $stepHeight = 1.0;
+
 	/** @var Behavior[] 按优先级排序 */
 	protected $behaviors = [];
 
@@ -291,30 +302,41 @@ abstract class Mob extends Creature{
 			}
 		}
 
-		$dx = (int) floor($this->x + $direction->x * ($speed + 0.5));
+		// 探测前方约半格，用于发现墙、断崖和危险方块。
+		// 探测到墙时也要继续施加水平 motion，让 Entity::move() 的碰撞逻辑
+		// 把移动削成贴墙/沿墙滑行；否则生物会停在离墙半格处，然后每 10 tick
+		// 重算一次路径，看起来像原地回弹、走不到位。
+		$probe = $speed + 0.5;
+		$dx = (int) floor($this->x + $direction->x * $probe);
 		$dy = (int) floor($this->y);
-		$dz = (int) floor($this->z + $direction->z * ($speed + 0.5));
+		$dz = (int) floor($this->z + $direction->z * $probe);
 
 		$groundY = self::pickGroundY($level, $dx, $dy, $dz);
+		$blocked = false;
 		if($groundY === null){
-			return false;
-		}
-
-		$diff = $groundY - $dy;
-		if($diff > 1){
-			return false;
-		}
-
-		// 检查目标位置的身体和头部空间（以目标地面为基准）
-		$bodyLayers = max(1, (int) ceil($this->height));
-		for($i = 0; $i < $bodyLayers; ++$i){
-			$block = $level->getBlock(new Vector3($dx, $groundY + $i, $dz));
-			if($block->isSolid()){
+			// null 有两种情况：前方是实心墙，或前方悬空（落差超过 3 格）。
+			// 墙 -> 继续推，交给碰撞滑行并记 blocked；悬空 -> 直接拒绝前进。
+			if(!$level->getBlock(new Vector3($dx, $dy, $dz))->isSolid()){
 				return false;
 			}
-			$id = $block->getId();
-			if($id === 10 or $id === 11 or $id === 51 or $id === 81){
-				return false;
+			$blocked = true;
+			$groundY = $dy;
+		}elseif($groundY - $dy > 1){
+			// 2 格以上是墙，不是台阶；照样推一次，让碰撞去削。
+			$blocked = true;
+			$groundY = $dy;
+		}else{
+			// 检查目标位置的身体和头部空间（以目标地面为基准）
+			$bodyLayers = max(1, (int) ceil($this->height));
+			for($i = 0; $i < $bodyLayers; ++$i){
+				$block = $level->getBlock(new Vector3($dx, $groundY + $i, $dz));
+				if($block->isSolid()){
+					return false;
+				}
+				$id = $block->getId();
+				if($id === 10 or $id === 11 or $id === 51 or $id === 81){
+					return false;
+				}
 			}
 		}
 
@@ -323,35 +345,43 @@ abstract class Mob extends Creature{
 
 		// 台阶判断要用脚底的实际高度差：贴地时 y 与 floor(y) 可能差一点点，
 		// 只比较 (groundY - floor(y)) 会让生物每 tick 都触发一次跳跃。
-		if(self::needsStepJump($this->y, $groundY, $this->onGround, $this->isInsideOfWater())){
+		// Mob 的 stepHeight 已经是 1.0，1 格台阶由 Entity::move() 的台阶逻辑
+		// 平滑抬高，不应再叠加一次 0.42 的强制起跳（那会造成反复跳跃）。
+		if(!$blocked and self::needsStepJump($this->y, $groundY, $this->onGround, $this->isInsideOfWater(), $this->stepHeight)){
 			$this->motionY = 0.42;
 		}elseif($groundY - $this->y < -1.1 and $this->onGround){
 			$this->motionY = -0.15;
 		}
 
-		return true;
+		// 返回 false 让 MoveControl 累计 blockedTicks，到阈值后重算路径。
+		return !$blocked;
 	}
 
 	/**
-	 * 是否需要为 1 格台阶起跳。
+	 * 是否需要为台阶起跳（兜底）。
+	 *
+	 * 生物默认 stepHeight = 1.0，1 格以内的抬升由 Entity::move() 直接处理，
+	 * 这里只在“脚底到目标地面”的高度差超过当前 stepHeight、但仍在跳跃
+	 * 可达范围（约 1.1 格）时才返回 true。
 	 *
 	 * 用脚底实际高度差而不是 (ground - floor(y))，否则贴地时的一点点浮点误差
 	 * 会被当成 1 格台阶，导致生物边走边跳。
 	 *
-	 * @param float $feetY   实体脚底 y
-	 * @param int   $groundY 目标列可站立的地面 y
+	 * @param float $feetY      实体脚底 y
+	 * @param int   $groundY    目标列可站立的地面 y
 	 * @param bool  $onGround
 	 * @param bool  $inWater
+	 * @param float $stepHeight 实体自身可跨越的高度
 	 * @return bool
 	 */
-	public static function needsStepJump(float $feetY, int $groundY, bool $onGround, bool $inWater) : bool{
+	public static function needsStepJump(float $feetY, int $groundY, bool $onGround, bool $inWater, float $stepHeight = 1.0) : bool{
 		if(!$onGround or $inWater){
 			return false;
 		}
 
 		$stepUp = $groundY - $feetY;
 
-		return $stepUp > 0.6 and $stepUp <= 1.2;
+		return $stepUp > $stepHeight + 0.001 and $stepUp <= 1.2;
 	}
 
 	/**

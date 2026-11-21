@@ -162,7 +162,7 @@ $this->putFloat($d[6]); //pitch
 
 ```bash
 php73 -l src/pocketmine/entity/Entity.php
-php73 tests/run-tests.php          # 当前 706/706
+php73 tests/run-tests.php          # 当前 796/796
 ```
 
 上服检查项见 `docs/manual-verification.md`；AI 相关至少覆盖：走动平滑、被打后转身逃跑且头回头、平时自行游荡、骷髅弹道对准玩家。
@@ -182,3 +182,41 @@ php73 tests/run-tests.php          # 当前 706/706
 结构变化：`Mob::onUpdate()` 现在是「行为选目标 → 导航推进路点与朝向 → MoveControl 施加速度 → Creature 移动」；`PathNavigate` 不再自己写 motion。
 
 仍需上服确认：方向抖动是否消除、卡墙恢复（阈值 8→10 慢约 2 tick）、`clearPath()` 后的停顿、台阶跳跃是否被单写保护吞掉。
+
+## 10. 台阶/回弹根因（2026-11-21 第二轮）
+
+批 1 之后游戏内观感仍然「走两步就跳、贴墙回弹、速度极慢」，进一步排查发现两个与 Goal 无关的底层问题。
+
+### 10.1 根因一：`Mob::$stepHeight = 0`
+
+`Entity` 的 `$stepHeight` 默认 0，只有 `Player`（0.6）和 `Horse`（1.0625）覆盖；`Mob` 从未设置。
+后果是**所有生物都无法使用 `Entity::move()` 的台阶逻辑**，只能靠 `Mob::needsStepJump()` 硬塞 `motionY = 0.42`：
+
+- 0.42 的跳跃峰值约 1.10 格，上 1 格台阶只剩 0.1 格余量；
+- 起跳后 `Entity::move()` 的碰撞仍会把 `motionX/motionZ` 清零（`Entity.php:1457-1467`），生物在台阶侧面反复起跳、原地回弹；
+- 每次循环都要等 `MoveControl` 的 blocked 计数，速度极慢。
+
+修复：`Mob` 声明 `protected $stepHeight = 1.0;`，1 格台阶直接交给 `Entity::move()` 的台阶逻辑（`ySize` 平滑抬升，约 3–4 tick 完成），并让 `needsStepJump()` 只在「台阶高于自身 stepHeight」时兜底（默认 1.0 时不会再触发 1 格跳跃）。
+
+离线物理模拟（真实 `Entity::move()` + 方块碰撞桩 Level，20–40 tick）：
+
+| 场景 | 修复前 | 修复后 |
+|---|---|---|
+| 平地直走 | 正常，0 跳 | 正常，0 跳 |
+| 1 格台阶 | x 卡在 1.70，反复起跳，永远上不去 | 平滑走上，`y=65`，0 跳 |
+| 2 格墙 | 不停起跳 | 不跳，停在墙前 |
+
+回归测试：`tests/MobStepTest.php`（10 项）、`tests/MobMovementTest.php` 更新。
+
+### 10.2 根因二：探测列过远导致「停在障碍前 + 10 tick 重算」
+
+`Mob::moveInDirection()` 原来在 `speed + 0.5` 的探测列发现墙就直接 `return false`，**完全不施加水平 motion**。生物于是停在离墙半格处，`MoveControl` 累计 10 tick 后重算路径，重算结果通常还是同一条路，形成「停一下 → 抖一下 → 再走」的观感。
+
+修复：探测到墙时仍然写入水平 motion，让 `Entity::move()` 的碰撞把移动削成贴墙/沿墙滑行，同时返回 `false` 让 blocked 计数正常触发重算；只有「前方悬空（落差 > 3 格）」和「岩浆/火/仙人掌」才真正拒绝前进。
+
+模拟结果：墙前近距离目标（目标在墙前 0.2 格）修复前走不到，修复后可达；斜向撞墙会沿墙滑行，全程 0 次方向反转。
+
+### 10.3 仍待观察
+
+- `Entity::move()` 的台阶抬升依赖 `ySize` 平滑，客户端看到的是 3–4 tick 的上升；如果上服仍觉得「弹一下」，可再把 `ySize += 0.5` 的步长调小。
+- 从水里爬上 1 格岸边依赖 `onGround`，水中 `onGround` 常为 false，仍可能需要跳跃兜底。
