@@ -673,6 +673,18 @@ abstract class Entity extends Location implements Metadatable{
         }
     }
 
+    /**
+     * 只在玩家还没有收到过这个实体时发送 AddEntityPacket。
+     *
+     * 实体子类的 spawnTo() 会无条件发包，区块重发/玩家重生时会对同一个 eid
+     * 重复 AddEntity，客户端会出现「孤儿实体」病灶。所有批量生成入口都用这个方法。
+     */
+    public function trySpawnTo(Player $player){
+        if(!isset($this->hasSpawned[$player->getLoaderId()])){
+            $this->spawnTo($player);
+        }
+    }
+
     public function sendPotionEffects(Player $player){
         foreach($this->effects as $effect){
             $pk = new MobEffectPacket();

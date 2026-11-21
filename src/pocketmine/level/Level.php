@@ -4232,6 +4232,13 @@ class Level implements ChunkManager, Metadatable{
 	}
 
 	public function addEntityMotion($chunkX, $chunkZ, $entityId, $x, $y, $z){
+		// NaN/INF 进入客户端插值后会污染模型矩阵，表现为巨大的黑色三角面；
+		// 宁可丢一帧，也不要把非有限值发给客户端。
+		if(!self::isFiniteEntityState($x, $y, $z)){
+			$this->server->getLogger()->debug("丢弃非有限 motion：实体 " . $entityId);
+			return;
+		}
+
 		if(!isset($this->motionToSend[$index = Level::chunkHash($chunkX, $chunkZ)])){
 			$this->motionToSend[$index] = [];
 		}
@@ -4239,9 +4246,27 @@ class Level implements ChunkManager, Metadatable{
 	}
 
 	public function addEntityMovement($chunkX, $chunkZ, $entityId, $x, $y, $z, $yaw, $pitch, $headYaw = null){
+		$headYaw = $headYaw === null ? $yaw : $headYaw;
+		if(!self::isFiniteEntityState($x, $y, $z, $yaw, $pitch, $headYaw)){
+			$this->server->getLogger()->debug("丢弃非有限 movement：实体 " . $entityId);
+			return;
+		}
+
 		if(!isset($this->moveToSend[$index = Level::chunkHash($chunkX, $chunkZ)])){
 			$this->moveToSend[$index] = [];
 		}
-		$this->moveToSend[$index][$entityId] = [$entityId, $x, $y, $z, $yaw, $headYaw === null ? $yaw : $headYaw, $pitch];
+		$this->moveToSend[$index][$entityId] = [$entityId, $x, $y, $z, $yaw, $headYaw, $pitch];
+	}
+
+	/**
+	 * @param mixed ...$values
+	 */
+	private static function isFiniteEntityState(...$values) : bool{
+		foreach($values as $value){
+			if(!is_finite((float) $value)){
+				return false;
+			}
+		}
+		return true;
 	}
 }

@@ -29,6 +29,9 @@ class Binary{
 	const BIG_ENDIAN = 0x00;
 	const LITTLE_ENDIAN = 0x01;
 
+	/** 线上元数据里 64 位长整型的 type 编号（Zenith 内部用 Entity::DATA_TYPE_LONG = 8） */
+	const METADATA_TYPE_LONG_WIRE = 7;
+
 
 	/**
 	 * Reads a 3-byte big-endian number
@@ -84,8 +87,15 @@ class Binary{
 	public static function writeMetadata(array $data){
 		$m = "";
 		foreach($data as $bottom => $d){
-			$m .= chr(($d[0] << 5) | ($bottom & 0x1F));
-			switch($d[0]){
+			// Zenith 内部用 8 表示 64 位长整型（见 Entity::DATA_TYPE_LONG），
+			// 但线上协议只有 3 bit 的 type 字段（0..7），LONG 的线上编号是 7。
+			// 直接写 8 会被 chr() 截断成 0（BYTE），导致后续元数据整体错位。
+			$type = (int) $d[0];
+			if($type === Entity::DATA_TYPE_LONG or $type === self::METADATA_TYPE_LONG_WIRE){
+				$type = self::METADATA_TYPE_LONG_WIRE;
+			}
+			$m .= chr(($type << 5) | ($bottom & 0x1F));
+			switch($type){
 				case Entity::DATA_TYPE_BYTE:
 					$m .= self::writeByte($d[1]);
 					break;
@@ -111,7 +121,7 @@ class Binary{
 					$m .= self::writeLInt($d[1][1]);
 					$m .= self::writeLInt($d[1][2]);
 					break;
-				case Entity::DATA_TYPE_LONG:
+				case self::METADATA_TYPE_LONG_WIRE:
 					$m .= self::writeLLong($d[1]);
 					break;
 			}
@@ -137,6 +147,10 @@ class Binary{
 		while($b !== 127 and isset($value{$offset})){
 			$bottom = $b & 0x1F;
 			$type = $b >> 5;
+			// 线上的 LONG 编号是 7，内部统一转成 Entity::DATA_TYPE_LONG（8）。
+			if($type === self::METADATA_TYPE_LONG_WIRE){
+				$type = Entity::DATA_TYPE_LONG;
+			}
 			switch($type){
 				case Entity::DATA_TYPE_BYTE:
 					$r = self::readByte($value{$offset});
@@ -177,7 +191,7 @@ class Binary{
 					}
 					break;
 				case Entity::DATA_TYPE_LONG:
-					$r = self::readLLong(substr($value, $offset, 4));
+					$r = self::readLLong(substr($value, $offset, 8));
 					$offset += 8;
 					break;
 				default:

@@ -282,7 +282,8 @@ final class V015Translator{
 				case Entity::DATA_TYPE_POS:
 					$offset += 12;
 					break;
-				case Entity::DATA_TYPE_LONG:
+				case Binary::METADATA_TYPE_LONG_WIRE:
+					// 0.15 协议里的 long 是 7（Entity::DATA_TYPE_LONG 的 8 只用于内部）。
 					$offset += 8;
 					break;
 				default:

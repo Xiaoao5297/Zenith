@@ -974,7 +974,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 		if($this->spawned){
 			foreach($this->level->getChunkEntities($x, $z) as $entity){
 				if($entity !== $this and !$entity->closed and $entity->isAlive()){
-					$entity->spawnTo($this);
+					$entity->trySpawnTo($this);
 				}
 			}
 		}
@@ -1074,7 +1074,7 @@ class Player extends Human implements CommandSender, InventoryHolder, ChunkLoade
 			Level::getXZ($index, $chunkX, $chunkZ);
 			foreach($this->level->getChunkEntities($chunkX, $chunkZ) as $entity){
 				if($entity !== $this and !$entity->closed and $entity->isAlive()){
-					$entity->spawnTo($this);
+					$entity->trySpawnTo($this);
 				}
 			}
 		}

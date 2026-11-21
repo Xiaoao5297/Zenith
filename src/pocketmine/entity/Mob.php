@@ -8,9 +8,20 @@ use pocketmine\entity\ai\control\MoveControl;
 use pocketmine\entity\ai\navigation\PathNavigate;
 use pocketmine\level\Level;
 use pocketmine\math\Vector3;
+use pocketmine\Player;
 use pocketmine\utils\Random;
 
 abstract class Mob extends Creature{
+
+	/**
+	 * 生物与玩家中心之间必须保持的额外水平空隙（格）。
+	 *
+	 * 玩家的第一人称相机位于身体中心，客户端模型通常比服务端的
+	 * width/height 更大（末影人客户端是 0.6 x 2.9，服务端是 0.3 x 1.8）。
+	 * 距离过近时相机会落在模型内部，被近裁剪面切开的模型会渲染成
+	 * 一直延伸到准心的黑色三角。0.4 是让相机退出模型并留出摆臂余量。
+	 */
+	const PLAYER_CLEARANCE = 0.4;
 
 	/**
 	 * 跨 1 格台阶的高度。
@@ -110,7 +121,103 @@ abstract class Mob extends Creature{
 			$this->moveControl->tick();
 		}
 
-		return parent::onUpdate($currentTick);
+		$return = parent::onUpdate($currentTick);
+
+		// 生物和玩家之间没有实体碰撞（Entity::move 只解算方块），
+		// 生物可以走进玩家身体里，第一人称相机就会落在模型内部，
+		// 客户端会把被近裁剪面切开的黑色模型渲染成「糊在准心上的黑色三角」。
+		// 这里在移动之后把生物从玩家身上水平推开，保证相机不会进模型。
+		if(!$this->closed and $this->isAlive()){
+			$this->pushAwayFromPlayers();
+		}
+
+		return $return;
+	}
+
+	/**
+	 * 把生物从与其重叠的玩家身上水平推开。
+	 *
+	 * 只移动生物、不移动玩家：直接改玩家坐标会造成客户端回拉/橡皮筋。
+	 */
+	protected function pushAwayFromPlayers() : void{
+		if($this->level === null or $this->justCreated){
+			return;
+		}
+
+		foreach($this->level->getPlayers() as $player){
+			if(!($player instanceof Player) or $player->closed or !$player->isAlive() or $player->isSpectator()){
+				continue;
+			}
+
+			// 先做廉价的距离筛选。
+			if(abs($this->x - $player->x) > 3.0 or abs($this->z - $player->z) > 3.0){
+				continue;
+			}
+
+			// 不能只判断服务端包围盒相交：玩家的相机在 eyeHeight（1.62），
+			// 而客户端模型（例如末影人是 0.6 x 2.9）比服务端 width/height 更大，
+			// 两个包围盒还没相交时相机就已经在模型内部了。
+			$minDistance = ($this->width + $player->width) / 2 + self::PLAYER_CLEARANCE;
+			$dx = $this->x - $player->x;
+			$dz = $this->z - $player->z;
+			if(abs($dx) > $minDistance or abs($dz) > $minDistance){
+				continue;
+			}
+			if($this->y >= $player->y + $player->height or $this->y + $this->height <= $player->y){
+				continue;
+			}
+
+			$push = self::separationPush($dx, $dz, $minDistance);
+			if($push === null){
+				continue;
+			}
+
+			list($normalX, $normalZ, $distance) = $push;
+
+			// 用实体自身的移动解算推开，避免把生物直接塞进墙里。
+			$beforeX = $this->x;
+			$beforeZ = $this->z;
+			$this->move($normalX * $distance, 0, $normalZ * $distance);
+			if(abs($this->x - $beforeX) < 1.0E-4 and abs($this->z - $beforeZ) < 1.0E-4){
+				// 完全被墙挡住，推不动；保持原样，交给行为/寻路处理。
+				continue;
+			}
+
+			// 去掉朝玩家内部的速度分量，否则下一 tick 又会贴回去。
+			$inward = $this->motionX * $normalX + $this->motionZ * $normalZ;
+			if($inward < 0){
+				$this->motionX -= $inward * $normalX;
+				$this->motionZ -= $inward * $normalZ;
+			}
+		}
+	}
+
+	/**
+	 * 计算两个重叠实体的水平分离量（纯函数，方便离线测试）。
+	 *
+	 * @param float $dx          生物中心相对玩家中心的 X 偏移
+	 * @param float $dz          生物中心相对玩家中心的 Z 偏移
+	 * @param float $minDistance 两个中心允许的最小水平距离
+	 *
+	 * @return float[]|null [单位法线X, 单位法线Z, 需要推开的距离]；已经分开则返回 null
+	 */
+	public static function separationPush(float $dx, float $dz, float $minDistance) : ?array{
+		if($minDistance <= 0){
+			return null;
+		}
+
+		$distanceSquared = $dx * $dx + $dz * $dz;
+		if($distanceSquared < 1.0E-8){
+			// 两者中心完全重合：固定沿 +X 推开，避免除零产生 NaN/NAN 坐标。
+			return [1.0, 0.0, $minDistance];
+		}
+
+		$distance = sqrt($distanceSquared);
+		if($distance >= $minDistance){
+			return null;
+		}
+
+		return [$dx / $distance, $dz / $distance, $minDistance - $distance];
 	}
 
 	/**
