@@ -2201,11 +2201,11 @@ class Server{
     §3 / /__/  __// / / // // /_ / / / /
     §3/____/\___//_/ /_//_/ \__//_/ /_/
 
-    §b“Zenith” Minecraft PE 0.14.x 服务端 §a开发代号：" . CODENAME . " §e坏猫工厂荣誉出品
+    §b“Zenith” Minecraft PE 0.14.x 服务端 §a开发代号：" . CODENAME . "
     §b 在 “INCore” 基础上重构
     §e版本: §b" . VERSION . "        §ePHP版本: §b". phpversion() . "
     §a本核心在 §dSCAXE §a的代码基础上构建
-    发做出重要贡献：§6WTFDoge, wusheng233, Win1145, byd666
+    发做出重要贡献：§6Xiaoao5297, U core, Incore
     §eGitHub: §bhttps://github.com/Xiaoao5297/Zenith
 ";
 
