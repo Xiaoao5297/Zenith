@@ -166,6 +166,17 @@ class MoveControlTest{
 		++$mob->ticksLived;
 		$out[] = ["can_apply_move_next_tick", $mob->canApplyMove(), "下一 tick 恢复写入"];
 
+		// ===== 不占控制位的 Goal 不算“移动被接管” =====
+		$mob = self::newMob(9);
+		$out[] = ["no_move_behavior", !$mob->isMovementControlled(), "没有运行中的行为时 isMovementControlled 为 false"];
+
+		$source = file_get_contents(__DIR__ . "/../src/pocketmine/entity/FlyingAnimal.php");
+		$out[] = [
+			"flying_animal_ignores_flagless_goal",
+			$source !== false and strpos($source, "isMovementControlled()") !== false and strpos($source, "getCurrentBehavior() === null") === false,
+			"FlyingAnimal 不能用 currentBehavior 判断（FloatGoal 优先级 0 会一直占位）"
+		];
+
 		return $out;
 	}
 }

@@ -46,7 +46,7 @@ abstract class FlyingAnimal extends Mob{
                 }
 
                 // 当有活跃 Behavior 时，由 Behavior 控制 motion
-                if($this->getCurrentBehavior() === null){
+                if(!$this->isMovementControlled()){
                     if($this->flyDirection instanceof Vector3){
                         $this->setMotion($this->flyDirection->multiply($this->flySpeed));
                     }else{
@@ -65,7 +65,7 @@ abstract class FlyingAnimal extends Mob{
         $this->timings->stopTiming();
 
         // 撞地反弹 (移动后 onGround 已更新) - 仅在无活跃 Behavior 时处理
-        if($this->getCurrentBehavior() === null){
+        if(!$this->isMovementControlled()){
             if($this->onGround and $this->flyDirection instanceof Vector3){
                 $this->flyDirection->y *= -1;
             }

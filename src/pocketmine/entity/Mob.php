@@ -228,6 +228,20 @@ abstract class Mob extends Creature{
 		return $this->behaviorsEnabled;
 	}
 
+	/**
+	 * 是否有正在运行、且声明了 CONTROL_MOVE 的行为。
+	 * FloatGoal / RestrictSunGoal 这类不占控制位的 Goal 不算，
+	 * 否则 FlyingAnimal 会把它们误判成“移动已被行为接管”。
+	 */
+	public function isMovementControlled() : bool{
+		foreach($this->runningBehaviors as $behavior){
+			if(($behavior->getControlFlags() & Behavior::CONTROL_MOVE) !== 0){
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public function setBehaviorsEnabled(bool $enabled = true){
 		$this->behaviorsEnabled = $enabled;
 		if(!$enabled){

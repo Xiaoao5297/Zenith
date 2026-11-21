@@ -107,7 +107,7 @@ class TemptGoal extends Behavior{
 	}
 
 	public function canContinue() : bool{
-		if($this->player === null or !$this->player->isConnected() or !$this->player->isAlive()){
+		if($this->player === null or !$this->player->isConnected() or !$this->player->isAlive() or $this->player->isSpectator()){
 			return false;
 		}
 		if(!self::containsItem($this->items, $this->player->getInventory()->getItemInHand()->getId())){
