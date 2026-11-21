@@ -9,7 +9,7 @@ use pocketmine\Player;
 use pocketmine\item\Item as ItemItem;
 use pocketmine\level\format\FullChunk;
 use pocketmine\nbt\tag\CompoundTag;
-use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, LookAtPlayerBehavior, PanicBehavior, FindFoodBehavior, InLoveBehavior, EatGrassBehavior};
+use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, LookAtPlayerBehavior, PanicBehavior, FindFoodBehavior, InLoveBehavior, EatGrassBehavior, TemptGoal};
 
 class Sheep extends Animal implements Colorable{
 	const NETWORK_ID = 13;
@@ -28,6 +28,7 @@ class Sheep extends Animal implements Colorable{
 		
 		$this->addBehavior(new InLoveBehavior($this));
 		$this->addBehavior(new PanicBehavior($this, 0.25, 40));
+		$this->addBehavior(new TemptGoal($this, [296], 0.35));
 		$this->addBehavior(new EatGrassBehavior($this));
 		$this->addBehavior(new FindFoodBehavior($this, 296));
 		$this->addBehavior(new StrollBehavior($this));

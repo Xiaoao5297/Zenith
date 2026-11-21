@@ -3,6 +3,8 @@
 namespace pocketmine\entity;
 
 use pocketmine\entity\ai\behavior\Behavior;
+use pocketmine\entity\ai\behavior\FloatGoal;
+use pocketmine\entity\ai\control\MoveControl;
 use pocketmine\entity\ai\navigation\PathNavigate;
 use pocketmine\level\Level;
 use pocketmine\math\Vector3;
@@ -31,6 +33,12 @@ abstract class Mob extends Creature{
 	/** @var PathNavigate|null */
 	private $navigator = null;
 
+	/** @var MoveControl|null 懒加载：行为/寻路只声明目标，motion 由它统一施加 */
+	private $moveControl = null;
+
+	/** @var int 上一次由 moveInDirection() 写入 motion 的 tick */
+	private $lastMoveTick = -1;
+
 	public function getNavigator() : PathNavigate{
 		if($this->navigator === null){
 			$this->navigator = new PathNavigate($this);
@@ -38,10 +46,21 @@ abstract class Mob extends Creature{
 		return $this->navigator;
 	}
 
+	public function getMoveControl() : MoveControl{
+		if($this->moveControl === null){
+			$this->moveControl = new MoveControl($this);
+		}
+		return $this->moveControl;
+	}
+
 	public function initEntity(){
 		parent::initEntity();
 		$this->random = new Random();
 		$this->behaviorsEnabled = $this->level->getServer()->aiEnabled;
+
+		// 原版所有 Mob 都带 float goal（优先级 0，不占控制位），这里统一注册，
+		// 避免每个动物各写一遍；水中且不在地面时才生效。
+		$this->addBehavior(new FloatGoal($this));
 	}
 
 	public function onUpdate($currentTick){
@@ -73,6 +92,11 @@ abstract class Mob extends Creature{
 		// 导航更新（在 Behavior 更新之后、父类更新之前应用 motion）
 		if($this->navigator !== null){
 			$this->navigator->update();
+		}
+
+		// 统一移动层：本 tick 只在这里（或首次 moveInDirection）写一次 motion。
+		if($this->moveControl !== null){
+			$this->moveControl->tick();
 		}
 
 		return parent::onUpdate($currentTick);
@@ -217,15 +241,33 @@ abstract class Mob extends Creature{
 	// ===== 地形感知移动（供 Behavior 与 PathNavigate 使用）=====
 
 	/**
+	 * 本 tick 是否还可以写入一次 motion。
+	 * 同一 tick 内只允许第一次调用生效，后续调用视为“已被其他来源占用”，
+	 * 防止行为层与寻路层在同一 tick 互相覆盖。
+	 */
+	public function canApplyMove() : bool{
+		if($this->lastMoveTick === $this->ticksLived){
+			return false;
+		}
+		$this->lastMoveTick = $this->ticksLived;
+		return true;
+	}
+
+	/**
 	 * 智能水平移动（自动应对地形、台阶、落差检测）
 	 * @param Vector3 $direction 水平方向单位向量（仅 x/z 有效）
 	 * @param float   $speed     移动速度（motion 大小）
-	 * @return bool true=移动成功，false=被阻挡
+	 * @return bool true=移动成功（或本 tick 已有其他来源写过 motion），false=被阻挡
 	 */
 	public function moveInDirection(Vector3 $direction, float $speed) : bool{
 		$level = $this->getLevel();
 		if($level === null){
 			return false;
+		}
+
+		if(!$this->canApplyMove()){
+			// 本 tick 的 motion 已经由更早的调用写入，保留第一份结果。
+			return true;
 		}
 
 		if($this->isInsideOfWater()){

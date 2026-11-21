@@ -7,7 +7,7 @@ use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\Player;
 use pocketmine\network\protocol\MobEquipmentPacket;
 use pocketmine\item\Item as ItemItem;
-use pocketmine\entity\ai\behavior\{StrollBehavior, ShootPlayerBehavior, RandomLookAroundBehavior};
+use pocketmine\entity\ai\behavior\{StrollBehavior, ShootPlayerBehavior, RandomLookAroundBehavior, FleeSunGoal, RestrictSunGoal};
 
 class Skeleton extends Monster implements ProjectileSource{
 	use MobEquipmentTrait;
@@ -28,6 +28,8 @@ class Skeleton extends Monster implements ProjectileSource{
 		$this->setMaxHealth(20);
 		
 		$this->addBehavior(new ShootPlayerBehavior($this, 80));
+		$this->addBehavior(new FleeSunGoal($this));
+		$this->addBehavior(new RestrictSunGoal($this));
 		$this->addBehavior(new StrollBehavior($this));
 		$this->addBehavior(new RandomLookAroundBehavior($this));
 		

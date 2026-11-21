@@ -2,6 +2,7 @@
 
 namespace pocketmine\entity\ai\navigation;
 
+use pocketmine\entity\ai\control\MoveControl;
 use pocketmine\entity\Mob;
 use pocketmine\math\Vector3;
 use pocketmine\Server;
@@ -32,9 +33,6 @@ class PathNavigate{
 
 	/** @var int */
 	private $retryCount = 0;
-
-	/** @var int */
-	private $blockedTicks = 0;
 
 	/** @var int */
 	private $recalcCooldown = 0;
@@ -69,6 +67,16 @@ class PathNavigate{
 		$this->verticalRange = (int) ($config["pathfinding-vertical-range"] ?? 8);
 		$this->maxIterations = (int) ($config["pathfinding-max-iterations"] ?? 800);
 		$this->waterCost = (float) ($config["pathfinding-water-cost"] ?? 2.0);
+
+		// blockedTicks 统一由 MoveControl 计数（它才是真正施加 motion 的一层），
+		// 这里只接收“连续被挡”的回调，避免两处各记一份导致重算时机翻倍。
+		$this->entity->getMoveControl()->setBlockedHandler(function(MoveControl $control) : void{
+			if($this->state === self::STATE_PATH_FOLLOWING){
+				$this->recalculatePath();
+			}elseif($this->state === self::STATE_FALLBACK){
+				$this->clearPath();
+			}
+		});
 	}
 
 	/**
@@ -216,18 +224,9 @@ class PathNavigate{
 		// 身体始终朝移动方向转（头由 look 行为单独控制，不再和移动抢 yaw）
 		$this->turnToward(-atan2($dx, $dz) * (180 / M_PI));
 
-		$mult = $this->entity->isInsideOfWater() ? 0.30 : 0.60;
-		$step = $this->speed * $mult;
-		$dir = new Vector3($dx, 0, $dz);
-
-		if(!$this->entity->moveInDirection($dir, $step)){
-			++$this->blockedTicks;
-			if($this->blockedTicks >= 8){
-				$this->clearPath();
-			}
-		}else{
-			$this->blockedTicks = 0;
-		}
+		// 只声明目标，motion 由 MoveControl 每 tick 统一施加；
+		// 被挡计数也在 MoveControl 里，这里不再重复。
+		$this->entity->getMoveControl()->setWantedPosition($this->target, $this->speed);
 	}
 
 	private function moveToward(Vector3 $waypoint) : void{
@@ -247,25 +246,9 @@ class PathNavigate{
 		// 身体始终朝移动方向转（头由 look 行为单独控制，不再和移动抢 yaw）
 		$this->turnToward(-atan2($dx, $dz) * (180 / M_PI));
 
-		$dirX = $dx / $horizontalDist;
-		$dirZ = $dz / $horizontalDist;
-
-		$mult = $this->entity->isInsideOfWater() ? 0.30 : 0.60;
-		$step = $this->speed * $mult;
-
-		$dir = new Vector3($dirX, 0, $dirZ);
-		if(!$this->entity->moveInDirection($dir, $step)){
-			++$this->blockedTicks;
-
-			// 台阶跳跃交给 Mob::moveInDirection 处理（它按实际高度差判断），
-			// 这里只在真的被挡住多次后重算路径，避免每个 tick 都弹一下。
-			if($this->blockedTicks >= 10){
-				$this->blockedTicks = 0;
-				$this->recalculatePath();
-			}
-		}else{
-			$this->blockedTicks = 0;
-		}
+		// 只声明目标，motion 由 MoveControl 每 tick 统一施加（含水中 0.3 系数）。
+		// 被挡计数交给 MoveControl::blockedHandler，避免与导航层重复计数。
+		$this->entity->getMoveControl()->setWantedPosition($waypoint, $this->speed);
 	}
 
 	private function turnToward(float $targetYaw) : void{
@@ -400,7 +383,6 @@ class PathNavigate{
 
 			$this->path = $result;
 			$this->state = self::STATE_PATH_FOLLOWING;
-			$this->blockedTicks = 0;
 			if(!$result->isPartial()){
 				$this->retryCount = 0;
 			}
@@ -420,7 +402,6 @@ class PathNavigate{
 	private function fallbackToStraight() : void{
 		$this->path = null;
 		$this->state = self::STATE_FALLBACK;
-		$this->blockedTicks = 0;
 		$this->retryCount = 0;
 	}
 
@@ -428,7 +409,8 @@ class PathNavigate{
 		$this->path = null;
 		$this->target = null;
 		$this->state = self::STATE_IDLE;
-		$this->blockedTicks = 0;
+		// 同时取消 MoveControl 里残留的目标，否则清空路径后生物还会再走一小段。
+		$this->entity->getMoveControl()->clearWanted();
 		$this->retryCount = 0;
 		$this->recalcCooldown = 0;
 		$this->lastProgressPos = null;

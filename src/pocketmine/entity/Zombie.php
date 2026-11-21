@@ -9,7 +9,7 @@ use pocketmine\network\Network;
 use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\Player;
 use pocketmine\event\entity\EntityDamageByEntityEvent;
-use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, AttackEnemyBehavior};
+use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, AttackEnemyBehavior, FleeSunGoal, RestrictSunGoal};
 
 class Zombie extends Monster implements Ageable{
 	use MobEquipmentTrait;
@@ -37,6 +37,8 @@ class Zombie extends Monster implements Ageable{
 		}
 		
 		$this->addBehavior(new AttackEnemyBehavior($this, [20], true));
+		$this->addBehavior(new FleeSunGoal($this));
+		$this->addBehavior(new RestrictSunGoal($this));
 		$this->addBehavior(new StrollBehavior($this));
 		$this->addBehavior(new RandomLookAroundBehavior($this));
 		

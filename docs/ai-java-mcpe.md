@@ -166,3 +166,19 @@ php73 tests/run-tests.php          # 当前 706/706
 ```
 
 上服检查项见 `docs/manual-verification.md`；AI 相关至少覆盖：走动平滑、被打后转身逃跑且头回头、平时自行游荡、骷髅弹道对准玩家。
+
+## 9. 批 1 落地（2026-11-21）
+
+按第 6 节路线完成第一批「移动控制 + 原版 Goal」移植，`php73 tests/run-tests.php` → 780/780。
+
+| 新增 | 文件 | 说明 |
+|---|---|---|
+| MoveControl | `src/pocketmine/entity/ai/control/MoveControl.php` | 每 tick 唯一施加水平 motion；陆上 ×0.6、水中 ×0.3；被挡 10 tick 回调重算 |
+| FloatGoal | `entity/ai/behavior/FloatGoal.php` | 优先级 0，所有 Mob 在 `Mob::initEntity()` 统一注册 |
+| TemptGoal | `entity/ai/behavior/TemptGoal.php` | 优先级 4，手持食物吸引（牛/猪/羊/鸡） |
+| FleeSunGoal | `entity/ai/behavior/FleeSunGoal.php` | 僵尸/骷髅白天找阴影（Husk/Stray 排除） |
+| RestrictSunGoal | `entity/ai/behavior/RestrictSunGoal.php` | 白天限制游荡范围 |
+
+结构变化：`Mob::onUpdate()` 现在是「行为选目标 → 导航推进路点与朝向 → MoveControl 施加速度 → Creature 移动」；`PathNavigate` 不再自己写 motion。
+
+仍需上服确认：方向抖动是否消除、卡墙恢复（阈值 8→10 慢约 2 tick）、`clearPath()` 后的停顿、台阶跳跃是否被单写保护吞掉。

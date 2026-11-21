@@ -7,7 +7,7 @@ use pocketmine\network\protocol\AddEntityPacket;
 use pocketmine\Player;
 use pocketmine\event\entity\EntityDamageByEntityEvent;
 use pocketmine\item\Item as ItemItem;
-use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, LookAtPlayerBehavior, PanicBehavior, FindFoodBehavior, InLoveBehavior};
+use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, LookAtPlayerBehavior, PanicBehavior, FindFoodBehavior, InLoveBehavior, TemptGoal};
 
 class Chicken extends Animal{
 	const NETWORK_ID = 10;
@@ -27,6 +27,7 @@ class Chicken extends Animal{
 		
 		$this->addBehavior(new InLoveBehavior($this));
 		$this->addBehavior(new PanicBehavior($this, 0.25, 40));
+		$this->addBehavior(new TemptGoal($this, [295, 361, 362], 0.35));
 		$this->addBehavior(new FindFoodBehavior($this, 296));
 		$this->addBehavior(new StrollBehavior($this));
 		$this->addBehavior(new LookAtPlayerBehavior($this));
