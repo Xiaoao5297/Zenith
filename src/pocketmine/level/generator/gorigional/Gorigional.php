@@ -428,7 +428,8 @@ class Gorigional extends Generator{
 		$chunkX = $x * 16;
 		$chunkZ = $z * 16;
 
-		$biomeIDs = $this->biomeGen->getInts($chunkX, $chunkZ, 16, 16);
+		// 多取一圈邻居 (18x18)，给下面 3x3 颜色平均用，区块边缘也能拿到区块外的群系。
+		$biomeIDs = $this->biomeGen->getInts($chunkX - 16, $chunkZ - 16, 18, 18);
 
 		$noiseArray = [];
 		$noiseArray = $this->surfaceNoise->getRegion($noiseArray, $chunkX, $chunkZ, 16, 16, 0.0625, 0.0625, 1.0);
@@ -438,7 +439,7 @@ class Gorigional extends Generator{
 		for($i = 0; $i < 16; $i++){
 			for($j = 0; $j < 16; $j++){
 				$idx = $j * 16 + $i;
-				$biomeID = $biomeIDs[$idx] & 0xFF;
+				$biomeID = $biomeIDs[($j + 1) * 18 + ($i + 1)] & 0xFF;
 
 				if(!isset($biomeCache[$biomeID])){
 					$biomeCache[$biomeID] = BiomeRegistry::getBiome($biomeID);
@@ -453,11 +454,48 @@ class Gorigional extends Generator{
 
 				$b->genTerrainBlocks($c, $rnd, $gx, $gz, $nv);
 
-				$biomeColor = $colorCache[$biomeID];
+				// Java 1.7.10 BlockGrass.colorMultiplier：周围 3x3 群系颜色取平均，
+				// 客户端再按顶点插值，群系交界处才会渐变而不是硬切换。
+				$neighborColors = [];
+				for($di = -1; $di <= 1; $di++){
+					for($dj = -1; $dj <= 1; $dj++){
+						$neighborID = $biomeIDs[($j + 1 + $dj) * 18 + ($i + 1 + $di)] & 0xFF;
+						if(!isset($colorCache[$neighborID])){
+							$biomeCache[$neighborID] = BiomeRegistry::getBiome($neighborID);
+							$colorCache[$neighborID] = $biomeCache[$neighborID]->getColor();
+						}
+						$neighborColors[] = $colorCache[$neighborID];
+					}
+				}
+				$biomeColor = self::blendBiomeColors($neighborColors);
 				$c->setBiomeColor($i, $j, ($biomeColor >> 16) & 0xFF, ($biomeColor >> 8) & 0xFF, $biomeColor & 0xFF);
 				$c->setBiomeId($i, $j, $b->getID());
 			}
 		}
+	}
+
+	/**
+	 * Java 1.7.10 BlockGrass.colorMultiplier 的颜色平均：R/G/B 分别取算术平均。
+	 *
+	 * @param int[] $colors 0xRRGGBB 列表（通常是 3x3 的 9 个群系颜色）
+	 * @return int
+	 */
+	public static function blendBiomeColors(array $colors) : int{
+		$count = count($colors);
+		if($count === 0){
+			return 0;
+		}
+
+		$r = 0;
+		$g = 0;
+		$b = 0;
+		foreach($colors as $color){
+			$r += ($color >> 16) & 0xFF;
+			$g += ($color >> 8) & 0xFF;
+			$b += $color & 0xFF;
+		}
+
+		return ((intdiv($r, $count) & 0xFF) << 16) | ((intdiv($g, $count) & 0xFF) << 8) | (intdiv($b, $count) & 0xFF);
 	}
 
 	/**

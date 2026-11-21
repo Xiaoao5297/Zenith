@@ -62,6 +62,36 @@ class GorigionalConstantsTest{
 		// 17 个采样点（每 8 格一个）才能覆盖 0..127
 		$out[] = ["vertical_points", intdiv(Gorigional::MAX_HEIGHT, 8) + 1 === 17, intdiv(Gorigional::MAX_HEIGHT, 8) + 1];
 
+		foreach(self::testColorBlend() as $row){
+			$out[] = $row;
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Java 1.7.10 BlockGrass.colorMultiplier 的 3x3 平均：群系交界处必须得到中间色，
+	 * 否则草方块又会退化成一格一个颜色的硬切换。
+	 */
+	private static function testColorBlend() : array{
+		$out = [];
+
+		$same = array_fill(0, 9, 0x91BD59);
+		$out[] = ["blend_same_color", Gorigional::blendBiomeColors($same) === 0x91BD59, dechex(Gorigional::blendBiomeColors($same))];
+
+		// 4 个纯红 + 5 个纯蓝 -> R=113 (0x71)、B=141 (0x8D)
+		$mixed = array_merge(array_fill(0, 4, 0xFF0000), array_fill(0, 5, 0x0000FF));
+		$blended = Gorigional::blendBiomeColors($mixed);
+		$out[] = ["blend_mixed_r", (($blended >> 16) & 0xFF) === 0x71, dechex($blended)];
+		$out[] = ["blend_mixed_b", ($blended & 0xFF) === 0x8D, dechex($blended)];
+		$out[] = ["blend_mixed_g", (($blended >> 8) & 0xFF) === 0x00, dechex($blended)];
+
+		// 两端颜色各占一半 -> 正好是中间色（0x808080）
+		$out[] = ["blend_midpoint", Gorigional::blendBiomeColors([0x000000, 0xFFFFFF]) === 0x7F7F7F, dechex(Gorigional::blendBiomeColors([0x000000, 0xFFFFFF]))];
+
+		$out[] = ["blend_empty", Gorigional::blendBiomeColors([]) === 0, "empty"];
+		$out[] = ["blend_single", Gorigional::blendBiomeColors([0x123456]) === 0x123456, "single"];
+
 		return $out;
 	}
 }
