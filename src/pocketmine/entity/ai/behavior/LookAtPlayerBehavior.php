@@ -34,6 +34,11 @@ class LookAtPlayerBehavior extends Behavior{
 	}
 
 	public function shouldStart() : bool{
+		// 被打的时候优先逃跑，不要继续盯着攻击者（否则会边后退边看人）。
+		if($this->entity->getLastDamageCause() !== null){
+			return false;
+		}
+
 		if(mt_rand(0, 20) !== 0){
 			return false;
 		}
@@ -61,6 +66,9 @@ class LookAtPlayerBehavior extends Behavior{
 	}
 
 	public function canContinue() : bool{
+		if($this->entity->getLastDamageCause() !== null){
+			return false;
+		}
 		if($this->player === null or !$this->player->isAlive() or !$this->player->isConnected()){
 			return false;
 		}

@@ -39,7 +39,7 @@ class StrollBehavior extends Behavior{
 	}
 
 	public function shouldStart() : bool{
-		return mt_rand(0, 120) === 0;
+		return mt_rand(0, 40) === 0;
 	}
 
 	public function onStart() : void{
@@ -115,16 +115,18 @@ class StrollBehavior extends Behavior{
 	}
 
 	public function canContinue() : bool{
-		if($this->target === null){
-			return false;
-		}
 		if($this->timeLeft-- <= 0){
 			return false;
 		}
-		if($this->entity->distance($this->target) < 1.0){
-			return false;
+
+		// 到达目标或一开始就没选到点，就再挑一个继续走，
+		// 而不是立刻结束行为站在原地（之前生物经常“什么也不做”）。
+		if($this->target === null or $this->entity->distance($this->target) < 1.0){
+			$this->target = $this->pickTarget();
+			return $this->target !== null;
 		}
-		return !$this->entity->getNavigator()->isDone();
+
+		return true;
 	}
 
 	public function onEnd(){
