@@ -238,7 +238,9 @@ class PathNavigate{
 		$dz = $waypoint->z - $pos->z;
 
 		$horizontalDist = sqrt($dx * $dx + $dz * $dz);
-		if($horizontalDist <= 0.001){
+		if($horizontalDist <= 0.35){
+			// 已经贴到路点上，本 tick 不再施加水平速度：
+			// 否则下一 tick 的方向会指回路点另一侧，表现为“走一步退半步”。
 			return;
 		}
 
@@ -256,6 +258,9 @@ class PathNavigate{
 		$dir = new Vector3($dirX, 0, $dirZ);
 		if(!$this->entity->moveInDirection($dir, $step)){
 			++$this->blockedTicks;
+
+			// 台阶跳跃交给 Mob::moveInDirection 处理（它按实际高度差判断），
+			// 这里只在真的被挡住多次后重算路径，避免每个 tick 都弹一下。
 			if($this->blockedTicks >= 10){
 				$this->blockedTicks = 0;
 				$this->recalculatePath();

@@ -258,13 +258,37 @@ abstract class Mob extends Creature{
 		$this->motionX = $direction->x * $speed;
 		$this->motionZ = $direction->z * $speed;
 
-		if($diff > 0 and $this->onGround and !$this->isInsideOfWater()){
+		// 台阶判断要用脚底的实际高度差：贴地时 y 与 floor(y) 可能差一点点，
+		// 只比较 (groundY - floor(y)) 会让生物每 tick 都触发一次跳跃。
+		if(self::needsStepJump($this->y, $groundY, $this->onGround, $this->isInsideOfWater())){
 			$this->motionY = 0.42;
-		}elseif($diff < -1 and $this->onGround){
+		}elseif($groundY - $this->y < -1.1 and $this->onGround){
 			$this->motionY = -0.15;
 		}
 
 		return true;
+	}
+
+	/**
+	 * 是否需要为 1 格台阶起跳。
+	 *
+	 * 用脚底实际高度差而不是 (ground - floor(y))，否则贴地时的一点点浮点误差
+	 * 会被当成 1 格台阶，导致生物边走边跳。
+	 *
+	 * @param float $feetY   实体脚底 y
+	 * @param int   $groundY 目标列可站立的地面 y
+	 * @param bool  $onGround
+	 * @param bool  $inWater
+	 * @return bool
+	 */
+	public static function needsStepJump(float $feetY, int $groundY, bool $onGround, bool $inWater) : bool{
+		if(!$onGround or $inWater){
+			return false;
+		}
+
+		$stepUp = $groundY - $feetY;
+
+		return $stepUp > 0.6 and $stepUp <= 1.2;
 	}
 
 	/**
