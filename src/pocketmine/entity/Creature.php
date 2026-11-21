@@ -22,9 +22,23 @@ abstract class Creature extends Living{
             }
             if($this->isAlive()){
 
-                $this->motionY -= $this->gravity;
+                // 与 InCore 一致：贴地时不再持续施加重力，避免落地瞬间的微小下沉；
+                // move() 前后都尝试恢复“站在半砖/台阶上”的高度，防止走下台阶时悬空抖动。
+                if($this instanceof Mob and $this->usesGroundAi()){
+                    return parent::onUpdate($currentTick);
+                }
+
+                $this->recoverPartialBlockStandingHeight();
+
+                if($this->onGround){
+                    $this->motionY = 0;
+                }else{
+                    $this->motionY -= $this->gravity;
+                }
 
                 $this->move($this->motionX, $this->motionY, $this->motionZ);
+
+                $this->recoverPartialBlockStandingHeight();
 
                 $friction = 1 - $this->drag;
 
@@ -35,8 +49,10 @@ abstract class Creature extends Living{
                 $this->motionX *= $friction;
                 $this->motionY *= 1 - $this->drag;
                 $this->motionZ *= $friction;
-                // 移除 motionY = 0 强制归零，让重力与导航器自然协调
-                // updateMovement() 由 Entity::onUpdate 统一调用
+
+                if($this->onGround){
+                    $this->motionY *= -0.5;
+                }
             }
         }
         return parent::onUpdate($currentTick);

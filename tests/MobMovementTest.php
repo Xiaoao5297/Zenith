@@ -42,13 +42,10 @@ class MobMovementTest{
 		$out[] = ["no_jump_on_epsilon_2", !\pocketmine\entity\Mob::needsStepJump(63.99999, 64, true, false), "feet 63.99999 -> ground 64"];
 		$out[] = ["no_jump_on_flat", !\pocketmine\entity\Mob::needsStepJump(64.0, 64, true, false), "feet 64 -> ground 64"];
 
-		// 1 格台阶由 Entity::move() 的 stepHeight 逻辑平滑抬升，不再需要起跳
-		$out[] = ["no_jump_on_one_block", !\pocketmine\entity\Mob::needsStepJump(64.0, 65, true, false), "feet 64 -> ground 65（stepHeight 1.0 直接走上去）"];
-		$out[] = ["no_jump_on_one_block_epsilon", !\pocketmine\entity\Mob::needsStepJump(64.001, 65, true, false), "feet 64.001 -> ground 65"];
-
-		// stepHeight 不足时才兜底起跳（例如子类把 stepHeight 调回 0.6）
-		$out[] = ["jump_when_step_height_insufficient", \pocketmine\entity\Mob::needsStepJump(64.0, 65, true, false, 0.6), "stepHeight 0.6 时仍需跳 1 格"];
+		// stepHeight = 0.6（InCore）：1 格整台阶需要一次 0.42 的跳跃，半砖等低台阶直接走上去。
+		$out[] = ["jump_on_one_block", \pocketmine\entity\Mob::needsStepJump(64.0, 65, true, false, 0.6), "stepHeight 0.6 时需要跳 1 格"];
 		$out[] = ["no_jump_when_step_height_enough", !\pocketmine\entity\Mob::needsStepJump(64.0, 65, true, false, 1.0), "stepHeight 1.0 时不跳"];
+		$out[] = ["no_jump_on_half_step", !\pocketmine\entity\Mob::needsStepJump(64.0, 64, true, false, 0.6), "y=64 平面上不需要跳"];
 
 		// 2 格高是墙，不是台阶（moveInDirection 会直接返回 false）
 		$out[] = ["no_jump_on_wall", !\pocketmine\entity\Mob::needsStepJump(64.0, 66, true, false), "feet 64 -> ground 66"];
@@ -58,10 +55,9 @@ class MobMovementTest{
 		$out[] = ["no_jump_in_air", !\pocketmine\entity\Mob::needsStepJump(64.0, 65, false, false), "airborne"];
 		$out[] = ["no_jump_in_water", !\pocketmine\entity\Mob::needsStepJump(64.0, 65, true, true), "in water"];
 
-		// Mob 必须把 stepHeight 从 Entity 的 0 提到 1.0，否则永远走不上台阶，
-		// 只能靠 0.42 的跳跃硬上（反复跳 + 原地回弹 + 速度极慢）。
+		// 与 InCore 保持一致：stepHeight = 0.6，1 格台阶交给 0.42 的跳跃。
 		$stepHeight = (new \ReflectionClass(\pocketmine\entity\Mob::class))->getDefaultProperties()["stepHeight"];
-		$out[] = ["mob_step_height_is_one", $stepHeight === 1.0, "Mob::\$stepHeight = " . var_export($stepHeight, true)];
+		$out[] = ["mob_step_height_matches_incore", $stepHeight === 0.6, "Mob::\$stepHeight = " . var_export($stepHeight, true)];
 
 		// 寻路层不再自己塞 0.42 的跳跃，台阶统一交给 moveInDirection
 		$nav = file_get_contents(dirname(__DIR__) . "/src/pocketmine/entity/ai/navigation/PathNavigate.php");

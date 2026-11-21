@@ -6,6 +6,7 @@ use pocketmine\entity\ai\behavior\Behavior;
 use pocketmine\entity\ai\behavior\FloatGoal;
 use pocketmine\entity\ai\control\MoveControl;
 use pocketmine\entity\ai\navigation\PathNavigate;
+use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\level\Level;
 use pocketmine\math\Vector3;
 use pocketmine\Player;
@@ -24,15 +25,12 @@ abstract class Mob extends Creature{
 	const PLAYER_CLEARANCE = 0.4;
 
 	/**
-	 * 跨 1 格台阶的高度。
+	 * 可跨越的台阶高度（与 InCore / 原版一致为 0.6）。
 	 *
-	 * 原版生物能直接走上一格高的台阶（脚部平滑抬高，不跳）。
-	 * 之前这里沿用 Entity 的默认值 0，所有生物只能靠 0.42 的跳跃硬上；
-	 * 跳跃峰值只有约 1.1 格，抬升过程中水平位移还会被台阶侧面清零，
-	 * 于是表现为反复起跳、原地回弹、速度极慢。设为 1.0 后交给
-	 * Entity::move() 的 stepHeight 逻辑处理，跳跃只作为极端情况兜底。
+	 * 高度不足 1 格，所以 1 格整台阶仍然需要 0.42 的跳跃；
+	 * 半砖、台阶方块这类低于 0.6 的落差会由 Entity::move() 直接平滑抬升。
 	 */
-	protected $stepHeight = 1.0;
+	protected $stepHeight = 0.6;
 
 	/** @var Behavior[] 按优先级排序 */
 	protected $behaviors = [];
@@ -75,6 +73,64 @@ abstract class Mob extends Creature{
 		return $this->moveControl;
 	}
 
+	// ===== InCore 风格的地面移动（Ground AI）=====
+
+	/**
+	 * 是否使用 InCore 的地面移动：直接朝目标施加速度 + 前方方块探测，
+	 * 不做 A* 寻路。原版生物就是这样移动的，观感比格子寻路自然得多。
+	 *
+	 * 飞行/水生生物覆写为 false，继续使用各自原有的物理。
+	 */
+	public function usesGroundAi() : bool{
+		return true;
+	}
+
+	/** @var Vector3|null 行为指定的目标（追击/逃离/吸引），优先级高于随机漫游 */
+	private $groundFollowTarget = null;
+
+	/** @var float 行为给出的速度（沿用旧的 motion 单位，内部换算成 InCore 的 multiplier） */
+	private $groundFollowSpeed = 0.35;
+
+	/** @var Vector3|null 随机漫游目标 */
+	private $groundMoveTarget = null;
+
+	/** @var int 原地停留剩余 tick（对应 InCore 的 stayTime） */
+	private $groundStayTime = 0;
+
+	/** @var int 当前漫游目标剩余 tick（对应 InCore 的 moveTime） */
+	private $groundMoveTime = 0;
+
+	/** @var int 受击/被推时禁止转向的剩余 tick */
+	private $groundNoRotateTicks = 0;
+
+	/** @var int 击退期间不要覆盖水平 motion 的剩余 tick */
+	private $groundKnockbackTicks = 0;
+
+	/**
+	 * 行为层声明“我要去这个位置”。
+	 * 与 InCore 的 setPm1eFollowTarget() 对应，每 tick 调用也不会重置计时。
+	 */
+	public function setGroundFollowTarget(Vector3 $target, float $speed = 0.35) : void{
+		$this->groundFollowTarget = new Vector3($target->x, $target->y, $target->z);
+		$this->groundFollowSpeed = $speed;
+	}
+
+	public function clearGroundFollowTarget() : void{
+		$this->groundFollowTarget = null;
+	}
+
+	public function getGroundFollowTarget() : ?Vector3{
+		return $this->groundFollowTarget;
+	}
+
+	/**
+	 * 把行为层的速度（约 0.2–0.5 格/tick）换算成 InCore 的 multiplier。
+	 * 陆上基础速度是 0.15，除以 0.25 可以让原来的漫游速度保持不变。
+	 */
+	public static function groundSpeedMultiplier(float $speed) : float{
+		return max(0.4, min(2.0, $speed / 0.25));
+	}
+
 	public function initEntity(){
 		parent::initEntity();
 		$this->random = new Random();
@@ -111,6 +167,24 @@ abstract class Mob extends Creature{
 			$this->tickBehaviors();
 		}
 
+		if($this->usesGroundAi()){
+			$tickDiff = $currentTick - $this->lastUpdate;
+			if($tickDiff < 1){
+				$tickDiff = 1;
+			}
+
+			// InCore 风格的地面移动：不做 A*，直接朝目标施加速度，
+			// 并用前方方块探测决定起跳/停下。行为层仍然通过
+			// navigator->moveTo() 声明目标（PathNavigate 会转发到这里）。
+			$this->tickGroundAi($tickDiff);
+
+			$return = parent::onUpdate($currentTick);
+			if(!$this->closed and $this->isAlive()){
+				$this->pushAwayFromPlayers();
+			}
+			return $return;
+		}
+
 		// 导航更新（在 Behavior 更新之后、父类更新之前应用 motion）
 		if($this->navigator !== null){
 			$this->navigator->update();
@@ -122,7 +196,6 @@ abstract class Mob extends Creature{
 		}
 
 		$return = parent::onUpdate($currentTick);
-
 		// 生物和玩家之间没有实体碰撞（Entity::move 只解算方块），
 		// 生物可以走进玩家身体里，第一人称相机就会落在模型内部，
 		// 客户端会把被近裁剪面切开的黑色模型渲染成「糊在准心上的黑色三角」。
@@ -132,6 +205,18 @@ abstract class Mob extends Creature{
 		}
 
 		return $return;
+	}
+
+	/**
+	 * 受击时进入击退状态：10 tick 内不覆盖水平 motion、不让 AI 重新转向，
+	 * 让 Living::knockBack() 写入的速度真正生效（对应 InCore 的 knockbackTicks）。
+	 */
+	public function attack($damage, EntityDamageEvent $source){
+		parent::attack($damage, $source);
+		if(!$source->isCancelled() and $this->usesGroundAi()){
+			$this->groundKnockbackTicks = 10;
+			$this->groundNoRotateTicks = 10;
+		}
 	}
 
 	/**
@@ -218,6 +303,257 @@ abstract class Mob extends Creature{
 		}
 
 		return [$dx / $distance, $dz / $distance, $minDistance - $distance];
+	}
+
+	/**
+	 * InCore 风格的地面移动主体。
+	 *
+	 * 与 InCore 的 Mob::tickPm1eGroundAi() 一一对应：
+	 *   1. 处理停留/漫游计时与随机漫游目标；
+	 *   2. 朝目标设置 yaw 与水平 motion（曼哈顿归一化，速度按液体类型区分）；
+	 *   3. 贴地时清零 motionY、空中施加重力、液体里给浮力；
+	 *   4. 前方探测：台阶起跳、高墙/栅栏停下、悬崖停下；
+	 *   5. move() + 摩擦。
+	 *
+	 * 注意：这里不做寻路，因此不会出现“路径点抖动/反复重算”。
+	 */
+	private function tickGroundAi(int $tickDiff) : void{
+		$level = $this->getLevel();
+		if($level === null){
+			return;
+		}
+
+		if($this->groundStayTime > 0){
+			$this->groundStayTime -= $tickDiff;
+		}
+		if($this->groundMoveTime > 0){
+			$this->groundMoveTime -= $tickDiff;
+		}
+		if($this->groundNoRotateTicks > 0){
+			$this->groundNoRotateTicks -= $tickDiff;
+		}
+		if($this->groundKnockbackTicks > 0){
+			$this->groundKnockbackTicks -= $tickDiff;
+		}
+
+		$liquid = $this->getGroundLiquidType($level);
+
+		$this->refreshGroundWanderTarget();
+		$followTarget = $this->groundFollowTarget;
+		$target = $followTarget !== null ? $followTarget : $this->groundMoveTarget;
+
+		// 行为给的速度只用于 followTarget；漫游使用 1.0 的基准倍率。
+		$multiplier = $followTarget !== null ? self::groundSpeedMultiplier($this->groundFollowSpeed) : 1.0;
+		$directionSign = 1.0;
+		if($multiplier < 0){
+			$directionSign = -1.0;
+			$multiplier = -$multiplier;
+		}
+		$multiplier = max(0.001, $multiplier);
+
+		if($target !== null){
+			$dx = $target->x - $this->x;
+			$dz = $target->z - $this->z;
+			$diff = abs($dx) + abs($dz);
+
+			if($this->groundNoRotateTicks <= 0 and $diff > 0.001){
+				// 与 InCore 相同的朝向公式：-atan2(dx/diff, dz/diff)。
+				$this->yaw = -atan2($dx / $diff, $dz / $diff) * (180 / M_PI);
+			}
+
+			$stopDistance = $this->width / 2 + 1.0;
+			$distSq = $dx * $dx + $dz * $dz;
+			$knockingBack = $this->groundKnockbackTicks > 0 and (abs($this->motionX) > 0.001 or abs($this->motionZ) > 0.001);
+
+			if(!$knockingBack){
+				if($diff <= 0.001 or ($followTarget === null and $this->groundStayTime > 0) or ($directionSign > 0 and $distSq <= $stopDistance * $stopDistance)){
+					$this->motionX = 0;
+					$this->motionZ = 0;
+				}else{
+					$baseSpeed = self::getGroundBaseSpeed($liquid) * $multiplier;
+					$this->motionX = $baseSpeed * $directionSign * ($dx / $diff);
+					$this->motionZ = $baseSpeed * $directionSign * ($dz / $diff);
+				}
+			}
+		}else{
+			$this->motionX = 0;
+			$this->motionZ = 0;
+		}
+
+		if($liquid !== null){
+			$this->motionY = max($this->motionY, $this->gravity * 0.3);
+		}else{
+			$jumped = $this->checkGroundJump($level);
+			if(!$jumped){
+				if($this->onGround){
+					$this->motionY = 0;
+				}else{
+					$this->motionY -= $this->gravity;
+				}
+			}
+		}
+
+		$this->move($this->motionX, $this->motionY, $this->motionZ);
+		$this->recoverPartialBlockStandingHeight();
+
+		// 与 InCore 相同的摩擦处理：贴地时乘以脚下方块的摩擦系数。
+		$friction = 1 - $this->drag;
+		if($this->onGround and (abs($this->motionX) > 0.00001 or abs($this->motionZ) > 0.00001)){
+			$friction = $level->getBlock(new Vector3(
+				(int) floor($this->x),
+				(int) floor($this->boundingBox->minY - 0.01),
+				(int) floor($this->z)
+			))->getFrictionFactor() * $friction;
+		}
+
+		$this->motionX *= $friction;
+		$this->motionZ *= $friction;
+		$this->motionY *= $liquid !== null ? 0.8 : (1 - $this->drag);
+		if($this->onGround and $liquid === null){
+			$this->motionY *= -0.5;
+		}
+	}
+
+	/**
+	 * 维护随机漫游目标（InCore 的 moveTarget/stayTime/moveTime）。
+	 * 有行为指定的 followTarget 时不动漫游状态。
+	 */
+	private function refreshGroundWanderTarget() : void{
+		if($this->groundFollowTarget !== null){
+			return;
+		}
+
+		if($this->groundStayTime > 0){
+			$this->groundMoveTarget = null;
+			return;
+		}
+
+		if($this->groundMoveTarget !== null){
+			if($this->groundMoveTime > 0){
+				// 目标还没到期：继续走（到达后由 tickGroundAi 清零 motion）。
+				return;
+			}
+			$this->groundMoveTarget = null;
+		}
+
+		// 1% 概率原地停留 4–10 秒，避免所有生物一直在走。
+		if(mt_rand(1, 100) === 1){
+			$this->groundStayTime = mt_rand(80, 200);
+			return;
+		}
+
+		$this->groundMoveTarget = new Vector3(
+			$this->x + mt_rand(-30, 30),
+			$this->y,
+			$this->z + mt_rand(-30, 30)
+		);
+		$this->groundMoveTime = mt_rand(80, 200);
+	}
+
+	/**
+	 * 前方方块探测，决定是否起跳、是否停下。
+	 *
+	 * @return bool true = 本 tick 已经给了跳跃速度
+	 */
+	private function checkGroundJump(Level $level) : bool{
+		if(!$this->onGround or $this->groundStayTime > 0){
+			return false;
+		}
+
+		$horizontalLen = sqrt($this->motionX * $this->motionX + $this->motionZ * $this->motionZ);
+		if($horizontalLen < 0.001){
+			return false;
+		}
+
+		$nx = $this->motionX / $horizontalLen;
+		$nz = $this->motionZ / $horizontalLen;
+		$probe = $this->width / 2 + 0.5;
+
+		$fx = (int) floor($this->x + $nx * $probe);
+		$fz = (int) floor($this->z + $nz * $probe);
+		$feetY = (int) floor($this->y + 0.001);
+
+		$feetBlock = $level->getBlock(new Vector3($fx, $feetY, $fz));
+		$above1 = $level->getBlock(new Vector3($fx, $feetY + 1, $fz));
+		$above2 = $level->getBlock(new Vector3($fx, $feetY + 2, $fz));
+
+		if(!$feetBlock->isSolid()){
+			// 前方没有方块：下方两格都空说明是 2 格以上的悬崖，停下换目标。
+			if(!$level->getBlock(new Vector3($fx, $feetY - 1, $fz))->isSolid()
+				and !$level->getBlock(new Vector3($fx, $feetY - 2, $fz))->isSolid()){
+				$this->stopGroundMovement(10);
+			}
+			return false;
+		}
+
+		$bb = $feetBlock->getBoundingBox();
+		if($bb === null){
+			return false;
+		}
+
+		$riserHeight = $bb->maxY - $this->y;
+		if($riserHeight <= $this->stepHeight + 0.001){
+			// 低于 stepHeight 的台阶由 Entity::move() 直接抬升。
+			return false;
+		}
+
+		if($riserHeight > 1.05 or $above1->isSolid()){
+			// 高墙、栅栏等跳不上去的障碍：停一下，让行为重新选目标。
+			$this->stopGroundMovement(10);
+			return false;
+		}
+
+		if(!$above1->isSolid() and !$above2->isSolid()){
+			$this->motionY = max($this->motionY, 0.42);
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * 停止地面移动一段时间（对应 InCore 的 stayTime）。
+	 */
+	private function stopGroundMovement(int $ticks) : void{
+		$this->motionX = 0;
+		$this->motionZ = 0;
+		if($this->groundStayTime < $ticks){
+			$this->groundStayTime = $ticks;
+		}
+	}
+
+	/**
+	 * 脚下方块决定生物是在水里、岩浆里还是陆地上。
+	 *
+	 * @return string|null "water" / "lava" / null
+	 */
+	private function getGroundLiquidType(Level $level) : ?string{
+		$id = $level->getBlockIdAt(
+			(int) floor($this->x),
+			(int) floor($this->boundingBox->minY + 0.1),
+			(int) floor($this->z)
+		);
+
+		if($id === 8 or $id === 9){
+			return "water";
+		}
+		if($id === 10 or $id === 11){
+			return "lava";
+		}
+		return null;
+	}
+
+	/**
+	 * 陆地/水/岩浆的基础速度，与 InCore 的 0.15 / 0.05 / 0.02 一致。
+	 */
+	public static function getGroundBaseSpeed(?string $liquid) : float{
+		if($liquid === "lava"){
+			return 0.02;
+		}
+		if($liquid === "water"){
+			return 0.05;
+		}
+		return 0.15;
 	}
 
 	/**

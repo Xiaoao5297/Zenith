@@ -62,6 +62,18 @@ abstract class Entity extends Location implements Metadatable{
     const DATA_TYPE_ROTATION = 7;
     const DATA_TYPE_LONG = 8;
 
+    /**
+     * 判断“脚底已经贴住支撑面”的容差。
+     * 浮点运算会让脚底与方块顶面差出 1e-7 量级，太小会判成悬空。
+     */
+    const THIN_BLOCK_GROUND_EPSILON = 0.001;
+
+    /**
+     * 部分方块（台阶、半砖、耕地）的支撑容差。
+     * 走路时脚底可能略低于方块顶面（脚步插值），只差 0.126 以内都算踩住。
+     */
+    const PARTIAL_BLOCK_GROUND_EPSILON = 0.126;
+
     const DATA_FLAGS = 0; //存储DATA_FLAG
     const DATA_AIR = 1; //空气值(游泳) short
     const DATA_NAMETAG = 2; //string
@@ -1334,8 +1346,24 @@ abstract class Entity extends Location implements Metadatable{
     }
 
     public function move($dx, $dy, $dz){
-        if($dx == 0 and $dz == 0 and $dy == 0){
+        // 玩家睡觉时禁止移动，避免在睡眠界面里穿墙。
+        if($this->isPlayer and $this->getDataFlag(self::DATA_PLAYER_FLAGS, self::DATA_PLAYER_FLAG_SLEEP)){
             return true;
+        }
+
+        if($dx == 0 and $dz == 0 and $dy == 0){
+            // 站着不动时也要把脚底从台阶/半砖的“嵌入”状态拉出来，
+            // 否则生物会以极慢的速度下沉，看上去一直在抖动。
+            if(!$this->isPlayer){
+                $this->recoverPartialBlockStandingHeight();
+            }
+            return true;
+        }
+
+        // 下落/贴地时先做一次部分方块支撑恢复：脚底已经陷进台阶时，
+        // 直接解算碰撞会把实体往下压，形成“走下台阶就弹一下”。
+        if(!$this->isPlayer and $dy <= 0){
+            $this->recoverPartialBlockStandingHeight();
         }
 
         if($this->keepMovement){
@@ -1491,6 +1519,285 @@ abstract class Entity extends Location implements Metadatable{
         $this->isCollidedHorizontally = ($movX != $dx or $movZ != $dz);
         $this->isCollided = ($this->isCollidedHorizontally or $this->isCollidedVertically);
         $this->onGround = ($movY != $dy and $movY < 0);
+
+        // 碰撞解算只认完整方块；站在台阶/半砖边缘时 movY 可能等于 dy，
+        // 于是被误判成悬空，下一 tick 下落、再被顶回来，形成 1 格高度的抖动。
+        // 这里补一次“部分方块支撑”判定。
+        if(!$this->onGround and $movY <= 0 and $dy <= 0){
+            if($this->hasGroundSupport(0.01, false)){
+                $this->onGround = true;
+                return;
+            }
+
+            $supportY = $this->findPartialBlockGroundSupportY();
+            if($supportY !== null){
+                $this->snapToPartialBlockGroundSupport($supportY);
+                $this->onGround = true;
+                return;
+            }
+
+            if($this->recoverPartialBlockStandingHeight()){
+                return;
+            }
+        }
+    }
+
+    /**
+     * 脚底下方 epsilon 范围内是否有支撑（完整方块或部分方块）。
+     *
+     * @param float $epsilon
+     * @param bool  $includePartialBlockGround
+     *
+     * @return bool
+     */
+    protected function hasGroundSupport($epsilon = 0.01, $includePartialBlockGround = true){
+        if(!($this->boundingBox instanceof AxisAlignedBB) or $this->level === null){
+            return false;
+        }
+
+        $bb = new AxisAlignedBB(
+            $this->boundingBox->minX,
+            $this->boundingBox->minY - $epsilon,
+            $this->boundingBox->minZ,
+            $this->boundingBox->maxX,
+            $this->boundingBox->minY,
+            $this->boundingBox->maxZ
+        );
+
+        if(count($this->level->getCollisionCubes($this, $bb, false)) > 0){
+            return true;
+        }
+
+        return $includePartialBlockGround and $this->findPartialBlockGroundSupportY(max($epsilon, self::PARTIAL_BLOCK_GROUND_EPSILON)) !== null;
+    }
+
+    /**
+     * 找出脚底附近可以踩住的方块顶面（台阶/半砖等非完整方块）。
+     *
+     * @param float $epsilon
+     *
+     * @return float|null
+     */
+    protected function findPartialBlockGroundSupportY($epsilon = self::PARTIAL_BLOCK_GROUND_EPSILON){
+        if(!($this->boundingBox instanceof AxisAlignedBB) or $this->level === null){
+            return null;
+        }
+
+        $footY = $this->boundingBox->minY;
+        $probe = new AxisAlignedBB(
+            $this->boundingBox->minX,
+            $footY - $epsilon,
+            $this->boundingBox->minZ,
+            $this->boundingBox->maxX,
+            $footY + $epsilon,
+            $this->boundingBox->maxZ
+        );
+
+        $minX = Math::floorFloat($probe->minX);
+        $maxX = Math::ceilFloat($probe->maxX);
+        $minY = Math::floorFloat($probe->minY);
+        $maxY = Math::ceilFloat($probe->maxY);
+        $minZ = Math::floorFloat($probe->minZ);
+        $maxZ = Math::ceilFloat($probe->maxZ);
+        $highestTop = null;
+
+        for($x = $minX; $x <= $maxX; ++$x){
+            for($y = $minY; $y <= $maxY; ++$y){
+                for($z = $minZ; $z <= $maxZ; ++$z){
+                    $block = $this->level->getBlock(new Vector3($x, $y, $z));
+                    if($block->getId() === Block::AIR){
+                        continue;
+                    }
+
+                    foreach($block->getCollisionBoxes($probe) as $bb){
+                        if(!$this->entityFootprintIntersectsGroundSupport($bb)){
+                            continue;
+                        }
+                        if($this->shouldSnapEntityFootToSupportTop($footY, $bb, $epsilon)){
+                            $highestTop = $highestTop === null ? $bb->maxY : max($highestTop, $bb->maxY);
+                        }
+                    }
+                }
+            }
+        }
+
+        return $highestTop;
+    }
+
+    /**
+     * 脚底与支撑面是否近到应该直接吸附。
+     *
+     * @param float         $footY
+     * @param AxisAlignedBB $bb
+     * @param float         $epsilon
+     *
+     * @return bool
+     */
+    protected function shouldSnapEntityFootToSupportTop($footY, AxisAlignedBB $bb, $epsilon) : bool{
+        $topDelta = $footY - $bb->maxY;
+        if(abs($topDelta) <= self::THIN_BLOCK_GROUND_EPSILON){
+            return true;
+        }
+
+        // 脚底略低于顶面：走路插值造成，允许在 epsilon 内吸附。
+        if($topDelta < 0 and -$topDelta <= $epsilon and $footY >= $bb->minY - self::THIN_BLOCK_GROUND_EPSILON){
+            return true;
+        }
+
+        // 脚底略高于顶面：只有完整方块的顶面才吸附，避免把台阶顶面下沿当支撑。
+        if($topDelta > 0 and $topDelta <= $epsilon){
+            $fullBlockTop = ceil($bb->maxY - self::THIN_BLOCK_GROUND_EPSILON);
+            return abs($footY - $fullBlockTop) <= self::THIN_BLOCK_GROUND_EPSILON;
+        }
+
+        return false;
+    }
+
+    /**
+     * 实体水平投影是否与支撑面相交（只比较 X/Z，不比较 Y）。
+     *
+     * @param AxisAlignedBB $bb
+     *
+     * @return bool
+     */
+    protected function entityFootprintIntersectsGroundSupport(AxisAlignedBB $bb) : bool{
+        return $this->boundingBox->maxX > $bb->minX and
+            $this->boundingBox->minX < $bb->maxX and
+            $this->boundingBox->maxZ > $bb->minZ and
+            $this->boundingBox->minZ < $bb->maxZ;
+    }
+
+    /**
+     * 把脚底吸附到支撑面高度。
+     *
+     * @param float $supportY
+     */
+    protected function snapToPartialBlockGroundSupport($supportY){
+        if(!($this->boundingBox instanceof AxisAlignedBB)){
+            return;
+        }
+
+        $offsetY = $supportY - $this->boundingBox->minY;
+        if(abs($offsetY) <= self::THIN_BLOCK_GROUND_EPSILON){
+            return;
+        }
+
+        $this->boundingBox->offset(0, $offsetY, 0);
+        $this->y = $this->boundingBox->minY - $this->ySize;
+    }
+
+    /**
+     * 生物被卡在台阶/半砖内部时，把脚底抬回方块顶面。
+     *
+     * @param float $maxRecoverDistance
+     *
+     * @return bool 是否发生了修正
+     */
+    protected function recoverPartialBlockStandingHeight($maxRecoverDistance = 1.0) : bool{
+        $supportY = $this->findEmbeddedPartialBlockGroundSupportY($maxRecoverDistance);
+        if($supportY === null){
+            return false;
+        }
+
+        $changed = abs($supportY - $this->boundingBox->minY) > self::THIN_BLOCK_GROUND_EPSILON or !$this->onGround or abs($this->motionY) > self::THIN_BLOCK_GROUND_EPSILON;
+        $this->snapToPartialBlockGroundSupport($supportY);
+        $this->motionY = 0.0;
+        $this->onGround = true;
+        $this->isCollided = true;
+        $this->isCollidedVertically = true;
+        $this->blocksAround = null;
+
+        return $changed;
+    }
+
+    /**
+     * 向上寻找“脚底嵌在里面”的部分方块（台阶/半砖/耕地）。
+     *
+     * @param float $maxRecoverDistance
+     *
+     * @return float|null
+     */
+    protected function findEmbeddedPartialBlockGroundSupportY($maxRecoverDistance = 1.0){
+        if(!($this->boundingBox instanceof AxisAlignedBB) or $this->level === null){
+            return null;
+        }
+
+        $footY = $this->boundingBox->minY;
+        $maxRecoverDistance = max(self::PARTIAL_BLOCK_GROUND_EPSILON, (float) $maxRecoverDistance + self::PARTIAL_BLOCK_GROUND_EPSILON);
+        $probe = new AxisAlignedBB(
+            $this->boundingBox->minX,
+            $footY - self::THIN_BLOCK_GROUND_EPSILON,
+            $this->boundingBox->minZ,
+            $this->boundingBox->maxX,
+            $footY + $maxRecoverDistance + self::THIN_BLOCK_GROUND_EPSILON,
+            $this->boundingBox->maxZ
+        );
+
+        $minX = Math::floorFloat($probe->minX);
+        $maxX = Math::ceilFloat($probe->maxX);
+        $minY = Math::floorFloat($probe->minY);
+        $maxY = Math::ceilFloat($probe->maxY);
+        $minZ = Math::floorFloat($probe->minZ);
+        $maxZ = Math::ceilFloat($probe->maxZ);
+        $highestTop = null;
+
+        for($x = $minX; $x <= $maxX; ++$x){
+            for($y = $minY; $y <= $maxY; ++$y){
+                for($z = $minZ; $z <= $maxZ; ++$z){
+                    $block = $this->level->getBlock(new Vector3($x, $y, $z));
+                    if($block->getId() === Block::AIR or $block->canPassThrough()){
+                        continue;
+                    }
+
+                    foreach($block->getCollisionBoxes($probe) as $bb){
+                        if(!$this->entityFootprintIntersectsGroundSupport($bb)){
+                            continue;
+                        }
+
+                        $height = $bb->maxY - $bb->minY;
+                        if($height >= 1.0 - self::THIN_BLOCK_GROUND_EPSILON){
+                            // 完整方块不是“嵌入”，交给碰撞解算。
+                            continue;
+                        }
+
+                        $rise = $bb->maxY - $footY;
+                        if($rise <= self::THIN_BLOCK_GROUND_EPSILON or $rise > $maxRecoverDistance + self::THIN_BLOCK_GROUND_EPSILON){
+                            continue;
+                        }
+
+                        if($footY < $bb->minY - self::PARTIAL_BLOCK_GROUND_EPSILON){
+                            continue;
+                        }
+
+                        if(!$this->canOccupyPartialBlockStandingY($bb->maxY)){
+                            continue;
+                        }
+
+                        $highestTop = $highestTop === null ? $bb->maxY : max($highestTop, $bb->maxY);
+                    }
+                }
+            }
+        }
+
+        return $highestTop;
+    }
+
+    /**
+     * 抬到该高度后是否会卡进上方方块。
+     *
+     * @param float $standingY
+     *
+     * @return bool
+     */
+    protected function canOccupyPartialBlockStandingY($standingY) : bool{
+        if(!($this->boundingBox instanceof AxisAlignedBB) or $this->level === null){
+            return false;
+        }
+
+        $bb = clone $this->boundingBox;
+        $bb->offset(0, $standingY - $bb->minY, 0);
+
+        return count($this->level->getCollisionCubes($this, $bb, false)) === 0;
     }
 
     public function getBlocksAround(){

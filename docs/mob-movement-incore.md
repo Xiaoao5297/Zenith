@@ -1,0 +1,114 @@
+# 生物移动：对齐 InCore 的地面 AI
+
+> 记录时间：2026-11-21
+> 分支：`feat/incore-port`
+> 参考：`docs/incore/pocketmine/entity/Mob.php`（只读参考树）
+
+## 1. 背景
+
+此前生物移动用「A* 寻路（`PathNavigate`）+ 每 tick 重设 motion（`MoveControl`）」两层自己实现的框架。
+实际观感是：走路一顿一顿、贴墙会停、台阶前反复跳、转向和移动方向不同步。用户反馈
+「你可以看一下 incore，它的生物移动是没问题的」，因此这一版把地面生物移动整体换成
+InCore 的做法：**不用 A\*，由生物自己按目标方向持续施力，遇到台阶/悬崖/栅栏再做局部决策**。
+
+## 2. 旧实现与 InCore 的差别
+
+| 项目 | 旧实现（Zenith） | 现在（InCore 风格） |
+|---|---|---|
+| 路径 | A* 网格搜索 + 捷径 + 卡住重算 | 无路径，直线朝目标走 |
+| 施力 | `MoveControl` 每 tick 写一次 motion，陆上 ×0.6 | `Mob::tickGroundAi()` 直接算 motion，陆上基础 0.15 |
+| 朝向 | `PathNavigate::turnToward()` 沿路点转，每 tick 最多 30° | 每 tick 直接朝目标 `yaw = -atan2(dx/diff, dz/diff)`，击退/受击后 10 tick 不转向 |
+| 速度来源 | 行为传 `speed`（约 0.35–0.40） | `speed / 0.25` 映射成倍率（0.40→1.6、0.35→1.4，钳制 0.4–2.0） |
+| 台阶 | `stepHeight = 1.0`，靠 `Entity::move()` 抬升 | `stepHeight = 0.6`，整格台阶用 0.42 跳跃（同原版） |
+| 悬崖 | A* 邻居不可走就绕 | 前方两格都空 → 停 10 tick |
+| 栅栏 | 视为普通障碍，可能反复跳 | 明确识别 Fence/FenceGate/StoneWall/NetherBrickFence，停下不清 motion |
+| 半砖/台阶站立 | 依赖 `onGround`，脚底可能悬空 | `Entity` 增加部分方块（<1 格高）脚底吸附 |
+| 漫游 | 行为随机选点，A* 过去 | 无行为目标时每 80–200 tick 随机换目标（±30 格），1% 概率原地停留 80–200 tick |
+| 击退 | `Living::knockBack()` 写入 motion，但下一 tick 被 MoveControl 覆盖 | 受击后 10 tick 内不主动施力、不转向，让击退完整生效 |
+
+## 3. 移植内容
+
+### 3.1 `Mob`（`src/pocketmine/entity/Mob.php`）
+
+- `$stepHeight = 0.6`。
+- `usesGroundAi() : bool`：默认 `true`；飞行/水生生物覆写为 `false`
+  （目前 `Blaze` 已覆写，其余飞行生物仍走旧路径）。
+- 地面目标：`setGroundFollowTarget(Vector3 $target, float $speed = 0.35)`、
+  `clearGroundFollowTarget()`、`getGroundFollowTarget()`。
+- 速度：`static groundSpeedMultiplier(float $speed)` → `clamp($speed / 0.25, 0.4, 2.0)`；
+  `static getGroundBaseSpeed(?string $liquid)` → 陆地 0.15 / 水 0.05 / 岩浆 0.02。
+- `tickGroundAi(int $tickDiff)`：完整移植 InCore `tickPm1eGroundAi` 的流程
+  （计时器 → 刷新漫游目标 → 朝目标转向/设定 motion → 液体浮力或重力 → `move()` →
+  半砖支撑恢复 → 方块摩擦 → `onGround` 时 `motionY *= -0.5`）。
+- `checkGroundJump()`：探测前方一格与上方两格；悬崖/高墙/栅栏 → 停 10 tick；
+  1 格高的可站立方块 → `motionY = max(motionY, 0.42)`。
+- `refreshGroundWanderTarget()`：没有行为目标时的随机漫游。
+- `attack()`：受到伤害且未被取消时设置 `groundKnockbackTicks = 10`、`groundNoRotateTicks = 10`。
+- `onUpdate()`：`usesGroundAi()` 为真时走 `tickGroundAi()` + `parent::onUpdate()`，
+  旧的 navigator/MoveControl 路径只留给非地面生物。
+
+### 3.2 `PathNavigate`
+
+地面 AI 下退化成「目标存储器」：
+
+- `moveTo()` → `entity->setGroundFollowTarget($target, $speed)`，不再跑 A*；
+- `update()` 空实现；
+- `clearPath()` / `hasPath()` / `isDone()` / `getTarget()` 都基于地面目标；
+- 原 A* 代码保留，供 `usesGroundAi() === false` 的生物使用。
+
+### 3.3 `Entity`：部分方块站立
+
+新增两个 epsilon 常量与 8 个方法：
+
+- `THIN_BLOCK_GROUND_EPSILON = 0.001`、`PARTIAL_BLOCK_GROUND_EPSILON = 0.126`；
+- `hasGroundSupport()`、`findPartialBlockGroundSupportY()`、`shouldSnapEntityFootToSupportTop()`、
+  `entityFootprintIntersectsGroundSupport()`、`snapToPartialBlockGroundSupport()`、
+  `recoverPartialBlockStandingHeight()`、`findEmbeddedPartialBlockGroundSupportY()`、
+  `canOccupyPartialBlockStandingY()`。
+
+作用：站在半砖、楼梯、耕地上时，脚底不会因为 `onGround` 判定失败而持续下落；
+`move()` 在 `dy <= 0` 与「零位移」时也会尝试恢复站立高度。
+
+### 3.4 `Block` / `Stair`
+
+- `Block::getCollisionBoxes(AxisAlignedBB $bb)`：返回与世界坐标相交的碰撞盒
+  （默认整块，子类可覆写）。
+- `Stair::getCollisionBoxes()`：按朝向/上下半砖返回两段碰撞盒。
+
+这两者让「脚底支撑」与「台阶高度差」都能用真实几何计算，而不是只判断方块 id。
+
+### 3.5 `Creature`
+
+- 地面 AI 生物直接 `return parent::onUpdate()`，物理完全交给 `Mob::tickGroundAi()`，
+  避免两处同时施加重力/摩擦。
+- 其他生物（飞行、玩家等）使用 InCore 的物理顺序：落地时 `motionY = 0`、
+  `move()` 前后恢复部分方块站立高度、`onGround` 时 `motionY *= -0.5`。
+
+## 4. 验证
+
+离线：
+
+```bash
+php73 tests/run-tests.php     # 838/838 passed
+```
+
+相关用例：
+
+- `tests/GroundAiTest.php`（16 项）：基础速度、速度倍率、默认开关、`PathNavigate` 转发、
+  平地走向目标/朝向/高度、到达后停下、1 格台阶能跳上去、无目标会漫游。
+- `tests/MobStepTest.php`（10 项）：平地/1 格台阶/2 格墙的真实 `Entity::move()` 物理模拟。
+- `tests/MobMovementTest.php`：`stepHeight = 0.6`、1 格台阶需要跳跃、半砖不跳。
+- `tests/MoveControlTest.php`：旧的 MoveControl 仍对非地面生物生效。
+
+上服见 `docs/manual-verification.md` 5.16。
+
+## 5. 已知差异与限制
+
+1. **没有寻路**：生物只会朝目标直线走，遇到凹形地形/大坑会停住或绕不过去
+   （InCore 本身也是这个行为；原版 Java 有 A*，但那是 1.8 之后的事）。
+2. 漫游目标是 `±30` 格内的随机点，可能选到墙后/水下；超时（80–200 tick）后会重选。
+3. 击退后的 10 tick 不主动移动，视觉上会有短暂「僵直」，这是为了让击退距离完整。
+4. 飞行/水生生物（Bat/Ghast/Squid 等）仍走旧的 `PathNavigate` + `MoveControl` 路径，
+   本次只改了地面生物；后续可按同样方式补 `usesGroundAi() === false` 的专用控制。
+5. 客户端末影人模型高度 2.9 与服务端碰撞高度 1.8 不同，这是客户端硬编码；
+   `Mob::pushAwayFromPlayers()` 只保证相机不进入模型，不改变碰撞箱。

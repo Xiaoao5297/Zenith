@@ -23,7 +23,8 @@
  * 侧面清零，于是生物在台阶前反复跳跃、原地回弹、速度极慢。
  *
  * 这里用真实的 Entity::move() 与一个只提供方块碰撞的桩 Level 跑物理循环，
- * 断言：1 格台阶能在有限 tick 内走上去且全程不起跳；2 格墙仍然过不去。
+ * 断言：1 格台阶需要一次 0.42 的跳跃才能上去（InCore 的 stepHeight = 0.6），
+ * 但跳跃后能继续前进、不倒退；2 格墙仍然过不去。
  */
 spl_autoload_register(function($class){
 	$prefix = "pocketmine\\";
@@ -183,15 +184,15 @@ class MobStepTest{
 		$out[] = ["flat_ground_never_jumps", $flatJumps === 0, "jumps=" . $flatJumps];
 		$out[] = ["flat_ground_never_reverses", $flatBack < 0.001, "max backward=" . round($flatBack, 4)];
 
-		// 1 格台阶：必须直接走上去，全程不起跳。
+		// 1 格台阶：stepHeight = 0.6 时需要一次跳跃，但必须能继续前进、不倒退。
 		list($stepX, $stepY, $stepMaxY, $stepJumps, $stepBack) = self::simulate(function($x, $z){
 			return $x >= 2 ? 65 : 64;
 		}, 40);
 		$out[] = ["walks_up_one_block_step", $stepX > 4.5, "40 tick 后 x=" . round($stepX, 2)];
 		$out[] = ["stands_on_step_top", abs($stepY - 65.0) < 0.05, "y=" . round($stepY, 2)];
-		$out[] = ["step_climb_never_jumps", $stepJumps === 0, "jumps=" . $stepJumps];
+		$out[] = ["step_climb_jumps_once", $stepJumps >= 1 and $stepJumps <= 2, "jumps=" . $stepJumps];
 		$out[] = ["step_climb_never_reverses", $stepBack < 0.001, "max backward=" . round($stepBack, 4)];
-		$out[] = ["step_lift_is_smoothed", $stepMaxY <= 65.001, "maxY=" . round($stepMaxY, 3)];
+		$out[] = ["step_jump_height_is_bounded", $stepMaxY <= 65.3, "maxY=" . round($stepMaxY, 3)];
 
 		// 2 格墙：不应尝试起跳，也不应穿墙。
 		list($wallX, , , $wallJumps) = self::simulate(function($x, $z){

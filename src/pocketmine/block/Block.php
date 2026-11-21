@@ -1184,6 +1184,25 @@ class Block extends Position implements Metadatable{
 	}
 
 	/**
+	 * 返回与给定 AABB 相交的碰撞盒列表。
+	 *
+	 * 大多数方块只有一个完整碰撞盒；台阶等“部分方块”由子类覆写，
+	 * 生物的脚底支撑判定（Entity::findPartialBlockGroundSupportY）依赖它
+	 * 区分完整方块与台阶/半砖的顶面。
+	 *
+	 * @param AxisAlignedBB $bb
+	 *
+	 * @return AxisAlignedBB[]
+	 */
+	public function getCollisionBoxes(AxisAlignedBB $bb){
+		$bb2 = $this->getBoundingBox();
+		if($bb2 === null or !$bb->intersectsWith($bb2)){
+			return [];
+		}
+		return [$bb2];
+	}
+
+	/**
 	 * @param Entity $entity
 	 */
 	public function onEntityCollide(Entity $entity){
