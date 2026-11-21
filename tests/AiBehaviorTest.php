@@ -46,7 +46,7 @@ class AiBehaviorTest{
 
 		$flags = $panic->getControlFlags();
 		$out[] = ["panic_controls_move", ($flags & PanicBehavior::CONTROL_MOVE) !== 0, "flags = " . $flags];
-		$out[] = ["panic_controls_look", ($flags & PanicBehavior::CONTROL_LOOK) !== 0, "占住朝向，避免 LookAtPlayer 抢 yaw"];
+		$out[] = ["panic_move_only", ($flags & PanicBehavior::CONTROL_LOOK) === 0, "原版 EntityAIPanic 只占位 1(MOVE)，头由 headYaw 单独控制"];
 		$out[] = ["panic_is_top_priority", $panic->getPriority() === 1, "priority = " . $panic->getPriority()];
 
 		// 候选点选择：离攻击者更远、半径接近 10 格的胜出

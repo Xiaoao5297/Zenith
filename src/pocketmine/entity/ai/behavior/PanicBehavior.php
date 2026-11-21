@@ -24,13 +24,13 @@ class PanicBehavior extends StrollBehavior{
 	}
 
 	/**
-	 * 逃跑同时占用“朝向”。
+	 * 和原版 EntityAIPanic 一样只占 MOVE（互斥位 1）。
 	 *
-	 * 原来的实现只占用 MOVE，LookAtPlayerBehavior 仍然会在旁边把生物的头
-	 * 转向玩家，于是生物面朝玩家、身体朝反方向移动，看起来就是倒退着跑。
+	 * 头部朝向是独立的（Entity::$headYaw），所以逃跑时身体朝逃跑方向、
+	 * 头可以由 LookAtPlayer/随机张望继续看向玩家，不会出现倒退着跑。
 	 */
 	public function getControlFlags() : int{
-		return self::CONTROL_MOVE | self::CONTROL_LOOK;
+		return self::CONTROL_MOVE;
 	}
 
 	public function getName() : string{
@@ -63,11 +63,6 @@ class PanicBehavior extends StrollBehavior{
 		}
 
 		parent::onTick();
-
-		// 面朝逃跑方向；朝向由本行为接管，moveToward 不会再去抢 yaw。
-		if($this->target !== null){
-			$this->lookAt($this->target, false);
-		}
 	}
 
 	public function canContinue() : bool{

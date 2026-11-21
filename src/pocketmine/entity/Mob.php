@@ -60,6 +60,13 @@ abstract class Mob extends Creature{
 		}
 
 		if($this->behaviorsEnabled){
+			// 没有 look 行为接管时，头以 10°/tick 慢慢回到身体朝向
+			// （对应原版 EntityLookHelper：rotationYawHead 向 renderYawOffset 靠拢）。
+			if($this->headYaw === null){
+				$this->headYaw = $this->yaw;
+			}
+			$this->headYaw = self::turnTowardAngle($this->headYaw, $this->yaw, 10.0);
+
 			$this->tickBehaviors();
 		}
 

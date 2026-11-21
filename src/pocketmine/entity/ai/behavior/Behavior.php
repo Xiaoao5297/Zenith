@@ -68,7 +68,14 @@ abstract class Behavior{
 		$dx = ($target->x + 0.5) - ($this->entity->x + 0.5);
 		$dz = ($target->z + 0.5) - ($this->entity->z + 0.5);
 		$targetYaw = -atan2($dx, $dz) * (180 / M_PI);
-		$this->entity->yaw = $this->turnToward($this->entity->yaw, $targetYaw, $maxTurn);
+
+		// 只转头，不动身体：身体朝向由移动决定，
+		// 这样被打时可以身体朝逃跑方向跑、头回头看玩家（原版行为）。
+		if($this->entity->headYaw === null){
+			$this->entity->headYaw = $this->entity->yaw;
+		}
+		$clamped = Entity::clampHeadYaw($this->entity->yaw, $targetYaw, 75.0);
+		$this->entity->headYaw = $this->turnToward($this->entity->headYaw, $clamped, $maxTurn);
 
 		if($includePitch){
 			$dy = ($target->y + $target->getEyeHeight()) - ($this->entity->y + $this->entity->getEyeHeight());

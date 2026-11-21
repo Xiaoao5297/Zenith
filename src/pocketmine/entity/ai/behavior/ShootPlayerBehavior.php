@@ -157,6 +157,8 @@ class ShootPlayerBehavior extends Behavior{
 	private function shoot(Player $target) : void{
 		$entity = $this->entity;
 		$pitch = $this->bowAimPitch($target, 0.04);
+		// 用头部朝向瞄准：身体朝向由寻路决定，头才是对着玩家的那个
+		$yaw = $entity->headYaw === null ? $entity->yaw : $entity->headYaw;
 
 		$tags = [
 			"Pos" => new ListTag("Pos", [
@@ -165,12 +167,12 @@ class ShootPlayerBehavior extends Behavior{
 				new DoubleTag("", $entity->z)
 			]),
 			"Motion" => new ListTag("Motion", [
-				new DoubleTag("", -sin($entity->yaw / 180 * M_PI) * cos($pitch / 180 * M_PI)),
+				new DoubleTag("", -sin($yaw / 180 * M_PI) * cos($pitch / 180 * M_PI)),
 				new DoubleTag("", -sin($pitch / 180 * M_PI)),
-				new DoubleTag("", cos($entity->yaw / 180 * M_PI) * cos($pitch / 180 * M_PI))
+				new DoubleTag("", cos($yaw / 180 * M_PI) * cos($pitch / 180 * M_PI))
 			]),
 			"Rotation" => new ListTag("Rotation", [
-				new FloatTag("", $entity->yaw),
+				new FloatTag("", $yaw),
 				new FloatTag("", $pitch)
 			])
 		];

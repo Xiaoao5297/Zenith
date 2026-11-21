@@ -57,6 +57,23 @@ class MobMovementTest{
 		$nav = file_get_contents(dirname(__DIR__) . "/src/pocketmine/entity/ai/navigation/PathNavigate.php");
 		$out[] = ["navigator_has_no_own_jump", strpos($nav, "0.42") === false, "PathNavigate 不应再设置 0.42 的跳跃速度"];
 
+		// ===== 头部朝向与身体朝向分离（原版 rotationYawHead / renderYawOffset）=====
+		// 头最多拧到身体两侧 75 度
+		$out[] = ["head_yaw_clamp_right", \pocketmine\entity\Entity::clampHeadYaw(0, 90) === 75.0, "body 0, head 90 -> 75"];
+		$out[] = ["head_yaw_clamp_left", \pocketmine\entity\Entity::clampHeadYaw(0, -90) === -75.0, "body 0, head -90 -> -75"];
+		$out[] = ["head_yaw_within_limit", \pocketmine\entity\Entity::clampHeadYaw(0, 45) === 45.0, "body 0, head 45 -> 45"];
+		$out[] = ["head_yaw_crosses_180", \pocketmine\entity\Entity::clampHeadYaw(170, -170) === -170.0, "body 170, head -170（真实夹角 20 度）"];
+		$out[] = ["head_yaw_crosses_180_clamped", \pocketmine\entity\Entity::clampHeadYaw(170, -100) === -115.0, "body 170, head -100 -> -115（+75）"];
+
+		// 转身限速 10 度/tick
+		$out[] = ["head_yaw_turn_step", \pocketmine\entity\Entity::turnTowardAngle(0, 90, 10) === 10.0, "0 -> 90 每 tick 10 度"];
+		$out[] = ["head_yaw_turn_short_way", \pocketmine\entity\Entity::turnTowardAngle(175, -175, 10) === -175.0, "175 -> -175 走近路"];
+		$out[] = ["head_yaw_turn_reaches", \pocketmine\entity\Entity::turnTowardAngle(0, 5, 10) === 5.0, "差距小于步长时直接到位"];
+
+		// 广播使用 headYaw，而不是把头也写成身体
+		$entitySrc = file_get_contents(dirname(__DIR__) . "/src/pocketmine/entity/Entity.php");
+		$out[] = ["broadcast_uses_head_yaw", strpos($entitySrc, "\$this->z, \$this->yaw, \$this->pitch, \$this->headYaw);") !== false, "addEntityMovement 第 8 个参数应为 headYaw"];
+
 		return $out;
 	}
 }

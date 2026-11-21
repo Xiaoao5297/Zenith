@@ -213,9 +213,8 @@ class PathNavigate{
 		$dx /= $len;
 		$dz /= $len;
 
-		if(!$this->entity->isLookControlled()){
-			$this->turnToward(-atan2($dx, $dz) * (180 / M_PI));
-		}
+		// 身体始终朝移动方向转（头由 look 行为单独控制，不再和移动抢 yaw）
+		$this->turnToward(-atan2($dx, $dz) * (180 / M_PI));
 
 		$mult = $this->entity->isInsideOfWater() ? 0.30 : 0.60;
 		$step = $this->speed * $mult;
@@ -245,9 +244,8 @@ class PathNavigate{
 		}
 
 		// 平滑转向，每 tick 最多 30 度；有 LOOK 行为时让 lookAt 控制朝向
-		if(!$this->entity->isLookControlled()){
-			$this->turnToward(-atan2($dx, $dz) * (180 / M_PI));
-		}
+		// 身体始终朝移动方向转（头由 look 行为单独控制，不再和移动抢 yaw）
+		$this->turnToward(-atan2($dx, $dz) * (180 / M_PI));
 
 		$dirX = $dx / $horizontalDist;
 		$dirZ = $dz / $horizontalDist;

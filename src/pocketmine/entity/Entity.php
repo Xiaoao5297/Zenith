@@ -199,6 +199,9 @@ abstract class Entity extends Location implements Metadatable{
 
     public $lastYaw;
     public $lastPitch;
+    /** @var float 头部朝向（身体用 $yaw），协议里是 MoveEntity 的 headYaw 字段 */
+    public $headYaw;
+    public $lastHeadYaw;
 
     /** @var AxisAlignedBB */
     public $boundingBox;
@@ -1009,7 +1012,7 @@ abstract class Entity extends Location implements Metadatable{
 
     protected function updateMovement(){
         $diffPosition = ($this->x - $this->lastX) ** 2 + ($this->y - $this->lastY) ** 2 + ($this->z - $this->lastZ) ** 2;
-        $diffRotation = ($this->yaw - $this->lastYaw) ** 2 + ($this->pitch - $this->lastPitch) ** 2;
+        $diffRotation = ($this->yaw - $this->lastYaw) ** 2 + ($this->pitch - $this->lastPitch) ** 2 + ($this->headYaw - $this->lastHeadYaw) ** 2;
 
         $diffMotion = ($this->motionX - $this->lastMotionX) ** 2 + ($this->motionY - $this->lastMotionY) ** 2 + ($this->motionZ - $this->lastMotionZ) ** 2;
 
@@ -1020,8 +1023,9 @@ abstract class Entity extends Location implements Metadatable{
 
             $this->lastYaw = $this->yaw;
             $this->lastPitch = $this->pitch;
+            $this->lastHeadYaw = $this->headYaw;
 
-            $this->level->addEntityMovement($this->chunk->getX(), $this->chunk->getZ(), $this->id, $this->x, $this->y + $this->getEyeHeight(), $this->z, $this->yaw, $this->pitch, $this->yaw);
+            $this->level->addEntityMovement($this->chunk->getX(), $this->chunk->getZ(), $this->id, $this->x, $this->y + $this->getEyeHeight(), $this->z, $this->yaw, $this->pitch, $this->headYaw);
         }
 
         if($diffMotion > 0.0025 or ($diffMotion > 0.0001 and $this->getMotion()->lengthSquared() <= 0.0001)){ //0.05 ** 2
@@ -1549,7 +1553,66 @@ abstract class Entity extends Location implements Metadatable{
     public function setRotation($yaw, $pitch){
         $this->yaw = $yaw;
         $this->pitch = $pitch;
+        // 传送/生成时头跟着身体朝向，之后由 look 行为或漂移单独控制
+        $this->headYaw = $yaw;
+        $this->lastHeadYaw = $yaw;
         $this->scheduleUpdate();
+    }
+
+    /**
+     * 把头部朝向夹到身体朝向两侧 ±$max 度内（原版头不能拧过肩）。
+     */
+    public static function clampHeadYaw(float $bodyYaw, float $headYaw, float $max = 75.0) : float{
+        $delta = $headYaw - $bodyYaw;
+        while($delta > 180){
+            $delta -= 360;
+        }
+        while($delta < -180){
+            $delta += 360;
+        }
+        if($delta > $max){
+            $delta = $max;
+        }elseif($delta < -$max){
+            $delta = -$max;
+        }
+
+        $result = $bodyYaw + $delta;
+        while($result > 180){
+            $result -= 360;
+        }
+        while($result < -180){
+            $result += 360;
+        }
+
+        return $result;
+    }
+
+    /**
+     * 把角度 $current 朝 $target 转动，单次不超过 $maxStep 度。
+     */
+    public static function turnTowardAngle(float $current, float $target, float $maxStep) : float{
+        $delta = $target - $current;
+        while($delta > 180){
+            $delta -= 360;
+        }
+        while($delta < -180){
+            $delta += 360;
+        }
+        if($delta > $maxStep){
+            $delta = $maxStep;
+        }elseif($delta < -$maxStep){
+            $delta = -$maxStep;
+        }
+
+        $result = $current + $delta;
+        while($result > 180){
+            $result -= 360;
+        }
+        while($result < -180){
+            $result += 360;
+        }
+
+        return $result;
     }
 
     protected function checkChunks(){
