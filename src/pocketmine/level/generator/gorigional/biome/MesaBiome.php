@@ -103,8 +103,9 @@ class MesaBiome extends BaseBiome{
 		$chunkX = $x & 15;
 		$chunkZ = $z & 15;
 
-		$bedrockLayers = 2 + ($r->nextInt() & 3);
-		for($y = 0; $y < $bedrockLayers; $y++){
+		// Java 1.7.10 BiomeGenBase.func_150560_b：y=0 固定基岩，深度为 nextInt(5)（1..5 层）。
+		$bedrockTop = $r->nextBoundedInt(5);
+		for($y = 0; $y <= $bedrockTop; $y++){
 			$chunk->setBlock($chunkX, $y, $chunkZ, Block::BEDROCK, 0);
 		}
 

@@ -937,7 +937,7 @@ class Server{
 	 * @return string
 	 */
 	public function getLevelType(){
-		return $this->getConfigString("level-type", "DEFAULT");
+		return $this->getConfigString("level-type", "gorigional");
 	}
 
 	/**
@@ -2278,7 +2278,7 @@ class Server{
 				"generator-settings" => "",
 				"level-name" => "world",
 				"level-seed" => "",
-				"level-type" => "DEFAULT",
+				"level-type" => "gorigional",
 				"enable-query" => true,
 				"enable-rcon" => false,
 				"rcon.password" => substr(base64_encode(@Utils::getRandomBytes(20, false)), 3, 10),
@@ -2453,7 +2453,7 @@ class Server{
 			foreach((array) $this->getProperty("worlds", []) as $name => $worldSetting){
 				if($this->loadLevel($name) === false){
 					$seed = $this->getProperty("worlds.$name.seed", time());
-					$options = explode(":", $this->getProperty("worlds.$name.generator", Generator::getGenerator("default")));
+					$options = explode(":", $this->getProperty("worlds.$name.generator", Generator::getGenerator("gorigional")));
 					$generator = Generator::getGenerator(array_shift($options));
 					if(count($options) > 0){
 						$options = [

@@ -54,7 +54,8 @@ class MapGenRavine{
 				$seed = Int64::mul($x, $r1) ^ Int64::mul($z, $r2) ^ $this->worldSeed;
 				$this->rand->setSeed($seed);
 
-				if($this->rand->nextFloat() < 0.02){
+				// Java 1.7.10 MapGenRavine.func_151538_a：每个候选原点 1/50 概率生成峡谷。
+				if($this->rand->nextBoundedInt(50) === 0){
 					$this->recursiveGenerate($chunkX, $chunkZ, $x, $z, $chunk);
 				}
 			}

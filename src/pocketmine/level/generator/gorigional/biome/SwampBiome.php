@@ -25,7 +25,6 @@ namespace pocketmine\level\generator\gorigional\biome;
 use pocketmine\block\Block;
 use pocketmine\level\format\FullChunk;
 use pocketmine\level\generator\gorigional\JavaRandom;
-use pocketmine\level\generator\gorigional\McpeRandom;
 use pocketmine\level\generator\gorigional\noise\PerlinSimplexGenerator;
 
 /**
@@ -39,8 +38,8 @@ class SwampBiome extends BaseBiome{
 
 	public function __construct($id, $name, $baseHeight, $heightVariation, $temperature, $rainfall){
 		parent::__construct($id, $name, $baseHeight, $heightVariation, $temperature, $rainfall);
-		// 群系级噪声只需要稳定形状，不参与世界种子逐块对齐。
-		$this->swampNoise = new PerlinSimplexGenerator(new McpeRandom(0x5A17), 1);
+		// Java 1.7.10 BiomeGenSwamp：new NoiseGeneratorPerlin(new Random(0x5A17L), 1)。
+		$this->swampNoise = new PerlinSimplexGenerator(new JavaRandom(0x5A17), 1);
 	}
 
 	public function genTerrainBlocks(FullChunk $chunk, JavaRandom $r, $x, $z, $noiseVal){

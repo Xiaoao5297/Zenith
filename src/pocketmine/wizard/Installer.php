@@ -35,7 +35,26 @@ class Installer{
 	const DEFAULT_PLAYERS = 50;
 	const DEFAULT_GAMEMODE = 0;
 	const DEFAULT_LEVEL_NAME = "world";
-	const DEFAULT_LEVEL_TYPE = "DEFAULT";
+	const DEFAULT_LEVEL_TYPE = "gorigional";
+	const DEFAULT_FLAT_PRESET = "2;7,2x3,2;1;";
+
+	/**
+	 * 向导里可选的世界生成器: 输入 (编号或名称) => level-type 值。
+	 * 只接受这张白名单，因为向导运行时 Server 还没有注册 Generator，
+	 * 无法用 Generator::getGenerator() 校验。
+	 */
+	private static $generatorChoices = [
+		"1" => "gorigional",
+		"gorigional" => "gorigional",
+		"original" => "gorigional",
+		"2" => "normal",
+		"normal" => "normal",
+		"default" => "normal",
+		"3" => "flat",
+		"flat" => "flat",
+		"4" => "void",
+		"void" => "void"
+	];
 
 	private $defaultLang;
 
@@ -147,17 +166,43 @@ LICENSE;
 		$config->set("server-port", $port);
 		
 		echo "[?] " . $this->lang->level_name . " (" . self::DEFAULT_LEVEL_NAME . "): ";
-		$config->set("level-name", $this->getInput(self::DEFAULT_LEVEL_NAME));
-		
+		$levelName = $this->getInput(self::DEFAULT_LEVEL_NAME);
+		$config->set("level-name", $levelName);
+		if(Utils::isValidLevelName($levelName) and is_dir(\pocketmine\DATA . "worlds" . DIRECTORY_SEPARATOR . $levelName)){
+			echo "[!] " . $this->lang->generator_world_exists . "\n";
+		}
+
+		echo "[*] " . $this->lang->generator_info . "\n";
+		echo "    1) gorigional - " . $this->lang->generator_gorigional . "\n";
+		echo "    2) normal     - " . $this->lang->generator_normal . "\n";
+		echo "    3) flat       - " . $this->lang->generator_flat . "\n";
+		echo "    4) void       - " . $this->lang->generator_void . "\n";
 		do{
-			echo "[?] " . $this->lang->level_type . " (" . self::DEFAULT_LEVEL_TYPE . "): ";
-			$type = (string) $this->getInput(self::DEFAULT_LEVEL_TYPE);
-			if($type != "flat" or $type != "default"){
+			echo "[?] " . $this->lang->level_type . " (1): ";
+			$type = self::normalizeGenerator($this->getInput("1"));
+			if($type === null){
 				echo "[!] " . $this->lang->invalid_level_type . "\n";
 			}
-		}while($type == "flat" or $type == "default");
+		}while($type === null);
 		$config->set("level-type", $type);
-		
+
+		if($type === "flat"){
+			do{
+				echo "[?] " . $this->lang->flat_preset . " (" . self::DEFAULT_FLAT_PRESET . "): ";
+				$preset = trim($this->getInput(self::DEFAULT_FLAT_PRESET));
+				if(!self::isValidFlatPreset($preset)){
+					echo "[!] " . $this->lang->invalid_flat_preset . "\n";
+				}
+			}while(!self::isValidFlatPreset($preset));
+			$config->set("generator-settings", $preset);
+		}
+
+		echo "[?] " . $this->lang->level_seed . ": ";
+		$seed = trim($this->getInput(""));
+		if($seed !== ""){
+			$config->set("level-seed", $seed);
+		}
+
 		/*echo "[*] " . $this->lang->ram_warning . "\n";
 		echo "[?] " . $this->lang->server_ram . " (" . self::DEFAULT_MEMORY . "): ";
 		$config->set("memory-limit", ((int) $this->getInput(self::DEFAULT_MEMORY)) . "M");*/
@@ -262,6 +307,42 @@ LICENSE;
 		$input = trim(fgets(STDIN));
 
 		return $input === "" ? $default : $input;
+	}
+
+	/**
+	 * 把向导里输入的生成器编号/名称归一化为 level-type 值。
+	 * 空输入按默认 (normal) 处理。
+	 *
+	 * @param mixed $input
+	 *
+	 * @return string|null 无法识别时返回 null
+	 */
+	public static function normalizeGenerator($input){
+		if(!is_string($input)){
+			return null;
+		}
+		$key = strtolower(trim($input));
+		if($key === ""){
+			$key = "1";
+		}
+
+		return isset(self::$generatorChoices[$key]) ? self::$generatorChoices[$key] : null;
+	}
+
+	/**
+	 * 校验超平坦预设，格式为 "版本;层;生物群系;装饰选项"，例如 2;7,2x3,2;1;
+	 * 第四段之后的内容 (decoration(...) 等) 不做校验，交给 Flat 生成器解析。
+	 *
+	 * @param mixed $preset
+	 *
+	 * @return bool
+	 */
+	public static function isValidFlatPreset($preset) : bool{
+		if(!is_string($preset)){
+			return false;
+		}
+
+		return preg_match('/^[0-9]+;[0-9a-z_,:x]*;[0-9a-z_,:x]*;/i', trim($preset)) === 1;
 	}
 
 

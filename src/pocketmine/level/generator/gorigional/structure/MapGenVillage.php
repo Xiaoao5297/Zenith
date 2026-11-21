@@ -22,18 +22,18 @@
 
 namespace pocketmine\level\generator\gorigional\structure;
 
+use pocketmine\level\generator\gorigional\Int64;
 use pocketmine\level\generator\gorigional\JavaRandom;
-use pocketmine\level\generator\gorigional\McpeRandom;
 
 /**
- * MCPE 0.14.3 VillageFeature：40 区块网格，28 区块有效范围。
+ * Java 1.7.10 MapGenVillage：32 区块网格，8 区块间隔，种子来自 World.setRandomSeed。
  */
 class MapGenVillage extends MapGenStructure{
-	const SPACING = 40;
-	const SEPARATION = 28;
+	const SPACING = 32;
+	const SEPARATION = 8;
 	const ALLOWED_BIOMES = [1, 2, 35];
 
-	/** @var JavaRandom|null 与 MCPE 一样，村庄展开使用村庄自己的种子流 */
+	/** @var JavaRandom|null 与 Java 一样，村庄展开沿用 MapGenBase 为本原点播种的随机流 */
 	private $structureRand = null;
 
 	protected function canSpawnStructureAtCoords($chunkX, $chunkZ){
@@ -41,8 +41,8 @@ class MapGenVillage extends MapGenStructure{
 		$originalZ = $chunkZ;
 
 		/*
-		 * MCPE 对负坐标先减去 spacing-1，再按整数除法截断，
-		 * 等价于 floorDiv(chunk, 40)。
+		 * Java 1.7.10 MapGenVillage.func_75047_a：
+		 * 负坐标先减 spacing-1，再按整数除法截断（等价 floorDiv）。
 		 */
 		if($chunkX < 0){
 			$chunkX -= self::SPACING - 1;
@@ -51,27 +51,21 @@ class MapGenVillage extends MapGenStructure{
 			$chunkZ -= self::SPACING - 1;
 		}
 
-		$seed = (($chunkX * 0x9939F508) + ($chunkZ * 0xF1565BD5) + $this->worldSeed + 0x9E7F70) & 0xFFFFFFFF;
-		$rnd = new McpeRandom($seed);
-		$r1 = $rnd->nextInt();
-		$r2 = $rnd->nextInt();
+		$gridIndexX = intdiv($chunkX, self::SPACING);
+		$gridIndexZ = intdiv($chunkZ, self::SPACING);
 
-		// MCPE 在判定成功后，直接把同一个 Random 继续传给 VillageStart。
-		// VillageStart 及其部件仍使用 JavaRandom 接口，这里用同一个村庄种子
-		// 并跳过判定已消费的两个值，保证布局由村庄种子决定。
-		$this->structureRand = new JavaRandom($seed);
-		$this->structureRand->nextInt();
-		$this->structureRand->nextInt();
+		// World.func_72843_D(i, j, 10387312)：i * 341873128712 + j * 132897987541 + randomSeed + 10387312。
+		// 普通世界的 WorldInfo.randomSeed 为 0。
+		$seed = Int64::add(Int64::add(Int64::mul($gridIndexX, 341873128712), Int64::mul($gridIndexZ, 132897987541)), 10387312);
+		$rnd = new JavaRandom($seed);
 
-		// 反编译里是 C++ 的整数除法（向零截断）：负数已经先减 39，
-		// 因此这里不能再用 floorDiv，否则 -59/40 会得到 -80 而不是 -40。
-		$gridX = intdiv($chunkX, self::SPACING) * self::SPACING;
-		$gridZ = intdiv($chunkZ, self::SPACING) * self::SPACING;
+		$offsetX = $rnd->nextBoundedInt(self::SPACING - self::SEPARATION);
+		$offsetZ = $rnd->nextBoundedInt(self::SPACING - self::SEPARATION);
 
-		if(($r1 % self::SEPARATION) + $gridX !== $originalX){
-			return false;
-		}
-		if(($r2 % self::SEPARATION) + $gridZ !== $originalZ){
+		$gridX = $gridIndexX * self::SPACING + $offsetX;
+		$gridZ = $gridIndexZ * self::SPACING + $offsetZ;
+
+		if($gridX !== $originalX || $gridZ !== $originalZ){
 			return false;
 		}
 

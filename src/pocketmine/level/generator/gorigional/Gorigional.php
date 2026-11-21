@@ -29,7 +29,7 @@ use pocketmine\level\Level;
 use pocketmine\level\generator\gorigional\biome\BiomeRegistry;
 use pocketmine\level\generator\gorigional\layer\GenLayer;
 use pocketmine\level\generator\gorigional\layer\LayerFactory;
-use pocketmine\level\generator\gorigional\McpeRandom;
+use pocketmine\level\generator\gorigional\JavaRandom;
 use pocketmine\level\generator\gorigional\noise\OctavesNoise;
 use pocketmine\level\generator\gorigional\noise\PerlinSimplexGenerator;
 use pocketmine\level\generator\gorigional\object\BlockPos;
@@ -48,17 +48,22 @@ use pocketmine\math\Vector3;
 use pocketmine\utils\Random;
 
 /**
- * Java 1.7 风格 ChunkGeneratorOverworld，对应 MCPE 0.14 地形。
- * 移植自 SCAXE-GO-CE pkg/level/generator/gorigional/generator.go。
+ * Java 1.7.10 风格 ChunkGeneratorOverworld，移植自 SCAXE-GO-CE pkg/level/generator/gorigional/generator.go。
+ *
+ * 高度场按 `docs/remapped_server_1.7.10` 的 `ChunkProviderGenerate.func_147423_a` 对齐；
+ * 0.14 客户端的 128 格上限用"截断"处理（见 STRETCH_Y 处的注释），不做垂直压缩。
  */
 class Gorigional extends Generator{
 	const NAME = "gorigional";
 
+	/**
+	 * Java 1.7.10 ChunkProviderGenerate 的常量（`func_147423_a`）。
+	 * 世界只有 128 高，所以高度场取 Java 的 y=0..127 截断：
+	 * 噪声列用 17 个点（每 8 格一个），与 Java 的 33 个点在 y<128 上逐点相同。
+	 */
 	const COORDINATE_SCALE = 684.412;
 	const HEIGHT_SCALE = 684.412;
-	// MCPE 的高度 128 修正：min limit 的 Y 缩放为 855.515，输出除以 256。
-	const MIN_LIMIT_HEIGHT_SCALE = 855.515;
-	const LOWER_LIMIT_SCALE = 256.0;
+	const LOWER_LIMIT_SCALE = 512.0;
 	const UPPER_LIMIT_SCALE = 512.0;
 	const DEPTH_NOISE_SCALE_X = 200.0;
 	const DEPTH_NOISE_SCALE_Z = 200.0;
@@ -125,7 +130,7 @@ class Gorigional extends Generator{
 		$this->level = $level;
 		$this->seed = $level->getSeed();
 
-		$rnd = new McpeRandom($this->seed);
+		$rnd = new JavaRandom($this->seed);
 
 		$this->minLimitPerlinNoise = new OctavesNoise($rnd, 16);
 		$this->maxLimitPerlinNoise = new OctavesNoise($rnd, 16);
@@ -235,7 +240,7 @@ class Gorigional extends Generator{
 		$f1 = self::HEIGHT_SCALE;
 
 		$mainNoiseRegion = $this->mainPerlinNoise->generateNoiseOctaves($mainNoiseRegion, $x, $y, $z, $horizontalPoints, $verticalPoints, $horizontalPoints, $f / self::MAIN_NOISE_SCALE_X, $f1 / self::MAIN_NOISE_SCALE_Y, $f / self::MAIN_NOISE_SCALE_Z);
-		$minLimitRegion = $this->minLimitPerlinNoise->generateNoiseOctaves($minLimitRegion, $x, $y, $z, $horizontalPoints, $verticalPoints, $horizontalPoints, $f, self::MIN_LIMIT_HEIGHT_SCALE, $f);
+		$minLimitRegion = $this->minLimitPerlinNoise->generateNoiseOctaves($minLimitRegion, $x, $y, $z, $horizontalPoints, $verticalPoints, $horizontalPoints, $f, $f1, $f);
 		$maxLimitRegion = $this->maxLimitPerlinNoise->generateNoiseOctaves($maxLimitRegion, $x, $y, $z, $horizontalPoints, $verticalPoints, $horizontalPoints, $f, $f1, $f);
 
 		$i = 0;
@@ -314,7 +319,8 @@ class Gorigional extends Generator{
 				$d0 = self::BASE_SIZE + $d8 * 4.0;
 
 				for($l1 = 0; $l1 < $verticalPoints; $l1++){
-					$d1 = ($l1 - $d0) * self::STRETCH_Y / $d9;
+					// Java: (j2 - d8) * 12 * 128 / 256 / d9。128 高的世界取 y=0..127 这一段（截断，不压缩）。
+					$d1 = ($l1 - $d0) * self::STRETCH_Y * self::MAX_HEIGHT / 256.0 / $d9;
 
 					if($d1 < 0.0){
 						$d1 *= 4.0;
@@ -326,8 +332,9 @@ class Gorigional extends Generator{
 
 					$d5 = self::clampedLerp($minVal, $maxVal, $mainVal) - $d1;
 
-					if($l1 > $verticalPoints - 4){
-						$d6 = ($l1 - ($verticalPoints - 4)) / 3.0;
+					// Java 只在 33 个点里的最后 3 个点（y>232）把密度压向 -10；17 个点时不会触发。
+					if($l1 > 29){
+						$d6 = ($l1 - 29) / 3.0;
 						$d5 = $d5 * (1.0 - $d6) + -10.0 * $d6;
 					}
 
@@ -424,7 +431,7 @@ class Gorigional extends Generator{
 		$biomeIDs = $this->biomeGen->getInts($chunkX, $chunkZ, 16, 16);
 
 		$noiseArray = [];
-		$noiseArray = $this->surfaceNoise->getRegion($noiseArray, $chunkX, $chunkZ, 16, 16, 0.125, 0.125, 1.0);
+		$noiseArray = $this->surfaceNoise->getRegion($noiseArray, $chunkX, $chunkZ, 16, 16, 0.0625, 0.0625, 1.0);
 
 		$biomeCache = [];
 		$colorCache = [];
@@ -453,6 +460,26 @@ class Gorigional extends Generator{
 		}
 	}
 
+	/**
+	 * Java 1.7.10 ChunkProviderGenerate.func_147424_a 的区块随机种子：
+	 * 只由区块坐标决定，不含世界种子。
+	 */
+	public static function chunkSeed($chunkX, $chunkZ){
+		return Int64::add(Int64::mul($chunkX, 341873128712), Int64::mul($chunkZ, 132897987541));
+	}
+
+	/**
+	 * Java 1.7.10 ChunkProviderGenerate.func_73153_a 的 populate 种子：
+	 * worldSeed 下取两个奇数乘子，再与区块坐标线性组合后异或世界种子。
+	 */
+	public static function populateSeed($chunkX, $chunkZ, $worldSeed){
+		$seedRnd = new JavaRandom($worldSeed);
+		$k = intdiv($seedRnd->nextLong(), 2) * 2 + 1;
+		$l = intdiv($seedRnd->nextLong(), 2) * 2 + 1;
+
+		return Int64::add(Int64::mul($chunkX, $k), Int64::mul($chunkZ, $l)) ^ $worldSeed;
+	}
+
 	public function generateChunk($chunkX, $chunkZ){
 		$chunk = $this->level->getChunk($chunkX, $chunkZ);
 		if($chunk === null){
@@ -461,14 +488,13 @@ class Gorigional extends Generator{
 
 		GenLayer::newEpoch();
 
-		// MCPE loadChunk 使用 32 位区块种子，喂给 MT19937；不是 Java 的 64 位 LCG。
-		$seed = (($chunkX * 0x14609048) + ($chunkZ * 0x7EBE2D5)) & 0xFFFFFFFF;
-		$rnd = new McpeRandom($seed);
+		// Java 1.7.10 ChunkProviderGenerate.func_147424_a：区块随机数 = 区块坐标的 64 位线性组合（不含世界种子）。
+		$rnd = new JavaRandom(self::chunkSeed($chunkX, $chunkZ));
 
 		$this->setBlocksInChunk($chunkX, $chunkZ, $chunk);
 		$this->replaceBiomeBlocks($chunkX, $chunkZ, $chunk, $rnd);
 		$this->caves->generateChunk($chunkX, $chunkZ, $chunk);
-		// MCPE 0.14.3 没有独立的峡谷特征；保留 MapGenRavine 类但默认不调用。
+		$this->ravines->generateChunk($chunkX, $chunkZ, $chunk);
 
 		$this->mineshaft->prepare($this->world, $chunkX, $chunkZ, $chunk);
 		$this->scatteredFeature->prepare($this->world, $chunkX, $chunkZ, $chunk);
@@ -488,27 +514,22 @@ class Gorigional extends Generator{
 		$biomeID = $ints[0] & 0xFF;
 		$b = BiomeRegistry::getBiome($biomeID);
 
-		// MCPE postProcess：用 MT 从世界种子取两个值，再按 32 位区块种子重置。
-		$seedRnd = new McpeRandom($this->seed);
-		$k = (($seedRnd->nextInt() >> 2) << 1) + 1;
-		$l = (($seedRnd->nextInt() >> 2) << 1) + 1;
-		$seed = (($this->seed & 0xFFFFFFFF) ^ ((($chunkX * $k + $chunkZ * $l) & 0xFFFFFFFF))) & 0xFFFFFFFF;
-		$rnd = new McpeRandom($seed);
+		// Java 1.7.10 ChunkProviderGenerate.func_73153_a：
+		// setSeed(worldSeed) -> 两次 nextLong 各取一个奇数乘子 -> setSeed(x*i1 + z*j1 ^ worldSeed)。
+		$rnd = new JavaRandom(self::populateSeed($chunkX, $chunkZ, $this->seed));
 
 		$manager = new ChunkManagerAdapter($this->level);
 
 		$isOceanOrRiver = $biomeID === 0 || $biomeID === 10 || $biomeID === 24 || $biomeID === 7 || $biomeID === 11;
 
 		/*
-		 * MCPE 0.14.3 RandomLevelSource::postProcess:
-		 * 湖泊 -> Village -> Mineshaft -> Stronghold -> Scattered -> 地牢 -> 结冰 -> decorate。
+		 * Java 1.7.10 RandomLevelSource（ChunkProviderGenerate::populate）：
+		 * 同一条随机流贯穿 湖泊 -> Village -> Mineshaft -> Stronghold -> Scattered -> 地牢 -> decorate，
+		 * 中途不再重新播种。
 		 */
 		if(!$isOceanOrRiver){
 			$this->generateLakes($manager, $rnd, $x, $z, $b->getID());
 		}
-
-		// MCPE 在湖泊之后、结构之前重新播种同一个区块 MT。
-		$rnd->setSeed($seed);
 
 		$this->village->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 		$this->mineshaft->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
@@ -527,8 +548,6 @@ class Gorigional extends Generator{
 
 		$this->freezeChunk($manager, $chunkX, $chunkZ);
 
-		// MCPE 在 decorate 前把随机数重置到区块种子。
-		$rnd->setSeed($seed);
 		$b->decorate($manager, $rnd, new BlockPos($x, 0, $z));
 	}
 

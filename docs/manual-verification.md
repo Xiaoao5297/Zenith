@@ -709,3 +709,45 @@ nether:
   拦截/配方输入归一化；这些不属于本次 Player 玩法补丁范围。
 - 0.13 配方克隆函数已移植但当前无调用点：Zenith 由
   `ProtocolCompatibility::mapCraftingRecipeForProtocol()` 在 `Server.php` 统一处理配方映射。
+
+### 5.12 安装向导：生成器 / 种子 / 超平坦预设
+
+覆盖：`wizard/Installer::generateBaseConfig()` 新增的世界生成器菜单、`level-seed` 与超平坦预设。
+离线部分由 `tests/InstallerTest.php`（37 项）验证，交互与真实生成需上服确认。
+
+验证步骤（删掉 `config/server.properties` 后首次启动，或加 `--no-wizard` 前先手动删）：
+
+1. 生成器直接回车 → `config/server.properties` 里 `level-type=gorigional`，世界按 1.7.10 风格地形生成。
+2. 选 `2`（normal）→ `level-type=normal`，新世界按 PocketMine 经典地形生成，
+   用于对比两种生成器的观感差异。
+3. 选 `3`（flat）→ 预设先输入乱码应提示格式错误并重新询问；输入
+   `2;7,2x3,2;1;` 后 `generator-settings` 写入该值，世界为经典三层超平坦 + 草方块。
+4. 选 `4`（void）→ `level-type=void`，世界只有出生平台。
+5. 输入合法世界名但对应 `worlds/<name>` 已存在 → 应提示「生成器与种子只对新建世界生效」。
+6. 种子留空 → 不写 `level-seed`；填 `12345` → 写入且重开服务器后地形一致。
+7. 语言切到 `eng`，上述菜单与提示应显示英文（未被翻译的语言回退英文）。
+
+已知限制：
+
+- 向导只写 `config/server.properties`；`world.yml` 的 `worlds.<name>.generator` 优先级更高，
+  若该文件里已给同名世界配了生成器，会覆盖向导选择。
+- 已存在的世界读取存档 `level.dat` 里的生成器，向导改 `level-type` 不会改变它。
+- `gorigional` 的高度场已按 Java 1.7.10 对齐（128 高截断），数值与 MCPE 0.14 原版不同，
+  差异对照见 `docs/gorigional-1.7.10.md`。**已用旧 gorigional 生成过的世界，新老区块会有高度接缝**，
+  要统一观感需要新建世界。
+
+### 5.13 gorigional：洞穴 / 峡谷 / 基岩 / 村庄（对齐 1.7.10）
+
+覆盖：`gorigional` 的 A/B/C 三批改动（详见 `docs/gorigional-1.7.10.md`）。
+离线部分由 `tests/GorigionalConstantsTest.php`（10 项）与 `tests/GorigionalChunkTest.php`（14 项）验证。
+
+1. 新建 `level-type=gorigional` 的世界，挖到基岩：每列基岩应为 **1..5 层**（旧版是 2..5 层）。
+2. 地下探索：洞穴应是细长隧道 + 少量大厅，**约每 7 个节点才 1 个真正生成**（旧版约 1/15 且算法不同），
+   洞穴不应整体穿透到基岩以下，y<10 的洞底应为岩浆。
+3. 地表：应能看到明显的峡谷（ravine），开口率约 1/50 候选原点；旧版完全不生成。
+4. 平原/沙漠/热带草原上寻找村庄：间距应比旧版更密（32 区块网格 / 8 间隔，旧版 40/28）。
+5. 同一 `level-seed` 连开两次新世界，出生点附近地形、洞穴、村庄位置应完全一致（确定性）。
+6. 生物群系交界处地表方块正常（草/沙/砂砾），水面结冰只出现在寒冷群系。
+7. 观察 y=120 以上：不应出现悬空草方块（洞穴 y 上限钳到 120）。
+8. 若用旧 gorigional 世界的旧存档继续玩，新老区块交界会有高度/洞穴接缝，这是预期行为。
+

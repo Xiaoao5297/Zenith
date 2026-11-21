@@ -463,10 +463,10 @@ class BaseBiome implements Biome{
 		$chunkX = $x & 15;
 		$chunkZ = $z & 15;
 
-		// MCPE：每列先取一次表层深度，再放 2..5 层基岩。
+		// Java 1.7.10 BiomeGenBase.func_150560_b：y=0 固定基岩，深度为 nextInt(5)（1..5 层）。
 		$depth = (int) ($noiseVal / 3.0 + 3.0 + $r->nextFloat() * 0.25);
-		$bedrockLayers = 2 + $r->nextBoundedInt(4);
-		for($y = 0; $y < $bedrockLayers; $y++){
+		$bedrockTop = $r->nextBoundedInt(5);
+		for($y = 0; $y <= $bedrockTop; $y++){
 			$chunk->setBlock($chunkX, $y, $chunkZ, $bedrock, 0);
 		}
 
