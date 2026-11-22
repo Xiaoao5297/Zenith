@@ -19,9 +19,9 @@
  * MoveEntityPacket 线格式回归测试。
  *
  * MCPE 0.14 的 MoveEntityPacket 每条实体记录为：
- *   eid(8) + x/y/z(3 float) + yaw/pitch/headYaw(3 float)
- * 而 Level 内部按 [eid, x, y, z, yaw, headYaw, pitch] 存储，因此编码层
- * 必须把最后两段重排为 pitch、headYaw。核心协议与 v11 都要遵守。
+ *   eid(8) + x/y/z(3 float) + yaw/headYaw/pitch(3 float)
+ * 与 Level 内部的 [eid, x, y, z, yaw, headYaw, pitch] 一致，编码层
+ * 不得把 headYaw 与 pitch 调换。核心协议与 v11 都要遵守。
  */
 spl_autoload_register(function($class){
 	$prefix = "pocketmine\\";
@@ -56,8 +56,8 @@ class MoveEntityPacketTest{
 		$offset += 12; // x/y/z
 		return [
 			Binary::readFloat(substr($buffer, $offset, 4)), // yaw
-			Binary::readFloat(substr($buffer, $offset + 4, 4)), // pitch
-			Binary::readFloat(substr($buffer, $offset + 8, 4)) // headYaw
+			Binary::readFloat(substr($buffer, $offset + 4, 4)), // headYaw
+			Binary::readFloat(substr($buffer, $offset + 8, 4)) // pitch
 		];
 	}
 
@@ -74,18 +74,18 @@ class MoveEntityPacketTest{
 		$core = new MoveEntityPacket();
 		$core->entities = self::entity();
 		$core->encode();
-		list($yaw, $pitch, $headYaw) = self::readTail($core->getBuffer());
+		list($yaw, $headYaw, $pitch) = self::readTail($core->getBuffer());
 		$out[] = ["core_yaw", abs($yaw - 10.0) < 0.0001, "yaw=" . $yaw];
-		$out[] = ["core_pitch", abs($pitch - 30.0) < 0.0001, "pitch=" . $pitch];
 		$out[] = ["core_head_yaw", abs($headYaw - 20.0) < 0.0001, "headYaw=" . $headYaw];
+		$out[] = ["core_pitch", abs($pitch - 30.0) < 0.0001, "pitch=" . $pitch];
 
 		$v11 = new MoveEntityPacketV11();
 		$v11->entities = self::entity();
 		$v11->encode();
-		list($yaw, $pitch, $headYaw) = self::readTail($v11->getBuffer());
+		list($yaw, $headYaw, $pitch) = self::readTail($v11->getBuffer());
 		$out[] = ["v11_yaw", abs($yaw - 10.0) < 0.0001, "yaw=" . $yaw];
-		$out[] = ["v11_pitch", abs($pitch - 30.0) < 0.0001, "pitch=" . $pitch];
 		$out[] = ["v11_head_yaw", abs($headYaw - 20.0) < 0.0001, "headYaw=" . $headYaw];
+		$out[] = ["v11_pitch", abs($pitch - 30.0) < 0.0001, "pitch=" . $pitch];
 
 		// 生物 MoveEntity 的 y 必须是脚底；玩家才加眼睛偏移。
 		$mob = new MobStepTestMob();

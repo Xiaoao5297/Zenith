@@ -9,9 +9,8 @@ class MoveEntityPacket extends DataPacket{
 	const NETWORK_ID = Info::MOVE_ENTITY_PACKET;
 
 
-	// 线上顺序：eid, x, y, z, yaw, pitch, headYaw
-	// 注意：Level 内部存的是 [eid, x, y, z, yaw, headYaw, pitch]，
-	// 这里必须按 0.14 客户端 MoveEntityPacketData 的顺序重排。
+	// 线上顺序：eid, x, y, z, yaw, headYaw, pitch
+	// 注意：0.14 客户端实测按 yaw, headYaw, pitch 解释；不要改成 yaw,pitch,headYaw。
 	/** @var array[] */
 	public $entities = [];
 
@@ -33,8 +32,8 @@ class MoveEntityPacket extends DataPacket{
 			$this->putFloat($d[2]); //y
 			$this->putFloat($d[3]); //z
 			$this->putFloat($d[4]); //yaw
-			$this->putFloat($d[6]); //pitch
 			$this->putFloat($d[5]); //headYaw
+			$this->putFloat($d[6]); //pitch
 		}
 	}
 
