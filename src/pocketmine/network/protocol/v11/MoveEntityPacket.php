@@ -37,7 +37,8 @@ class MoveEntityPacket extends DataPacket{
 	const NETWORK_ID = Info::MOVE_ENTITY_PACKET;
 
 
-	// eid, x, y, z, yaw, pitch
+	// 线上顺序：eid, x, y, z, yaw, pitch, headYaw
+	// Level 内部存的是 [eid, x, y, z, yaw, headYaw, pitch]，这里重排。
 	/** @var array[] */
 	public $entities = [];
 
@@ -59,8 +60,8 @@ class MoveEntityPacket extends DataPacket{
 			$this->buffer .= (\ENDIANNESS === 0 ? \pack("f", $d[2]) : \strrev(\pack("f", $d[2]))); //y
 			$this->buffer .= (\ENDIANNESS === 0 ? \pack("f", $d[3]) : \strrev(\pack("f", $d[3]))); //z
 			$this->buffer .= (\ENDIANNESS === 0 ? \pack("f", $d[4]) : \strrev(\pack("f", $d[4]))); //yaw
-			$this->buffer .= (\ENDIANNESS === 0 ? \pack("f", $d[5]) : \strrev(\pack("f", $d[5]))); //headYaw
 			$this->buffer .= (\ENDIANNESS === 0 ? \pack("f", $d[6]) : \strrev(\pack("f", $d[6]))); //pitch
+			$this->buffer .= (\ENDIANNESS === 0 ? \pack("f", $d[5]) : \strrev(\pack("f", $d[5]))); //headYaw
 		}
 	}
 

@@ -188,6 +188,25 @@ class MobStepTest{
 		$out[] = ["flat_ground_never_jumps", $flatJumps === 0, "jumps=" . $flatJumps];
 		$out[] = ["flat_ground_never_reverses", $flatBack < 0.001, "max backward=" . round($flatBack, 4)];
 
+		// 脚底离地 0.01 且没有垂直碰撞时，checkGroundState() 会走“地面支撑”
+		// 分支；该分支必须清零 motionY，否则 Creature 的 * -0.5 会把残留的
+		// 向下速度翻成正向上速度，客户端就会看到一次弹跳。
+		$supportLevel = new MobStepTestLevel(function($x, $z){ return 64; });
+		$supportMob = new MobStepTestMob();
+		$supportMob->setLevelForTest($supportLevel);
+		$supportMob->closed = false;
+		$supportMob->setPosition(new \pocketmine\level\Position(0.5, 64.01, 0.5, $supportLevel));
+		$supportMob->onGround = false;
+		$supportMob->motionY = -0.01;
+		$supportMob->move(0, -0.01, 0);
+		$supportMotion = $supportMob->motionY;
+		$out[] = ["support_snap_zeroes_motion_y", abs($supportMotion) < 0.000001, "motionY=" . $supportMotion];
+
+		if($supportMob->onGround){
+			$supportMob->motionY *= -0.5;
+		}
+		$out[] = ["support_snap_never_bounces_up", $supportMob->motionY <= 0.000001, "motionY=" . $supportMob->motionY];
+
 		// 1 格台阶：stepHeight = 1.0，由 Entity::move() 自动抬升，全程不应起跳。
 		list($stepX, $stepY, $stepMaxY, $stepJumps, $stepBack) = self::simulate(function($x, $z){
 			return $x >= 2 ? 65 : 64;

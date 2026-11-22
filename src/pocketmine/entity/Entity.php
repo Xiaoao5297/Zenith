@@ -1049,7 +1049,7 @@ abstract class Entity extends Location implements Metadatable{
             $this->lastPitch = $this->pitch;
             $this->lastHeadYaw = $this->headYaw;
 
-            $this->level->addEntityMovement($this->chunk->getX(), $this->chunk->getZ(), $this->id, $this->x, $this->y + $this->getEyeHeight(), $this->z, $this->yaw, $this->pitch, $this->headYaw);
+            $this->level->addEntityMovement($this->chunk->getX(), $this->chunk->getZ(), $this->id, $this->x, $this->getNetworkY(), $this->z, $this->yaw, $this->pitch, $this->headYaw);
         }
 
         if($diffMotion > 0.0025 or ($diffMotion > 0.0001 and $this->getMotion()->lengthSquared() <= 0.0001)){ //0.05 ** 2
@@ -1059,6 +1059,16 @@ abstract class Entity extends Location implements Metadatable{
 
             $this->level->addEntityMotion($this->chunk->getX(), $this->chunk->getZ(), $this->id, $this->motionX, $this->motionY, $this->motionZ);
         }
+    }
+
+    /**
+     * MoveEntityPacket 的 y 坐标。
+     *
+     * 0.14 客户端对生物使用脚底 y；玩家由于 ridingHeight（1.62），
+     * 仍按脚底 + 眼睛高度发送。AddEntity 也是同样的约定。
+     */
+    protected function getNetworkY() : float{
+        return $this instanceof \pocketmine\Player ? $this->y + $this->getEyeHeight() : $this->y;
     }
 
     /**
@@ -1526,6 +1536,9 @@ abstract class Entity extends Location implements Metadatable{
         if(!$this->onGround and $movY <= 0 and $dy <= 0){
             if($this->hasGroundSupport(0.01, false)){
                 $this->onGround = true;
+                // 没有发生垂直碰撞（movY == dy）时，上面的通用清零不会执行；
+                // 若保留负的 motionY，Creature 末尾乘 -0.5 会把它变成向上弹跳。
+                $this->motionY = 0;
                 return;
             }
 
@@ -1533,6 +1546,7 @@ abstract class Entity extends Location implements Metadatable{
             if($supportY !== null){
                 $this->snapToPartialBlockGroundSupport($supportY);
                 $this->onGround = true;
+                $this->motionY = 0;
                 return;
             }
 
