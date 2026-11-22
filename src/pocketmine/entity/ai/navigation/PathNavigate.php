@@ -13,6 +13,9 @@ class PathNavigate{
 	private const STATE_PATH_FOLLOWING = 1;
 	private const STATE_FALLBACK = 2;
 
+	/** 每 tick 拉直视线时，最多回看多少个路点（防止长路径上每 tick 做 O(n²) 采样） */
+	private const SHORTCUT_LOOKAHEAD = 12;
+
 	/** @var Mob */
 	private $entity;
 
@@ -169,7 +172,6 @@ class PathNavigate{
 
 		// 按实体宽度推进路点，而不是固定 0.8
 		$advanceDistance = max(0.6, $this->entity->width);
-		$advanced = false;
 		while(($waypoint = $this->path->getCurrentPoint()) !== null){
 			$horizontal = sqrt(($waypoint->x - $pos->x) ** 2 + ($waypoint->z - $pos->z) ** 2);
 			$vertical = abs($waypoint->y - $pos->y);
@@ -177,7 +179,6 @@ class PathNavigate{
 				break;
 			}
 			$this->path->advance();
-			$advanced = true;
 		}
 
 		if($this->path->isDone()){
@@ -189,9 +190,9 @@ class PathNavigate{
 			return;
 		}
 
-		if($advanced){
-			$this->tryShortcut();
-		}
+		// 原版每 tick 都从实体当前位置做一次视线拉直（PathNavigate.func_75508_h）。
+		// 只在推进路点时做会让 A* 的 90 度折线保留下来，到拐角才突然改方向。
+		$this->tryShortcut($pos);
 
 		$waypoint = $this->path->getCurrentPoint();
 		if($waypoint === null){
@@ -304,21 +305,32 @@ class PathNavigate{
 	}
 
 	/**
-	 * 从路径末端往回找最远的可视路点，直接跳过去，避免贴着 A* 折线走。
+	 * 从当前实体位置往回找最远的可视路点，直接跳过去，避免贴着 A* 折线走。
+	 *
+	 * 对应原版 PathNavigate.func_75508_h()：每 tick 都从实体当前位置做视线检查，
+	 * 而不是等到走进某个路点半径才做。这样直角折线会在转弯前就被拉直。
 	 */
-	private function tryShortcut() : void{
+	private function tryShortcut(Vector3 $from) : void{
 		if($this->path === null){
 			return;
 		}
 		$points = $this->path->getPoints();
 		$count = count($points);
 		$index = $this->path->getCurrentIndex();
-		if($count < 3 or $index >= $count - 1){
+		if($index >= $count - 1){
 			return;
 		}
 
-		$from = $points[$index];
-		for($i = $count - 1; $i > $index + 1; --$i){
+		// 先试路径终点：开阔地形一步到位；被墙挡住时只在附近回看，
+		// 避免超长路径上每个候选点都做一次逐格采样。
+		$end = $count - 1;
+		if($this->canMoveDirectly($from, $points[$end])){
+			$this->path->setCurrentIndex($end);
+			return;
+		}
+
+		$limit = min($end - 1, $index + self::SHORTCUT_LOOKAHEAD);
+		for($i = $limit; $i > $index; --$i){
 			if($this->canMoveDirectly($from, $points[$i])){
 				$this->path->setCurrentIndex($i);
 				return;
@@ -388,7 +400,7 @@ class PathNavigate{
 			}
 			$this->lastProgressPos = new Vector3($this->entity->x, $this->entity->y, $this->entity->z);
 			$this->lastProgressTick = $this->tickCounter;
-			$this->tryShortcut();
+			$this->tryShortcut($this->entity->getPosition());
 			return;
 		}
 

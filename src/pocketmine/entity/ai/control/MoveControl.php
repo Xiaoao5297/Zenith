@@ -112,7 +112,10 @@ class MoveControl{
 		}
 
 		$step = self::normalizeSpeed($this->speed, $this->entity->isInsideOfWater());
-		$direction = new Vector3($dx / $horizontalDist, 0, $dz / $horizontalDist);
+		// 沿身体朝向移动，而不是直接朝路点移动。原版 EntityMoveHelper 只设置
+		// yaw（每 tick 最多 30 度）和速度，实体沿 yaw 前进；这样拐角处身体和
+		// 速度方向始终一致，不会出现“身子还没转过去，人已经横着滑出去”的抖动。
+		$direction = self::directionFromYaw($this->entity->yaw ?? 0.0);
 
 		if($this->entity->moveInDirection($direction, $step)){
 			$this->blockedTicks = 0;
@@ -126,6 +129,17 @@ class MoveControl{
 				call_user_func($this->blockedHandler, $this);
 			}
 		}
+	}
+
+	/**
+	 * 由身体 yaw 得到水平单位方向。
+	 *
+	 * 与 Entity::getDirectionVector() 的水平分量保持一致：
+	 * yaw = 0 朝 +Z，yaw = -90 朝 +X。
+	 */
+	public static function directionFromYaw(float $yaw) : Vector3{
+		$rad = deg2rad($yaw);
+		return new Vector3(-sin($rad), 0, cos($rad));
 	}
 
 	/**
