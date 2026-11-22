@@ -127,6 +127,18 @@ class AStarNavigationTest{
 		return $nav;
 	}
 
+	private static function setPrivate(PathNavigate $nav, string $name, $value) : void{
+		$prop = (new \ReflectionClass(PathNavigate::class))->getProperty($name);
+		$prop->setAccessible(true);
+		$prop->setValue($nav, $value);
+	}
+
+	private static function tryShortcut(PathNavigate $nav, Vector3 $from) : void{
+		$method = (new \ReflectionClass(PathNavigate::class))->getMethod("tryShortcut");
+		$method->setAccessible(true);
+		$method->invoke($nav, $from);
+	}
+
 	private static function findPath(PathNavigate $nav, Vector3 $from, Vector3 $to) : ?Path{
 		$method = (new \ReflectionClass(PathNavigate::class))->getMethod("findPath");
 		$method->setAccessible(true);
@@ -262,7 +274,59 @@ class AStarNavigationTest{
 		$out[] = ["unwalkable_goal_returns_null", $unwalkable === null,
 			"目标格身体位置是实心方块时不应返回路径"];
 
-		// ===== 5. 跳跃只由 Mob 兜底，PathNavigate 不再自带 0.42 =====
+		// ===== 5. 每 tick 从当前位置拉直视线（原版 PathNavigate.func_75508_h） =====
+		$stubEntity = new \stdClass();
+		$stubEntity->height = 1.8;
+		$nav = self::newNavigator($flat);
+		self::setPrivate($nav, "entity", $stubEntity);
+		$shortPath = new Path([
+			new Vector3(1.5, 64, 0.5),
+			new Vector3(2.5, 64, 0.5)
+		]);
+		self::setPrivate($nav, "path", $shortPath);
+		self::tryShortcut($nav, new Vector3(0.5, 64, 0.5));
+		$out[] = ["shortcut_two_point_path", $shortPath->getCurrentIndex() === 1,
+			"两点路径也应能从当前位置直接看终点，index=" . $shortPath->getCurrentIndex()];
+
+		$longPath = new Path([
+			new Vector3(0.5, 64, 0.5),
+			new Vector3(1.5, 64, 0.5),
+			new Vector3(2.5, 64, 0.5),
+			new Vector3(3.5, 64, 0.5),
+			new Vector3(4.5, 64, 0.5)
+		]);
+		self::setPrivate($nav, "path", $longPath);
+		self::tryShortcut($nav, new Vector3(0.5, 64, 0.5));
+		$out[] = ["shortcut_uses_current_position", $longPath->getCurrentIndex() === 4,
+			"当前位置能直视终点时应直接跳到终点，index=" . $longPath->getCurrentIndex()];
+
+		$wallNav = self::newNavigator($walled);
+		self::setPrivate($wallNav, "entity", $stubEntity);
+		$wallPath = new Path([
+			new Vector3(0.5, 64, 0.5),
+			new Vector3(1.5, 64, 0.5),
+			new Vector3(2.5, 64, 0.5),
+			new Vector3(2.5, 64, -1.5),
+			new Vector3(2.5, 64, -2.5),
+			new Vector3(3.5, 64, -2.5),
+			new Vector3(4.5, 64, -2.5)
+		]);
+		self::setPrivate($wallNav, "path", $wallPath);
+		self::tryShortcut($wallNav, new Vector3(0.5, 64, 0.5));
+		$selected = $wallPath->getCurrentPoint();
+		$selectedInWall = $selected !== null
+			&& (int) floor($selected->x) === 3
+			&& (int) floor($selected->z) >= -2 && (int) floor($selected->z) <= 2;
+		$out[] = ["shortcut_never_selects_wall_point", $selected !== null && !$selectedInWall && $wallPath->getCurrentIndex() > 0,
+			$selected === null ? "没有选中路点" : "index=" . $wallPath->getCurrentIndex() . " 选中 = ({$selected->x}, {$selected->z})"];
+
+		$source = file_get_contents(dirname(__DIR__) . "/src/pocketmine/entity/ai/navigation/PathNavigate.php");
+		$out[] = ["shortcut_runs_every_tick", $source !== false
+			&& strpos($source, "tryShortcut(\$pos)") !== false
+			&& strpos($source, "if(\$advanced)") === false,
+			"PathNavigate 每 tick 都应从实体位置调 tryShortcut()"];
+
+		// ===== 6. 跳跃只由 Mob 兜底，PathNavigate 不再自带 0.42 =====
 		$source = file_get_contents(dirname(__DIR__) . "/src/pocketmine/entity/ai/navigation/PathNavigate.php");
 		$out[] = ["navigator_has_no_own_jump", $source !== false and strpos($source, "0.42") === false,
 			"PathNavigate.php 不应包含 0.42 跳跃常量"];

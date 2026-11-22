@@ -42,6 +42,9 @@ class MoveControlTestMob extends \pocketmine\entity\Mob{
 	/** @var float */
 	public $lastSpeed = 0.0;
 
+	/** @var \pocketmine\math\Vector3|null */
+	public $lastDirection = null;
+
 	/** @var bool */
 	public $inWater = false;
 
@@ -70,6 +73,7 @@ class MoveControlTestMob extends \pocketmine\entity\Mob{
 	public function moveInDirection(\pocketmine\math\Vector3 $direction, float $speed) : bool{
 		++$this->moveCalls;
 		$this->lastSpeed = $speed;
+		$this->lastDirection = new \pocketmine\math\Vector3($direction->x, $direction->y, $direction->z);
 		return !$this->blocked;
 	}
 }
@@ -99,6 +103,17 @@ class MoveControlTest{
 		$out[] = ["normalize_speed_zero", \pocketmine\entity\ai\control\MoveControl::normalizeSpeed(0.0, true) === 0.0, "零速度仍为 0"];
 		$out[] = ["normalize_speed_water_slower", \pocketmine\entity\ai\control\MoveControl::normalizeSpeed(1.0, true) < \pocketmine\entity\ai\control\MoveControl::normalizeSpeed(1.0, false), "水中比陆上慢"];
 
+		// ===== directionFromYaw：移动方向必须由身体朝向决定 =====
+		$dir = \pocketmine\entity\ai\control\MoveControl::directionFromYaw(0.0);
+		$out[] = ["direction_yaw_zero", self::near($dir->x, 0.0) and self::near($dir->z, 1.0), "yaw=0 -> +Z"];
+		$dir = \pocketmine\entity\ai\control\MoveControl::directionFromYaw(-90.0);
+		$out[] = ["direction_yaw_minus_90", self::near($dir->x, 1.0) and self::near($dir->z, 0.0), "yaw=-90 -> +X"];
+		$dir = \pocketmine\entity\ai\control\MoveControl::directionFromYaw(180.0);
+		$out[] = ["direction_yaw_180", self::near($dir->x, 0.0) and self::near($dir->z, -1.0), "yaw=180 -> -Z"];
+		$dir = \pocketmine\entity\ai\control\MoveControl::directionFromYaw(45.0);
+		$out[] = ["direction_yaw_45", self::near($dir->x, -M_SQRT1_2) and self::near($dir->z, M_SQRT1_2), "yaw=45 -> (-√2/2,+√2/2)"];
+
+
 		// ===== setWantedPosition 只记录，不移动 =====
 		$mob = self::newMob(10);
 		$control = $mob->getMoveControl();
@@ -119,6 +134,23 @@ class MoveControlTest{
 		++$mob->ticksLived;
 		$control->tick();
 		$out[] = ["next_tick_moves_again", $mob->moveCalls === 2, "下一 tick 恢复移动"];
+
+		// ===== motion 沿身体 yaw，而不是直接指向目标 =====
+		$mob = self::newMob(1);
+		$mob->yaw = 0.0;
+		$control = $mob->getMoveControl();
+		$control->setWantedPosition(new \pocketmine\math\Vector3(10, 64, 0), 0.35);
+		$control->tick();
+		$out[] = ["motion_follows_yaw_not_target", $mob->lastDirection !== null and self::near($mob->lastDirection->x, 0.0) and self::near($mob->lastDirection->z, 1.0),
+			"目标在 +X、yaw=0 时应先沿 +Z 走（随后由导航转向）"];
+
+		$mob = self::newMob(1);
+		$mob->yaw = -90.0;
+		$control = $mob->getMoveControl();
+		$control->setWantedPosition(new \pocketmine\math\Vector3(0, 64, 10), 0.35);
+		$control->tick();
+		$out[] = ["motion_matches_body_yaw", $mob->lastDirection !== null and self::near($mob->lastDirection->x, 1.0) and self::near($mob->lastDirection->z, 0.0),
+			"目标在 +Z、yaw=-90 时沿 +X 走，身体和速度方向一致"];
 
 		// ===== 水中速度系数 =====
 		$mob = self::newMob(3);
