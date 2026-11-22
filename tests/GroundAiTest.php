@@ -213,12 +213,25 @@ class GroundAiTest{
 		$out[] = ["climbs_one_block_step", $climber->x > 3.0 and abs($climber->y - 65.0) < 0.1, "x=" . round($climber->x, 2) . " y=" . round($climber->y, 2)];
 
 		// 7. 没有行为目标时会自己漫游（随机目标）
+		// 地面 AI 有 1% 概率原地停留 80–200 tick；用最大位移 + 更长的观察窗口，
+		// 避免随机停留恰好占满 200 tick 导致假失败（历史 flake）。
 		list($wanderer) = self::spawnMob(function($x, $z){
 			return 64;
 		});
-		self::tickGroundAi($wanderer, 200);
-		$moved = sqrt(($wanderer->x - 0.5) ** 2 + ($wanderer->z - 0.5) ** 2);
-		$out[] = ["wanders_without_target", $moved > 0.5, "200 tick 位移=" . round($moved, 2)];
+		$maxMoved = 0.0;
+		$elapsed = 0;
+		for($i = 0; $i < 600; $i++){
+			self::tickGroundAi($wanderer, 1);
+			++$elapsed;
+			$moved = sqrt(($wanderer->x - 0.5) ** 2 + ($wanderer->z - 0.5) ** 2);
+			if($moved > $maxMoved){
+				$maxMoved = $moved;
+			}
+			if($maxMoved > 0.5){
+				break;
+			}
+		}
+		$out[] = ["wanders_without_target", $maxMoved > 0.5, "最多 600 tick 位移=" . round($maxMoved, 2) . "（已走 " . $elapsed . " tick）"];
 
 		return $out;
 	}
