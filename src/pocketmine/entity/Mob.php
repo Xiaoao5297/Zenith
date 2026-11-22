@@ -125,7 +125,12 @@ abstract class Mob extends Creature{
 			$this->pushAwayFromPlayers();
 		}
 
-		return $return;
+		// Entity::onUpdate() 的默认返回值通常为 false；Level 会据此把实体从
+		// updateEntities 移除，只有随机区块 tick 才会重新 scheduleUpdate()。
+		// 结果就是移动中的生物只在区块被随机选中时更新一次，客户端看到的是
+		// 固定间隔的“弹一下/跳一下”。活着的生物必须每 tick 留在更新队列里，
+		// 与 InCore / 原版一致（InCore 在移动后直接置 $hasUpdate = true）。
+		return $return || !$this->closed;
 	}
 
 	/**
