@@ -2,12 +2,16 @@
 
 namespace pocketmine\entity\ai\behavior;
 
+use pocketmine\entity\Entity;
 use pocketmine\entity\Mob;
 use pocketmine\event\entity\EntityDamageByEntityEvent;
 use pocketmine\event\entity\EntityDamageEvent;
 use pocketmine\Player;
 
 class AttackEnemyBehavior extends Behavior{
+
+	/** 反击时允许在常规索敌半径外额外锁定的距离 */
+	const RETALIATION_RANGE_BONUS = 4;
 
 	/** @var float */
 	public $speed;
@@ -64,12 +68,62 @@ class AttackEnemyBehavior extends Behavior{
 		}
 		$this->enemy = null;
 
+		// 反击（Java EntityAIHurtByTarget）：优先锁定最近伤害的来源，跳过搜索冷却。
+		$cause = $this->entity->getLastDamageCause();
+		if($cause instanceof EntityDamageByEntityEvent){
+			$damager = $cause->getDamager();
+			if($damager instanceof Entity){
+				$isPlayer = $damager instanceof Player;
+				$survival = !$isPlayer || $damager->isSurvival();
+				$connected = !$isPlayer || $damager->isConnected();
+				$networkId = $isPlayer ? 0 : $damager::NETWORK_ID;
+				if(self::acceptsRetaliationTarget(
+					$damager->isAlive(),
+					$damager === $this->entity,
+					$isPlayer,
+					$survival,
+					$connected,
+					$networkId,
+					$this->NetworkID,
+					$this->attackPlayer,
+					$this->entity->distance($damager),
+					$this->lookDistance + self::RETALIATION_RANGE_BONUS
+				)){
+					$this->enemy = $damager;
+					$this->searchCooldown = 0;
+					return true;
+				}
+			}
+		}
+
 		if($this->searchCooldown > 0){
 			--$this->searchCooldown;
 			return false;
 		}
 		$this->searchCooldown = 10;
 		return $this->findTarget();
+	}
+
+	/**
+	 * 反击目标是否合法（纯静态，便于离线测试）。
+	 *
+	 * 规则与 findTarget() 的索敌保持一致：存活、非自己、距离不超过 maxDistance（**含边界**，
+	 * 即 distance == maxDistance 仍允许）；玩家要求 attackPlayer && 生存模式 && 在线；
+	 * 非玩家要求 NETWORK_ID 在列表内（严格比较）。
+	 *
+	 * @param int[] $networkIds
+	 */
+	public static function acceptsRetaliationTarget(bool $alive, bool $self, bool $isPlayer, bool $survival, bool $connected, int $networkId, array $networkIds, bool $attackPlayer, float $distance, float $maxDistance) : bool{
+		if(!$alive or $self){
+			return false;
+		}
+		if($distance > $maxDistance){
+			return false;
+		}
+		if($isPlayer){
+			return $attackPlayer && $survival && $connected;
+		}
+		return in_array($networkId, $networkIds, true);
 	}
 
 	private function findTarget() : bool{
@@ -82,7 +136,7 @@ class AttackEnemyBehavior extends Behavior{
 				continue;
 			}
 			$distance = $this->entity->distance($entity);
-			if($distance >= $bestDistance){
+			if($distance > $bestDistance){
 				continue;
 			}
 
