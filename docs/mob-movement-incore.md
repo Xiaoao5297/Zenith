@@ -17,6 +17,11 @@
   `Creature` / `Blaze` 的对应分支一并移除。
 - 保留 `Entity` 的部分方块站立修复（半砖/楼梯不下沉），它与地面 AI 无关。
 - 测试：删除 `tests/GroundAiTest.php`，新增 `tests/AStarNavigationTest.php`。
+- 同日追加：`PathNavigate` 每 tick 从**实体当前位置**做视线拉直（对齐 Java
+  `PathNavigate.func_75508_h()`），`MoveControl` 改为沿身体 yaw 施加 motion
+  （对齐 Java `EntityMoveHelper` 的“只转 yaw + 设速度”），解决 A* 拐角处
+  “身体还没转、速度已经横着滑出去”的抖动。新增
+  `tests/PathFollowingSmoothnessTest.php` 做逐 tick 模拟。
 
 回退原因（用户实测反馈）：
 
@@ -127,6 +132,9 @@ php73 tests/run-tests.php     # 838/838 passed（2026-11-21）
   现在改为默认 1.0、1 格台阶不跳（显式 0.6 的兜底用例保留）。
 - `tests/MoveControlTest.php`：旧的 MoveControl 仍对非地面生物生效（现在重新成为地面生物的主路径）。
 - `tests/AStarNavigationTest.php`（2026-11-22 新增）：平地、绕墙、1 格台阶三类 A* 路径。
+- `tests/PathFollowingSmoothnessTest.php`（2026-11-22 新增）：真实
+  `PathNavigate + MoveControl + Entity::move()` 逐 tick 模拟；断言 motion 与 yaw 一致、
+  yaw 每 tick <= 30°、拉直不选墙内点、到达前无零位移 tick、1 格台阶不跳。
 
 上服见 `docs/manual-verification.md` 5.16。
 
