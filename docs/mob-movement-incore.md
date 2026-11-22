@@ -27,6 +27,13 @@
   `updateEntities`，只能等随机区块 tick 再调度，表现为移动中的生物固定间隔
   “弹一下”；InCore 在移动后直接 `$hasUpdate = true`。新增
   `tests/MobTickSchedulingTest.php`。
+- 同日又追加：每 tick 更新后，`StrollBehavior` 的速度/启动概率暴露出是按旧的低频
+  更新调的。默认速度 `0.40 -> 0.25`（MoveControl ×0.6 后 0.15 格/tick，
+  对齐 InCore 陆地基础速度），启动概率 `1/41 -> 1/120`，并且走到路径终点就结束，
+  不再立刻刷新目标连续走。
+  对齐 Java `EntityAIWander` / MCPE `RandomStrollGoal`；新增
+  `tests/StrollBehaviorTest.php`。随机张望改为只转 `headYaw`，不再改身体 `yaw`，
+  避免边走边扭身体走出蛇形路线；新增 `tests/RandomLookAroundBehaviorTest.php`。
 
 回退原因（用户实测反馈）：
 

@@ -784,10 +784,14 @@ nether:
 `Mob::onUpdate()` 对存活生物每 tick 返回 `true`，避免被 `Level` 移出更新队列后只在
 随机区块 tick 时更新（那会造成固定间隔的“弹一下”）。离线部分由 `tests/MobStepTest.php`、
 `tests/MobMovementTest.php`、`tests/AStarNavigationTest.php`、
-`tests/PathFollowingSmoothnessTest.php`、`tests/MobTickSchedulingTest.php` 验证。
+`tests/PathFollowingSmoothnessTest.php`、`tests/MobTickSchedulingTest.php`、
+`tests/StrollBehaviorTest.php` 验证。被动生物的随机漫步按原版
+`EntityAIWander` / MCPE `RandomStrollGoal`：1/120 概率起步，走到路径终点就停，
+不应持续无休止地漫游。
 
 1. 让牛/猪/羊在平原上自由漫游：应连续行走，不出现固定间隔的「弹一下/跳一下」，
-   也不应出现起步/停止顿挫；同一群生物不应同步弹跳。
+   也不应出现起步/停止顿挫；同一群生物不应同步弹跳。移动速度应与原版相近，
+   走一段后应停下/四处张望，而不是永远在走；边走边张望时不应走出蛇形路线。
 2. 放一只僵尸追逐玩家：应平滑绕开拐角与障碍物，转向与移动方向一致，不应出现直角跳动。
 3. 一格高的台阶：生物应**平滑走上去、不起跳**（0.42 的跳跃只作为超过 1 格且在触及范围内的兜底）；
    半砖/楼梯应直接踩上去，不应起跳。
