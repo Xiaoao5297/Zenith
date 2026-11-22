@@ -42,8 +42,10 @@ class MobMovementTest{
 		$out[] = ["no_jump_on_epsilon_2", !\pocketmine\entity\Mob::needsStepJump(63.99999, 64, true, false), "feet 63.99999 -> ground 64"];
 		$out[] = ["no_jump_on_flat", !\pocketmine\entity\Mob::needsStepJump(64.0, 64, true, false), "feet 64 -> ground 64"];
 
-		// stepHeight = 0.6（InCore）：1 格整台阶需要一次 0.42 的跳跃，半砖等低台阶直接走上去。
-		$out[] = ["jump_on_one_block", \pocketmine\entity\Mob::needsStepJump(64.0, 65, true, false, 0.6), "stepHeight 0.6 时需要跳 1 格"];
+		// stepHeight = 1.0（恢复原版）：1 格整台阶由 Entity::move() 自动抬升，不需要跳；
+		// 显式传入更低的 stepHeight 时才保留 0.42 跳跃的兜底语义。
+		$out[] = ["no_jump_on_one_block", !\pocketmine\entity\Mob::needsStepJump(64.0, 65, true, false), "默认 stepHeight 1.0 时 1 格台阶不跳"];
+		$out[] = ["jump_when_step_height_too_low", \pocketmine\entity\Mob::needsStepJump(64.0, 65, true, false, 0.6), "显式 stepHeight 0.6 时兜底跳 1 格"];
 		$out[] = ["no_jump_when_step_height_enough", !\pocketmine\entity\Mob::needsStepJump(64.0, 65, true, false, 1.0), "stepHeight 1.0 时不跳"];
 		$out[] = ["no_jump_on_half_step", !\pocketmine\entity\Mob::needsStepJump(64.0, 64, true, false, 0.6), "y=64 平面上不需要跳"];
 
@@ -55,9 +57,9 @@ class MobMovementTest{
 		$out[] = ["no_jump_in_air", !\pocketmine\entity\Mob::needsStepJump(64.0, 65, false, false), "airborne"];
 		$out[] = ["no_jump_in_water", !\pocketmine\entity\Mob::needsStepJump(64.0, 65, true, true), "in water"];
 
-		// 与 InCore 保持一致：stepHeight = 0.6，1 格台阶交给 0.42 的跳跃。
+		// 与恢复后的原版行为一致：默认 stepHeight = 1.0，1 格台阶交给 Entity::move() 自动抬升。
 		$stepHeight = (new \ReflectionClass(\pocketmine\entity\Mob::class))->getDefaultProperties()["stepHeight"];
-		$out[] = ["mob_step_height_matches_incore", $stepHeight === 0.6, "Mob::\$stepHeight = " . var_export($stepHeight, true)];
+		$out[] = ["mob_step_height_is_one", $stepHeight === 1.0, "Mob::\$stepHeight = " . var_export($stepHeight, true)];
 
 		// 寻路层不再自己塞 0.42 的跳跃，台阶统一交给 moveInDirection
 		$nav = file_get_contents(dirname(__DIR__) . "/src/pocketmine/entity/ai/navigation/PathNavigate.php");

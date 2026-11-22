@@ -18,13 +18,17 @@
 /**
  * 生物跨越台阶的回归测试。
  *
- * 背景：Mob 之前沿用 Entity 的 $stepHeight = 0，所有生物都走不上 1 格台阶，
- * 只能靠 needsStepJump() 的 0.42 强制起跳；起跳过程中水平 motion 会被台阶
- * 侧面清零，于是生物在台阶前反复跳跃、原地回弹、速度极慢。
+ * 背景：Mob::$stepHeight 曾降到 0.6（InCore 风格 Ground AI），1 格整台阶超出
+ * 可跨越高度，只能靠 needsStepJump() 的 0.42 强制起跳；起跳过程中水平 motion
+ * 会被台阶侧面清零，于是生物在台阶前反复跳跃、原地回弹、边走边跳，
+ * 鸡还会因为反复起跳一直扇翅膀。
+ *
+ * 现在恢复为 stepHeight = 1.0：1 格台阶由 Entity::move() 的台阶逻辑自动抬升，
+ * 不产生任何 0.42 的跳跃。
  *
  * 这里用真实的 Entity::move() 与一个只提供方块碰撞的桩 Level 跑物理循环，
- * 断言：1 格台阶需要一次 0.42 的跳跃才能上去（InCore 的 stepHeight = 0.6），
- * 但跳跃后能继续前进、不倒退；2 格墙仍然过不去。
+ * 断言：1 格台阶无需起跳即可走上去、跳跃高度不超过台阶顶面、不倒退；
+ * 2 格墙仍然过不去。
  */
 spl_autoload_register(function($class){
 	$prefix = "pocketmine\\";
@@ -184,15 +188,15 @@ class MobStepTest{
 		$out[] = ["flat_ground_never_jumps", $flatJumps === 0, "jumps=" . $flatJumps];
 		$out[] = ["flat_ground_never_reverses", $flatBack < 0.001, "max backward=" . round($flatBack, 4)];
 
-		// 1 格台阶：stepHeight = 0.6 时需要一次跳跃，但必须能继续前进、不倒退。
+		// 1 格台阶：stepHeight = 1.0，由 Entity::move() 自动抬升，全程不应起跳。
 		list($stepX, $stepY, $stepMaxY, $stepJumps, $stepBack) = self::simulate(function($x, $z){
 			return $x >= 2 ? 65 : 64;
 		}, 40);
 		$out[] = ["walks_up_one_block_step", $stepX > 4.5, "40 tick 后 x=" . round($stepX, 2)];
 		$out[] = ["stands_on_step_top", abs($stepY - 65.0) < 0.05, "y=" . round($stepY, 2)];
-		$out[] = ["step_climb_jumps_once", $stepJumps >= 1 and $stepJumps <= 2, "jumps=" . $stepJumps];
+		$out[] = ["step_climb_never_jumps", $stepJumps === 0, "jumps=" . $stepJumps];
 		$out[] = ["step_climb_never_reverses", $stepBack < 0.001, "max backward=" . round($stepBack, 4)];
-		$out[] = ["step_jump_height_is_bounded", $stepMaxY <= 65.3, "maxY=" . round($stepMaxY, 3)];
+		$out[] = ["step_climb_height_is_bounded", $stepMaxY <= 65.001, "maxY=" . round($stepMaxY, 3)];
 
 		// 2 格墙：不应尝试起跳，也不应穿墙。
 		list($wallX, , , $wallJumps) = self::simulate(function($x, $z){
