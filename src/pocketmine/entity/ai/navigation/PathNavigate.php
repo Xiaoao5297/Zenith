@@ -88,15 +88,6 @@ class PathNavigate{
 			return;
 		}
 
-		if($this->entity->usesGroundAi()){
-			// InCore 风格：不做 A*，只把目标交给 Mob 的地面移动层，
-			// 由它每 tick 直接朝目标施加速度。
-			$this->target = new Vector3($target->x, $target->y, $target->z);
-			$this->speed = $speed;
-			$this->entity->setGroundFollowTarget($target, $speed);
-			return;
-		}
-
 		$this->target = $target;
 		$this->speed = $speed;
 
@@ -141,11 +132,6 @@ class PathNavigate{
 	 * 由 Mob::onUpdate() 每 tick 调用
 	 */
 	public function update() : void{
-		if($this->entity->usesGroundAi()){
-			// 地面 AI 在 Mob::tickGroundAi() 里自行移动。
-			return;
-		}
-
 		if($this->state === self::STATE_IDLE){
 			return;
 		}
@@ -420,12 +406,6 @@ class PathNavigate{
 	}
 
 	public function clearPath() : void{
-		if($this->entity->usesGroundAi()){
-			$this->target = null;
-			$this->entity->clearGroundFollowTarget();
-			return;
-		}
-
 		$this->path = null;
 		$this->target = null;
 		$this->state = self::STATE_IDLE;
@@ -438,19 +418,10 @@ class PathNavigate{
 	}
 
 	public function hasPath() : bool{
-		if($this->entity->usesGroundAi()){
-			return $this->target !== null;
-		}
 		return $this->path !== null and !$this->path->isDone();
 	}
 
 	public function isDone() : bool{
-		if($this->entity->usesGroundAi()){
-			if($this->target === null){
-				return true;
-			}
-			return $this->entity->distance($this->target) <= max(0.6, $this->entity->width / 2 + 1.0);
-		}
 		if($this->state === self::STATE_IDLE){
 			return true;
 		}

@@ -22,12 +22,8 @@ abstract class Creature extends Living{
             }
             if($this->isAlive()){
 
-                // 与 InCore 一致：贴地时不再持续施加重力，避免落地瞬间的微小下沉；
+                // 贴地时不再持续施加重力，避免落地瞬间的微小下沉；
                 // move() 前后都尝试恢复“站在半砖/台阶上”的高度，防止走下台阶时悬空抖动。
-                if($this instanceof Mob and $this->usesGroundAi()){
-                    return parent::onUpdate($currentTick);
-                }
-
                 $this->recoverPartialBlockStandingHeight();
 
                 if($this->onGround){

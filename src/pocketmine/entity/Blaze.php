@@ -21,13 +21,6 @@ class Blaze extends Monster{
 		return "Blaze";
 	}
 
-	/**
-	 * 烈焰人属于飞行怪，InCore 不启用地面 AI，继续用原物理与寻路。
-	 */
-	public function usesGroundAi() : bool{
-		return false;
-	}
-
 	public function initEntity(){
 		$this->setMaxHealth(20);
 
