@@ -262,6 +262,14 @@ class Decorator{
 			$this->reedGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
 		}
 
+		// Java BiomeDecorator：无论群系配置如何，都固定再尝试 10 次芦苇。
+		for($i = 0; $i < 10; $i++){
+			$x = $r->nextBoundedInt(16);
+			$z = $r->nextBoundedInt(16);
+			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
+			$this->reedGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
+		}
+
 		if($r->nextBoundedInt(32) === 0){
 			$x = $r->nextBoundedInt(16);
 			$z = $r->nextBoundedInt(16);
