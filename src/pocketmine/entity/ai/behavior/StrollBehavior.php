@@ -7,6 +7,9 @@ use pocketmine\math\Vector3;
 
 class StrollBehavior extends Behavior{
 
+	/** 原版 EntityAIWander / MCPE RandomStrollGoal：每 tick 1/120 概率开始 */
+	public const START_CHANCE = 120;
+
 	/** @var float */
 	public $speed;
 
@@ -19,7 +22,11 @@ class StrollBehavior extends Behavior{
 	/** @var Vector3|null */
 	public $target = null;
 
-	public function __construct(Mob $entity, float $speed = 0.40, int $timeout = 120){
+	/**
+	 * 0.25 经 MoveControl 陆上 ×0.6 后为 0.15 格/tick，
+	 * 与 InCore getPm1eBaseSpeed() 的陆地基础速度一致。
+	 */
+	public function __construct(Mob $entity, float $speed = 0.25, int $timeout = 120){
 		parent::__construct($entity);
 		$this->speed = $speed;
 		$this->timeout = $timeout;
@@ -39,7 +46,14 @@ class StrollBehavior extends Behavior{
 	}
 
 	public function shouldStart() : bool{
-		return mt_rand(0, 40) === 0;
+		return self::shouldStartRoll(mt_rand(0, self::START_CHANCE - 1));
+	}
+
+	/**
+	 * 纯函数：只有随机数正好为 0 才启动漫步。
+	 */
+	public static function shouldStartRoll(int $roll) : bool{
+		return $roll === 0;
 	}
 
 	public function onStart() : void{
@@ -119,14 +133,9 @@ class StrollBehavior extends Behavior{
 			return false;
 		}
 
-		// 到达目标或一开始就没选到点，就再挑一个继续走，
-		// 而不是立刻结束行为站在原地（之前生物经常“什么也不做”）。
-		if($this->target === null or $this->entity->distance($this->target) < 1.0){
-			$this->target = $this->pickTarget();
-			return $this->target !== null;
-		}
-
-		return true;
+		// 原版 EntityAIWander / MCPE RandomStrollGoal：走到路点/路径结束就停，
+		// 之后重新等 1/120 的启动概率，而不是立刻挑下一个点连续走。
+		return !$this->entity->getNavigator()->isDone();
 	}
 
 	public function onEnd(){
