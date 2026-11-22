@@ -22,6 +22,11 @@
   （对齐 Java `EntityMoveHelper` 的“只转 yaw + 设速度”），解决 A* 拐角处
   “身体还没转、速度已经横着滑出去”的抖动。新增
   `tests/PathFollowingSmoothnessTest.php` 做逐 tick 模拟。
+- 同日再追加：`Mob::onUpdate()` 对存活生物返回 `true`。此前它跟随
+  `Entity::entityBaseTick()` 返回 `false`，`Level::doTick()` 会把生物移出
+  `updateEntities`，只能等随机区块 tick 再调度，表现为移动中的生物固定间隔
+  “弹一下”；InCore 在移动后直接 `$hasUpdate = true`。新增
+  `tests/MobTickSchedulingTest.php`。
 
 回退原因（用户实测反馈）：
 

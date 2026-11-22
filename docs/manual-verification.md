@@ -781,10 +781,13 @@ nether:
 `Mob::$stepHeight = 1.0`，1 格台阶由 `Entity::move()` 自动抬升；`Entity` 的部分方块站立保留
 （详见 `docs/mob-movement-incore.md` 第 0 节）。`PathNavigate` 每 tick 从实体当前位置
 做视线拉直，`MoveControl` 沿身体 yaw 施加水平速度，避免拐角处“身体未转、速度先横滑”。
-离线部分由 `tests/MobStepTest.php`、`tests/MobMovementTest.php`、
-`tests/AStarNavigationTest.php`、`tests/PathFollowingSmoothnessTest.php` 验证。
+`Mob::onUpdate()` 对存活生物每 tick 返回 `true`，避免被 `Level` 移出更新队列后只在
+随机区块 tick 时更新（那会造成固定间隔的“弹一下”）。离线部分由 `tests/MobStepTest.php`、
+`tests/MobMovementTest.php`、`tests/AStarNavigationTest.php`、
+`tests/PathFollowingSmoothnessTest.php`、`tests/MobTickSchedulingTest.php` 验证。
 
-1. 让牛/猪/羊在平原上自由漫游：应沿 A* 路径连续行走，不出现「一跳一跳」或起步/停止顿挫。
+1. 让牛/猪/羊在平原上自由漫游：应连续行走，不出现固定间隔的「弹一下/跳一下」，
+   也不应出现起步/停止顿挫；同一群生物不应同步弹跳。
 2. 放一只僵尸追逐玩家：应平滑绕开拐角与障碍物，转向与移动方向一致，不应出现直角跳动。
 3. 一格高的台阶：生物应**平滑走上去、不起跳**（0.42 的跳跃只作为超过 1 格且在触及范围内的兜底）；
    半砖/楼梯应直接踩上去，不应起跳。
