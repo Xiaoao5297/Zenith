@@ -10,6 +10,9 @@ use pocketmine\entity\ai\behavior\{StrollBehavior, RandomLookAroundBehavior, Att
 class Silverfish extends Monster{
 	const NETWORK_ID = 39;
 
+	public $height = 0.3;
+	public $width = 0.4;
+
 	public $dropExp = [5, 5];
 
 	private $hurt = 1;

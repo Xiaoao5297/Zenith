@@ -11,6 +11,9 @@ use pocketmine\entity\ai\behavior\{StrollBehavior, ShootPlayerBehavior, RandomLo
 class Witch extends Monster {
 	const NETWORK_ID = 45;
 
+	public $height = 1.95;
+	public $width = 0.6;
+
 	/**
 	 * @return string
 	 */
