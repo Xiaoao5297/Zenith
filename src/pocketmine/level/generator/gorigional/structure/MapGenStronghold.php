@@ -17,32 +17,45 @@
  * @link https://github.com/Xiaoao5297/Zenith
  *
  *
-*/
+ */
 
 
 namespace pocketmine\level\generator\gorigional\structure;
 
 use pocketmine\level\generator\gorigional\JavaRandom;
-use pocketmine\level\generator\gorigional\McpeRandom;
 
 /**
- * MCPE 0.14.3 StrongholdFeature：每个世界 3 个要塞。
+ * 移植自 Java 1.7.10 MapGenStronghold：每个世界默认 3 个要塞。
  *
- * 选址逻辑按反编译：
- * - 初始角度 = genrandFloat * 2π，半径 = 40 + (genrand & 0xf)
- * - 在 ±8 区块内寻找合适群系
- * - 找到后角度 +108°、半径 +8；没找到则角度 +45°、半径 +4
+ * 选址逻辑与 Java 完全一致：
+ * - 使用 worldSeed 构造 java.util.Random
+ * - 初始角度 = nextDouble() * 2π
+ * - 第 k 个要塞距离 = (1.25 * k + nextDouble()) * 32 * k
+ * - 在半径 112 格内用 WorldChunkManager.findBiomePosition 找合适群系
+ * - 每找到一个，角度增加 2π * k / spread
  */
 class MapGenStronghold extends MapGenStructure{
 	/** @var int[][]|null */
 	private $positions = null;
 
-	/** 适合要塞的陆地群系，排除海洋、河流、沙滩、蘑菇岛。 */
+	/**
+	 * Java: BiomeGenBase.field_76748_D > 0.0F。
+	 * 排除海洋、河流、沼泽、沙滩、蘑菇岛岸等 rootHeight <= 0 的群系。
+	 */
 	const LAND_BIOMES = [
-		1, 2, 3, 4, 5, 6,
-		12, 13, 17, 18, 19, 20, 21, 22, 23,
-		27, 28, 29, 30, 31, 32, 33, 34, 35, 36,
-		37, 38, 39, 129, 140
+		1, 2, 3, 4, 5,
+		12, 13, 14,
+		17, 18, 19, 20, 21, 22, 23,
+		25,
+		27, 28, 29, 30, 31, 32, 33, 34,
+		35, 36, 37, 38, 39,
+		// GenLayerHills / GenLayerRareBiome 可能输出的 +128 变种（rootHeight > 0）。
+		129, 130, 131, 132, 133,
+		140, 141, 142,
+		145, 146, 147, 148, 149, 150, 151,
+		153,
+		155, 156, 157, 158, 159, 160, 161, 162,
+		163, 164, 165, 166, 167
 	];
 
 	protected function canSpawnStructureAtCoords($chunkX, $chunkZ){
@@ -56,7 +69,15 @@ class MapGenStronghold extends MapGenStructure{
 	}
 
 	protected function getStructureStart($chunkX, $chunkZ){
-		return new StrongholdStart($this->world, $this->rand, $chunkX, $chunkZ);
+		// Java MapGenStronghold.func_75049_b：一直重建 Start，直到拥有传送门房间。
+		// 10 次都失败时 Java 返回 null（该要塞不生成）。
+		for($attempt = 0; $attempt < 10; $attempt++){
+			$start = new StrongholdStart($this->world, $this->rand, $chunkX, $chunkZ);
+			if($start->isValid() && $start->hasPortalRoom()){
+				return $start;
+			}
+		}
+		return null;
 	}
 
 	private function buildPositions(){
@@ -65,61 +86,37 @@ class MapGenStronghold extends MapGenStructure{
 		}
 		$this->positions = [];
 
-		$rnd = new McpeRandom($this->worldSeed);
-		$angle = $rnd->nextFloat() * M_PI * 2.0;
-		$radius = 40 + ($rnd->nextInt() & 0xF);
-		$attempts = 0;
+		$rnd = new JavaRandom($this->worldSeed);
+		$angle = $rnd->nextDouble() * M_PI * 2.0;
+		$distance = 32.0;
+		$spread = 3;
+		$k = 1;
 
-		while(count($this->positions) < 3 && $attempts < 128){
-			$attempts++;
-			// MCPE 使用整数截断，不是 round。
-			$centerX = (int) (cos($angle) * $radius);
-			$centerZ = (int) (sin($angle) * $radius);
+		for($i = 0; $i < 3; $i++){
+			$d = (1.25 * $k + $rnd->nextDouble()) * $distance * $k;
+			$centerX = self::javaRound(cos($angle) * $d);
+			$centerZ = self::javaRound(sin($angle) * $d);
 
-			$found = null;
-			for($dx = -8; $dx <= 7 && $found === null; $dx++){
-				for($dz = -8; $dz <= 7; $dz++){
-					$cx = $centerX + $dx;
-					$cz = $centerZ + $dz;
-					if(!$this->hasPosition($cx, $cz) && $this->isValidArea($cx, $cz)){
-						$found = [$cx, $cz];
-						break;
-					}
-				}
+			$pos = $this->world->findBiomePosition(($centerX << 4) + 8, ($centerZ << 4) + 8, 112, self::LAND_BIOMES, $rnd);
+			if($pos !== null){
+				$centerX = $pos[0] >> 4;
+				$centerZ = $pos[2] >> 4;
 			}
 
-			if($found !== null){
-				$this->positions[] = $found;
-				$angle += 1.8849555921538759; // 108°
-				$radius += 8;
-			}else{
-				$angle += 0.7853981633974483; // 45°
-				$radius += 4;
+			$this->positions[] = [$centerX, $centerZ];
+
+			$angle += 2.0 * M_PI * $k / $spread;
+			if($i === $spread){
+				$k += 2 + $rnd->nextBoundedInt(5);
+				$spread += 1 + $rnd->nextBoundedInt(2);
 			}
 		}
 	}
 
-	private function hasPosition($x, $z){
-		foreach($this->positions as $pos){
-			if($pos[0] === $x && $pos[1] === $z){
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private function isValidArea($chunkX, $chunkZ){
-		$centerX = ($chunkX << 4) + 8;
-		$centerZ = ($chunkZ << 4) + 8;
-
-		// 覆盖要塞可能占用的 64×64 区域，每 4 格采样一次。
-		for($dx = -32; $dx <= 32; $dx += 4){
-			for($dz = -32; $dz <= 32; $dz += 4){
-				if(!in_array($this->world->getBiome($centerX + $dx, $centerZ + $dz), self::LAND_BIOMES, true)){
-					return false;
-				}
-			}
-		}
-		return true;
+	/**
+	 * Java Math.round(double)：floor(x + 0.5)，不是 PHP round() 的远离零舍入。
+	 */
+	private static function javaRound($value){
+		return (int) floor($value + 0.5);
 	}
 }

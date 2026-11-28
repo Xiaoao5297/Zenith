@@ -30,6 +30,10 @@ use pocketmine\level\generator\gorigional\JavaRandom;
 class StrongholdStairs2 extends StrongholdStairs{
 	/** @var StructureComponent[] */
 	public $pendingPieces = [];
+	/** @var string|null Java field_75027_a 对应的权重键 */
+	public $lastPiece = null;
+	/** @var StrongholdPortalRoom|null Java field_75025_b */
+	public $portalRoom = null;
 
 	public function __construct($type, JavaRandom $rnd, $x, $z){
 		$facing = $rnd->nextBoundedInt(4);

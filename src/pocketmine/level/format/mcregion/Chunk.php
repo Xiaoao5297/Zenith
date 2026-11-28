@@ -191,11 +191,58 @@ class Chunk extends BaseFullChunk{
 	public function setBlockSkyLight($x, $y, $z, $level){
 		$i = ($x << 10) | ($z << 6) | ($y >> 1);
 		$old_sl = ord($this->skyLight[$i]);
+		$level &= 0x0f;
 		if(($y & 1) === 0){
-			$this->skyLight[$i] = chr(($old_sl & 0xf0) | ($level & 0x0f));
+			if(($old_sl & 0x0f) === $level){
+				return;
+			}
+			$this->skyLight[$i] = chr(($old_sl & 0xf0) | $level);
 		}else{
-			$this->skyLight[$i] = chr((($level & 0x0f) << 4) | ($old_sl & 0x0f));
+			if(($old_sl >> 4) === $level){
+				return;
+			}
+			$this->skyLight[$i] = chr(($level << 4) | ($old_sl & 0x0f));
 		}
+		$this->setChanged();
+	}
+
+	public function setBlockSkyLightRange($x, $z, $fromY, $toY = 127){
+		$fromY = max(0, $fromY);
+		$toY = min(127, $toY);
+		if($fromY > $toY){
+			return;
+		}
+
+		$offset = ($x << 10) | ($z << 6);
+		$startByte = $fromY >> 1;
+		$endByte = $toY >> 1;
+
+		if($startByte === $endByte){
+			$mask = 0;
+			if(($fromY & 1) === 0){
+				$mask |= 0x0f;
+			}
+			if(($toY & 1) === 1){
+				$mask |= 0xf0;
+			}
+			$old = ord($this->skyLight[$offset + $startByte]);
+			$this->skyLight[$offset + $startByte] = chr(($old & (0xff ^ $mask)) | $mask);
+		}else{
+			if(($fromY & 1) === 1){
+				$old = ord($this->skyLight[$offset + $startByte]);
+				$this->skyLight[$offset + $startByte] = chr($old | 0xf0);
+				++$startByte;
+			}
+			if(($toY & 1) === 0){
+				$old = ord($this->skyLight[$offset + $endByte]);
+				$this->skyLight[$offset + $endByte] = chr($old | 0x0f);
+				--$endByte;
+			}
+			for($i = $startByte; $i <= $endByte; ++$i){
+				$this->skyLight[$offset + $i] = "\xff";
+			}
+		}
+
 		$this->setChanged();
 	}
 

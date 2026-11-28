@@ -7,5 +7,7 @@
 debug:
  #大于 1 时在控制台输出调试信息
  level: 1
+ #输出地形生成各阶段耗时/内存（true 时用 info 级别，每区块约 20 行）
+ generator-timing: false
  #启用 /status 与 /gc 命令
  commands: true

@@ -34,4 +34,8 @@ interface ObjectChunkManager{
 	public function getHeight($x, $z);
 
 	public function getTopSolidOrLiquidBlock($x, $z);
+
+	public function getBiomeId($x, $z);
+
+	public function getBlockLight($x, $y, $z);
 }

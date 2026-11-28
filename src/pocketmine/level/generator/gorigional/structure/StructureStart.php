@@ -43,7 +43,14 @@ class StructureStart{
 		$this->boundingBox = new BoundingBox(0, 0, 0, 0, 0, 0);
 	}
 
+	public function isValid(){
+		return true;
+	}
+
 	public function generateStructure(WorldAccess $w, JavaRandom $rnd, BoundingBox $box){
+		if(!$this->isValid()){
+			return;
+		}
 		foreach($this->components as $index => $c){
 			$bb = $c->getBoundingBox();
 			if($bb !== null && $bb->intersectsWith($box)){

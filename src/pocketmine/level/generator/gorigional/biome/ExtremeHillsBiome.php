@@ -48,12 +48,15 @@ class ExtremeHillsBiome extends BaseBiome{
 		$this->topMeta = 0;
 		$this->fillerBlock = Block::DIRT;
 
-		if($this->type === 0 && $noiseVal > 2.5){
-			$this->topBlock = Block::STONE;
-			$this->fillerBlock = Block::STONE;
-		}elseif($this->type === 2 && ($noiseVal < -0.1 || $noiseVal > 0.2)){
+		// Java BiomeGenHills.func_150573_a：
+		//   (d0 < -1.0 || d0 > 2.0) && type == 2 -> 砂砾
+		//   d0 > 1.0 && type != 1 -> 石头
+		if(($noiseVal < -1.0 || $noiseVal > 2.0) && $this->type === 2){
 			$this->topBlock = Block::GRAVEL;
 			$this->fillerBlock = Block::GRAVEL;
+		}elseif($noiseVal > 1.0 && $this->type !== 1){
+			$this->topBlock = Block::STONE;
+			$this->fillerBlock = Block::STONE;
 		}
 
 		parent::genTerrainBlocks($chunk, $r, $x, $z, $noiseVal);

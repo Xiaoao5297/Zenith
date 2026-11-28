@@ -32,7 +32,7 @@ class StrongholdStairsStraight extends StrongholdPiece{
 	public function __construct($type, JavaRandom $rnd, BoundingBox $box, $facing){
 		parent::__construct($type);
 		$this->coordBaseMode = $facing;
-		$this->entryDoor = $rnd->nextBoundedInt(5) <= 1 ? 0 : 2;
+		$this->entryDoor = $this->createEntryDoor($rnd);
 		$this->boundingBox = $box;
 	}
 
@@ -49,15 +49,23 @@ class StrongholdStairsStraight extends StrongholdPiece{
 	}
 
 	public function addComponentParts(WorldAccess $w, JavaRandom $rnd, BoundingBox $box){
+		if($this->isLiquidInStructureBoundingBox($w, $box)){
+			return;
+		}
 		$this->generateShell($w, $rnd, $box, 4, 10, 7);
 		$this->generateDoor($w, $box, 1, 7, 0, $this->entryDoor);
 		$this->generateDoor($w, $box, 1, 1, 7, 0);
 
-		for($z = 0; $z <= 7; $z++){
-			$y = 7 - intdiv($z * 6, 7);
-			$y = max(1, $y);
-			$this->fillWithAir($w, $box, 1, 1, $z, 3, $y, $z);
-			$this->fillWithBlocks($w, $box, 1, $y, $z, 3, $y, $z, self::STONE_BRICK_STAIRS, 0, self::STONE_BRICK_STAIRS, 0, false);
+		$meta = $this->getMetadataWithOffset(67, 2);
+		for($j = 0; $j < 6; $j++){
+			$this->placeBlock($w, 67, $meta, 1, 6 - $j, 1 + $j, $box);
+			$this->placeBlock($w, 67, $meta, 2, 6 - $j, 1 + $j, $box);
+			$this->placeBlock($w, 67, $meta, 3, 6 - $j, 1 + $j, $box);
+			if($j < 5){
+				$this->placeBlock($w, self::STONE_BRICKS, 0, 1, 5 - $j, 1 + $j, $box);
+				$this->placeBlock($w, self::STONE_BRICKS, 0, 2, 5 - $j, 1 + $j, $box);
+				$this->placeBlock($w, self::STONE_BRICKS, 0, 3, 5 - $j, 1 + $j, $box);
+			}
 		}
 		return true;
 	}

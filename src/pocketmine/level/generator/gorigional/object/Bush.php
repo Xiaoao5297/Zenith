@@ -40,26 +40,28 @@ class Bush implements Feature{
 	}
 
 	public function generate(ObjectChunkManager $w, JavaRandom $r, BlockPos $pos){
-		for($i = 0; $i < 8; $i++){
-			$target = $pos->add(
-				$r->nextBoundedInt(8) - $r->nextBoundedInt(8),
-				0,
-				$r->nextBoundedInt(8) - $r->nextBoundedInt(8)
-			);
-			$target->y = $w->getHeight($target->x, $target->z) + 1;
-			if($target->y < 1 || $target->y >= 128){
+		$isMushroom = $this->blockID === Block::BROWN_MUSHROOM || $this->blockID === Block::RED_MUSHROOM;
+		for($i = 0; $i < 64; $i++){
+			$x = $pos->x + $r->nextBoundedInt(8) - $r->nextBoundedInt(8);
+			$y = $pos->y + $r->nextBoundedInt(4) - $r->nextBoundedInt(4);
+			$z = $pos->z + $r->nextBoundedInt(8) - $r->nextBoundedInt(8);
+			if($y < 1 || $y >= 128){
 				continue;
 			}
 
-			$at = $w->getBlockId($target->x, $target->y, $target->z);
-			$below = $w->getBlockId($target->x, $target->y - 1, $target->z);
+			$at = $w->getBlockId($x, $y, $z);
+			$below = $w->getBlockId($x, $y - 1, $z);
+			if($isMushroom){
+				$validSoil = $below === Block::MYCELIUM || $below === Block::GRASS || $below === Block::DIRT;
+			}else{
+				$validSoil = $below === Block::GRASS || $below === Block::DIRT || $below === Block::FARMLAND;
+			}
 
-			$validSoil = $below === Block::GRASS || $below === Block::DIRT || $below === Block::FARMLAND;
-
-			if($at === 0 && $validSoil){
-				$w->setBlock($target->x, $target->y, $target->z, $this->blockID, $this->blockMeta);
+			if($at === Block::AIR && $validSoil){
+				$w->setBlock($x, $y, $z, $this->blockID, $this->blockMeta);
 			}
 		}
 		return true;
 	}
+
 }

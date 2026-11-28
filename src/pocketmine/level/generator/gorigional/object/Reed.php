@@ -31,43 +31,47 @@ use pocketmine\level\generator\gorigional\JavaRandom;
 class Reed implements Feature{
 
 	public function generate(ObjectChunkManager $w, JavaRandom $r, BlockPos $pos){
-		for($i = 0; $i < 4; $i++){
-			$target = $pos->add(
-				$r->nextBoundedInt(4) - $r->nextBoundedInt(4),
-				0,
-				$r->nextBoundedInt(4) - $r->nextBoundedInt(4)
-			);
-
-			if($target->y < 0 || $target->y >= 128){
+		for($i = 0; $i < 20; $i++){
+			$x = $pos->x + $r->nextBoundedInt(4) - $r->nextBoundedInt(4);
+			$y = $pos->y;
+			$z = $pos->z + $r->nextBoundedInt(4) - $r->nextBoundedInt(4);
+			if($y < 1 || $y >= 128){
 				continue;
 			}
 
-			if($w->getBlockId($target->x, $target->y, $target->z) === 0){
-				$below = $w->getBlockId($target->x, $target->y - 1, $target->z);
-				if($below === Block::GRASS || $below === Block::DIRT || $below === Block::SAND){
-
-					$hasWater = false;
-					if($w->getBlockId($target->x - 1, $target->y - 1, $target->z) === Block::WATER || $w->getBlockId($target->x - 1, $target->y - 1, $target->z) === Block::STILL_WATER){
-						$hasWater = true;
-					}elseif($w->getBlockId($target->x + 1, $target->y - 1, $target->z) === Block::WATER || $w->getBlockId($target->x + 1, $target->y - 1, $target->z) === Block::STILL_WATER){
-						$hasWater = true;
-					}elseif($w->getBlockId($target->x, $target->y - 1, $target->z - 1) === Block::WATER || $w->getBlockId($target->x, $target->y - 1, $target->z - 1) === Block::STILL_WATER){
-						$hasWater = true;
-					}elseif($w->getBlockId($target->x, $target->y - 1, $target->z + 1) === Block::WATER || $w->getBlockId($target->x, $target->y - 1, $target->z + 1) === Block::STILL_WATER){
-						$hasWater = true;
+			if($w->getBlockId($x, $y, $z) === Block::AIR && $this->hasWaterNeighbor($w, $x, $y - 1, $z)){
+				$h = 2 + $r->nextBoundedInt($r->nextBoundedInt(3) + 1);
+				for($j = 0; $j < $h; $j++){
+					if(!$this->canPlaceReed($w, $x, $y + $j, $z)){
+						continue;
 					}
-
-					if($hasWater){
-						$h = 2 + $r->nextBoundedInt($r->nextBoundedInt(3) + 1);
-						for($j = 0; $j < $h; $j++){
-							if($w->getBlockId($target->x, $target->y + $j, $target->z) === 0){
-								$w->setBlock($target->x, $target->y + $j, $target->z, Block::SUGARCANE_BLOCK, 0);
-							}
-						}
-					}
+					$w->setBlock($x, $y + $j, $z, Block::SUGARCANE_BLOCK, 0);
 				}
 			}
 		}
 		return true;
 	}
+
+	private function canPlaceReed(ObjectChunkManager $w, $x, $y, $z){
+		if($y < 0 || $y >= 128 || $w->getBlockId($x, $y, $z) !== Block::AIR){
+			return false;
+		}
+		$below = $w->getBlockId($x, $y - 1, $z);
+		if($below === Block::SUGARCANE_BLOCK){
+			return true;
+		}
+		return ($below === Block::GRASS || $below === Block::DIRT || $below === Block::SAND) && $this->hasWaterNeighbor($w, $x, $y - 1, $z);
+	}
+
+	private function hasWaterNeighbor(ObjectChunkManager $w, $x, $y, $z){
+		$left = $w->getBlockId($x - 1, $y, $z);
+		$right = $w->getBlockId($x + 1, $y, $z);
+		$north = $w->getBlockId($x, $y, $z - 1);
+		$south = $w->getBlockId($x, $y, $z + 1);
+		return $left === Block::WATER || $left === Block::STILL_WATER
+			|| $right === Block::WATER || $right === Block::STILL_WATER
+			|| $north === Block::WATER || $north === Block::STILL_WATER
+			|| $south === Block::WATER || $south === Block::STILL_WATER;
+	}
+
 }

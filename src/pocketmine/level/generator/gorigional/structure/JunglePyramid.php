@@ -205,6 +205,8 @@ class JunglePyramid extends ScatteredFeaturePiece{
 
 		if(!$this->placedTrap1){
 			$this->setBlockState($w, $DISPENSER, 2, 3, -2, 1, $box);
+			// Java func_74869_a 会向发射器填充 2 组翡翠，这里消费同样的随机流。
+			$this->createLoot($rnd, 'jungle_hidden', 2, 9);
 			$this->placedTrap1 = true;
 		}
 
@@ -224,6 +226,7 @@ class JunglePyramid extends ScatteredFeaturePiece{
 
 		if(!$this->placedTrap2){
 			$this->setBlockState($w, $DISPENSER, 4, 9, -2, 3, $box);
+			$this->createLoot($rnd, 'jungle_hidden', 2, 9);
 			$this->placedTrap2 = true;
 		}
 
@@ -231,7 +234,7 @@ class JunglePyramid extends ScatteredFeaturePiece{
 		$this->setBlockState($w, $VINE, 8, 8, -2, 3, $box);
 
 		if(!$this->placedMainChest){
-			$this->placedMainChest = $this->generateChest($w, $box, $rnd, 8, -3, 3, 'jungle');
+			$this->placedMainChest = $this->generateChest($w, $box, $rnd, 8, -3, 3, 'jungle', 2 + $rnd->nextBoundedInt(5));
 		}
 
 		$this->setBlockState($w, $MOSSY, 0, 9, -3, 2, $box);
@@ -266,7 +269,7 @@ class JunglePyramid extends ScatteredFeaturePiece{
 		$this->setBlockState($w, $REPEATER, 2, 10, -2, 10, $box);
 
 		if(!$this->placedHiddenChest){
-			$this->placedHiddenChest = $this->generateChest($w, $box, $rnd, 9, -3, 10, 'jungle');
+			$this->placedHiddenChest = $this->generateChest($w, $box, $rnd, 9, -3, 10, 'jungle', 2 + $rnd->nextBoundedInt(5));
 		}
 
 		return true;

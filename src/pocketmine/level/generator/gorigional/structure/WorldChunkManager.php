@@ -55,15 +55,32 @@ class WorldChunkManager{
 	}
 
 	/**
-	 * 对应 Java WorldChunkManager.areBiomesViable / MCPE BiomeSource::isBiomeAllowed：
-	 * 在给定中心周围按 4 格间隔采样，确认全部属于允许群系。
+	 * 复用 replaceBiomeBlocks() 已经算好的 16×16 voronoi 群系数组。
+	 * 数组布局必须与 GenLayer::getInts() 一致：index = (z & 15) * 16 + (x & 15)。
+	 */
+	public function primeBiomeCache($chunkX, $chunkZ, array $biomeIDs){
+		if(count($biomeIDs) !== 256){
+			return;
+		}
+		$this->cache[$chunkX . ':' . $chunkZ] = $biomeIDs;
+	}
+
+	/**
+	 * 对应 Java WorldChunkManager.func_76940_a（areBiomesViable）：
+	 * 在中心周围 radius 格范围内按 1:4 群系层采样，确认全部属于允许群系。
 	 */
 	public function isBiomeAllowed($x, $z, $radius, array $allowedIDs){
-		for($dx = -$radius; $dx <= $radius; $dx += 4){
-			for($dz = -$radius; $dz <= $radius; $dz += 4){
-				if(!in_array($this->getBiome($x + $dx, $z + $dz), $allowedIDs, true)){
-					return false;
-				}
+		$l = ($x - $radius) >> 2;
+		$i1 = ($z - $radius) >> 2;
+		$j1 = ($x + $radius) >> 2;
+		$k1 = ($z + $radius) >> 2;
+		$l1 = $j1 - $l + 1;
+		$i2 = $k1 - $i1 + 1;
+
+		$ints = $this->riverLayer->getInts($l, $i1, $l1, $i2);
+		for($i = 0; $i < $l1 * $i2; $i++){
+			if(!in_array($ints[$i] & 0xFF, $allowedIDs, true)){
+				return false;
 			}
 		}
 		return true;

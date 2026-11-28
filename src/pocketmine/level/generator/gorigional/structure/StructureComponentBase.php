@@ -315,7 +315,12 @@ abstract class StructureComponentBase implements StructureComponent{
 		];
 	}
 
-	public function generateChest(WorldAccess $w, BoundingBox $box, JavaRandom $rnd, $x, $y, $z, $loot = null){
+	public function generateChest(WorldAccess $w, BoundingBox $box, JavaRandom $rnd, $x, $y, $z, $loot = null, $stacks = null){
+		if($stacks === null){
+			// Java 在调用 func_74879_a 前先计算数量，即使位置无效也消耗随机数。
+			$stacks = 3 + $rnd->nextBoundedInt(4);
+		}
+
 		$worldX = $this->getXWithOffset($x, $z);
 		$worldY = $this->getYWithOffset($y);
 		$worldZ = $this->getZWithOffset($x, $z);
@@ -323,7 +328,7 @@ abstract class StructureComponentBase implements StructureComponent{
 		if($box->resultIsInside($worldX, $worldY, $worldZ) && $w->getBlockId($worldX, $worldY, $worldZ) !== 54){
 			$w->setBlock($worldX, $worldY, $worldZ, 54, 0);
 			if($loot !== null){
-				$w->setChestContents($worldX, $worldY, $worldZ, $this->createLoot($rnd, $loot));
+				$w->setChestContents($worldX, $worldY, $worldZ, $this->createLoot($rnd, $loot, $stacks));
 			}
 			return true;
 		}
@@ -331,26 +336,55 @@ abstract class StructureComponentBase implements StructureComponent{
 	}
 
 	/**
-	 * 简化版 1.7.10 战利品表，保持原版的物品种类和大致权重。
+	 * Java 1.7.10 战利品表。
 	 * @return array [[slot, id, meta, count], ...]
 	 */
-	protected function createLoot(JavaRandom $rnd, $type){
-		if($type === 'stronghold'){
+	protected function createLoot(JavaRandom $rnd, $type, $stacks = null, $slots = 27){
+		if($type === 'stronghold_chest' || $type === 'stronghold'){
+			// StructureStrongholdPieces$ChestCorridor.field_75003_a
 			$table = [
-				[297, 0, 1, 3, 10],  // bread
-				[260, 0, 1, 3, 10],  // apple
+				[368, 0, 1, 1, 10],  // ender pearl
+				[264, 0, 1, 3, 3],   // diamond
 				[265, 0, 1, 5, 10],  // iron ingot
 				[266, 0, 1, 3, 5],   // gold ingot
-				[368, 0, 1, 1, 2],   // ender pearl
-				[264, 0, 1, 3, 3],   // diamond
+				[331, 0, 4, 9, 5],   // redstone
+				[297, 0, 1, 3, 15],  // bread
+				[260, 0, 1, 3, 15],  // apple
+				[257, 0, 1, 1, 5],   // iron pickaxe
+				[267, 0, 1, 1, 5],   // iron sword
+				[322, 0, 1, 1, 5],   // golden apple
+				[329, 0, 1, 1, 5],   // saddle
+				[417, 0, 1, 1, 5],   // iron horse armor
+				[418, 0, 1, 1, 5],   // golden horse armor
+				[419, 0, 1, 1, 5],   // diamond horse armor
+				[340, 0, 1, 1, 1],   // book
+				[339, 0, 1, 1, 1],   // paper
+				[345, 0, 1, 1, 1],   // compass
+				[395, 0, 1, 1, 1],   // empty map
+			];
+		}elseif($type === 'stronghold_library'){
+			// StructureStrongholdPieces$Library.field_75007_b
+			$table = [
+				[340, 0, 1, 3, 20],  // book
+				[339, 0, 2, 7, 20],  // paper
+				[395, 0, 1, 1, 1],   // empty map
+				[345, 0, 1, 1, 1],   // compass
+				[403, 0, 1, 1, 1],   // enchanted book（func_92112_a，无额外 RNG）
+			];
+		}elseif($type === 'stronghold_crossing'){
+			// StructureStrongholdPieces$RoomCrossing.field_75014_c
+			$table = [
+				[265, 0, 1, 5, 10],  // iron ingot
+				[266, 0, 1, 3, 5],   // gold ingot
 				[331, 0, 4, 9, 5],   // redstone
 				[263, 0, 3, 8, 10],  // coal
-				[267, 0, 1, 1, 5],   // iron sword
-				[257, 0, 1, 1, 5],   // iron pickaxe
+				[297, 0, 1, 3, 15],  // bread
+				[260, 0, 1, 3, 15],  // apple
 				[322, 0, 1, 1, 1],   // golden apple
+				[403, 0, 1, 1, 1],   // enchanted book（func_92114_b，无额外 RNG）
 			];
-		}elseif($type === 'jungle'){
-			// Java 1.7.10 丛林神庙战利品表，精简为常见物品。
+		}elseif($type === 'jungle' || $type === 'desert'){
+			// DesertPyramid.field_74941_i / JunglePyramid.field_74943_l（两表相同）
 			$table = [
 				[264, 0, 1, 3, 3],   // diamond
 				[265, 0, 1, 5, 10],  // iron ingot
@@ -358,31 +392,19 @@ abstract class StructureComponentBase implements StructureComponent{
 				[388, 0, 1, 3, 2],   // emerald
 				[352, 0, 4, 6, 20],  // bone
 				[367, 0, 3, 7, 16],  // rotten flesh
-				[403, 0, 0, 1, 3],   // enchanted book
-				[419, 0, 1, 1, 1],   // diamond horse armor
-				[418, 0, 1, 1, 1],   // gold horse armor
+				[329, 0, 1, 1, 3],   // saddle
 				[417, 0, 1, 1, 1],   // iron horse armor
-			];
-		}elseif($type === 'desert'){
-			// Java 1.7.10 沙漠神殿战利品表，按 MCPE 0.14 可用物品裁剪。
-			$table = [
-				[264, 0, 1, 3, 5],   // diamond
-				[265, 0, 1, 5, 10],  // iron ingot
-				[266, 0, 1, 3, 10],  // gold ingot
-				[388, 0, 1, 3, 5],   // emerald
-				[352, 0, 1, 8, 10],  // bone
-				[375, 0, 1, 3, 10],  // spider eye
-				[403, 0, 0, 1, 5],   // enchanted book
+				[418, 0, 1, 1, 1],   // golden horse armor
 				[419, 0, 1, 1, 1],   // diamond horse armor
-				[418, 0, 1, 1, 2],   // gold horse armor
-				[417, 0, 1, 1, 3],   // iron horse armor
-				[466, 0, 1, 1, 1],   // enchanted golden apple
-				[322, 0, 1, 1, 5],   // golden apple
-				[263, 0, 3, 8, 10],  // coal
-				[297, 0, 1, 3, 10],  // bread
-				[367, 0, 1, 5, 10],  // rotten flesh
+				[403, 0, 1, 1, 1],   // enchanted book（func_92114_b，无额外 RNG）
+			];
+		}elseif($type === 'jungle_hidden'){
+			// JunglePyramid.field_74944_m（发射器专用，翡翠 2-7）
+			$table = [
+				[388, 0, 2, 7, 30],  // emerald
 			];
 		}elseif($type === 'village'){
+			// StructureVillagePieces$House2.field_74918_a
 			$table = [
 				[264, 0, 1, 3, 3],   // diamond
 				[265, 0, 1, 5, 10],  // iron ingot
@@ -390,20 +412,34 @@ abstract class StructureComponentBase implements StructureComponent{
 				[297, 0, 1, 3, 15],  // bread
 				[260, 0, 1, 3, 15],  // apple
 				[257, 0, 1, 1, 5],   // iron pickaxe
-				[263, 0, 3, 8, 10],  // coal
-				[322, 0, 1, 1, 1],   // golden apple
+				[267, 0, 1, 1, 5],   // iron sword
+				[307, 0, 1, 1, 5],   // iron chestplate
+				[306, 0, 1, 1, 5],   // iron helmet
+				[308, 0, 1, 1, 5],   // iron leggings
+				[309, 0, 1, 1, 5],   // iron boots
+				[49, 0, 3, 7, 5],    // obsidian
+				[6, 0, 3, 7, 5],     // sapling
+				[329, 0, 1, 1, 3],   // saddle
+				[417, 0, 1, 1, 1],   // iron horse armor
+				[418, 0, 1, 1, 1],   // golden horse armor
+				[419, 0, 1, 1, 1],   // diamond horse armor
 			];
 		}elseif($type === 'mineshaft'){
+			// StructureMineshaftPieces.field_78818_a
 			$table = [
-				[66, 0, 4, 8, 20],   // rail
-				[50, 0, 1, 4, 15],   // torch
 				[265, 0, 1, 5, 10],  // iron ingot
 				[266, 0, 1, 3, 5],   // gold ingot
-				[263, 0, 3, 8, 10],  // coal
-				[351, 4, 4, 8, 5],   // lapis
+				[331, 0, 4, 9, 5],   // redstone
+				[351, 4, 4, 9, 5],   // lapis lazuli
 				[264, 0, 1, 2, 3],   // diamond
-				[257, 0, 1, 1, 3],   // iron pickaxe
-				[270, 0, 1, 1, 3],   // wooden pickaxe
+				[263, 0, 3, 8, 10],  // coal
+				[297, 0, 1, 3, 15],  // bread
+				[257, 0, 1, 1, 1],   // iron pickaxe
+				[66, 0, 4, 8, 1],    // rail
+				[362, 0, 2, 4, 10],  // melon seeds
+				[361, 0, 2, 4, 10],  // pumpkin seeds
+				[329, 0, 1, 1, 3],   // saddle
+				[417, 0, 1, 1, 1],   // iron horse armor
 			];
 		}else{
 			return [];
@@ -414,25 +450,28 @@ abstract class StructureComponentBase implements StructureComponent{
 			$totalWeight += $entry[4];
 		}
 
-		$result = [];
-		$usedSlots = [];
-		$stacks = 3 + $rnd->nextBoundedInt(4);
-		for($i = 0; $i < $stacks; $i++){
-			$slot = $rnd->nextBoundedInt(27);
-			if(isset($usedSlots[$slot])){
-				continue;
-			}
-			$usedSlots[$slot] = true;
+		if($stacks === null){
+			$stacks = 3 + $rnd->nextBoundedInt(4);
+		}
 
+		$result = [];
+		for($i = 0; $i < $stacks; $i++){
+			// Java WeightedRandomChestContent.func_76293_a：先选物品，再选数量，最后选槽位。
 			$roll = $rnd->nextBoundedInt($totalWeight);
-			foreach($table as $entry){
-				$roll -= $entry[4];
+			$entry = null;
+			foreach($table as $item){
+				$roll -= $item[4];
 				if($roll < 0){
-					$count = $entry[2] + $rnd->nextBoundedInt($entry[3] - $entry[2] + 1);
-					$result[] = [$slot, $entry[0], $entry[1], $count];
+					$entry = $item;
 					break;
 				}
 			}
+			if($entry === null){
+				continue;
+			}
+			$count = $entry[2] + $rnd->nextBoundedInt($entry[3] - $entry[2] + 1);
+			$slot = $rnd->nextBoundedInt($slots);
+			$result[] = [$slot, $entry[0], $entry[1], $count];
 		}
 		return $result;
 	}

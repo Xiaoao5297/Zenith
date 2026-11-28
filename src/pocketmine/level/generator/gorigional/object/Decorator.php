@@ -31,6 +31,9 @@ use pocketmine\level\generator\gorigional\JavaRandom;
  * 树木与大型特征（蘑菇、冰刺等）尚未移植，相关数量保持为 0 或返回 null 时跳过。
  */
 class Decorator{
+	/** @var callable|null 阶段计时回调：($stage, $startTime, $startMemory, $pos) */
+	private static $timingCallback = null;
+
 	/** @var int */
 	public $treesPerChunk = 0;
 	/** @var float */
@@ -136,74 +139,94 @@ class Decorator{
 	}
 
 	private function initOres(){
-		$this->dirtGen = new Ore(Block::DIRT, 0, 33);
-		$this->gravelOreGen = new Ore(Block::GRAVEL, 0, 33);
-		$this->graniteGen = new Ore(Block::STONE, 1, 33);
-		$this->dioriteGen = new Ore(Block::STONE, 3, 33);
-		$this->andesiteGen = new Ore(Block::STONE, 5, 33);
-		$this->coalGen = new Ore(Block::COAL_ORE, 0, 17);
-		$this->ironGen = new Ore(Block::IRON_ORE, 0, 9);
-		$this->goldGen = new Ore(Block::GOLD_ORE, 0, 9);
-		$this->redstoneGen = new Ore(Block::REDSTONE_ORE, 0, 8);
-		$this->diamondGen = new Ore(Block::DIAMOND_ORE, 0, 8);
-		$this->lapisGen = new Ore(Block::LAPIS_ORE, 0, 7);
+		$this->dirtGen = new Ore(Block::DIRT, 0, 32);
+		$this->gravelOreGen = new Ore(Block::GRAVEL, 0, 32);
+		$this->coalGen = new Ore(Block::COAL_ORE, 0, 16);
+		$this->ironGen = new Ore(Block::IRON_ORE, 0, 8);
+		$this->goldGen = new Ore(Block::GOLD_ORE, 0, 8);
+		$this->redstoneGen = new Ore(Block::REDSTONE_ORE, 0, 7);
+		$this->diamondGen = new Ore(Block::DIAMOND_ORE, 0, 7);
+		$this->lapisGen = new Ore(Block::LAPIS_ORE, 0, 6);
+	}
+
+	public static function setTimingCallback($callback){
+		self::$timingCallback = $callback;
+	}
+
+	private static function timing($stage, $startTime, $startMemory, BlockPos $pos){
+		if(self::$timingCallback !== null){
+			call_user_func(self::$timingCallback, $stage, $startTime, $startMemory, $pos->x >> 4, $pos->z >> 4);
+		}
 	}
 
 	public function decorate(ObjectChunkManager $w, JavaRandom $r, Biome $b, BlockPos $pos){
-		$this->genStandardOre1($w, $r, 10, $this->dirtGen, 0, 128, $pos);
-		$this->genStandardOre1($w, $r, 8, $this->gravelOreGen, 0, 128, $pos);
-		$this->genStandardOre1($w, $r, 10, $this->dioriteGen, 0, 80, $pos);
-		$this->genStandardOre1($w, $r, 10, $this->graniteGen, 0, 80, $pos);
-		$this->genStandardOre1($w, $r, 10, $this->andesiteGen, 0, 80, $pos);
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
+		// Java BiomeDecorator.func_76797_b：矿石生成顺序与范围。
+		$this->genStandardOre1($w, $r, 20, $this->dirtGen, 0, 256, $pos);
+		$this->genStandardOre1($w, $r, 10, $this->gravelOreGen, 0, 256, $pos);
 		$this->genStandardOre1($w, $r, 20, $this->coalGen, 0, 128, $pos);
 		$this->genStandardOre1($w, $r, 20, $this->ironGen, 0, 64, $pos);
 		$this->genStandardOre1($w, $r, 2, $this->goldGen, 0, 32, $pos);
 		$this->genStandardOre1($w, $r, 8, $this->redstoneGen, 0, 16, $pos);
 		$this->genStandardOre1($w, $r, 1, $this->diamondGen, 0, 16, $pos);
 		$this->genStandardOre2($w, $r, 1, $this->lapisGen, 16, 16, $pos);
+		self::timing("decorate-ores", $stageStart, $stageMemory, $pos);
 
+		// Java BiomeDecorator 的非矿石特征统一使用 +8 偏移。
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
 		for($i = 0; $i < $this->sandPatchesPerChunk; $i++){
-			$x = $r->nextBoundedInt(16);
-			$z = $r->nextBoundedInt(16);
-			$terrainHeight = $w->getTopSolidOrLiquidBlock($pos->x + $x, $pos->z + $z);
-			$this->sandGen->generate($w, $r, $pos->add($x, $terrainHeight, $z));
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$terrainHeight = $w->getTopSolidOrLiquidBlock($x, $z);
+			$this->sandGen->generate($w, $r, new BlockPos($x, $terrainHeight, $z));
 		}
 
 		for($i = 0; $i < $this->clayPerChunk; $i++){
-			$x = $r->nextBoundedInt(16);
-			$z = $r->nextBoundedInt(16);
-			$terrainHeight = $w->getTopSolidOrLiquidBlock($pos->x + $x, $pos->z + $z);
-			$this->clayGen->generate($w, $r, $pos->add($x, $terrainHeight, $z));
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$terrainHeight = $w->getTopSolidOrLiquidBlock($x, $z);
+			$this->clayGen->generate($w, $r, new BlockPos($x, $terrainHeight, $z));
 		}
 
 		for($i = 0; $i < $this->gravelPatchesPerChunk; $i++){
-			$x = $r->nextBoundedInt(16);
-			$z = $r->nextBoundedInt(16);
-			$terrainHeight = $w->getTopSolidOrLiquidBlock($pos->x + $x, $pos->z + $z);
-			$this->gravelGen->generate($w, $r, $pos->add($x, $terrainHeight, $z));
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$terrainHeight = $w->getTopSolidOrLiquidBlock($x, $z);
+			$this->gravelGen->generate($w, $r, new BlockPos($x, $terrainHeight, $z));
 		}
+		self::timing("decorate-patches", $stageStart, $stageMemory, $pos);
 
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
 		$trees = $this->treesPerChunk;
-		if($r->nextFloat() < $this->extraTreeChance){
+		if($r->nextBoundedInt(10) === 0){
 			$trees++;
 		}
 		for($i = 0; $i < $trees; $i++){
-			$x = $r->nextBoundedInt(16);
-			$z = $r->nextBoundedInt(16);
-
-			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$terrainHeight = $w->getHeight($x, $z) + 1;
 
 			$feature = $b->getTreeFeature($r);
 			if($feature !== null){
-				$feature->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
+				$feature->generate($w, $r, new BlockPos($x, $terrainHeight, $z));
 			}
 		}
 
+		for($i = 0; $i < $this->bigMushroomsPerChunk; $i++){
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$terrainHeight = $w->getHeight($x, $z) + 1;
+			$mushroom = new BigMushroom($r->nextBoolean());
+			$mushroom->generate($w, $r, new BlockPos($x, $terrainHeight, $z));
+		}
+		self::timing("decorate-trees", $stageStart, $stageMemory, $pos);
+
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
 		for($i = 0; $i < $this->flowersPerChunk; $i++){
-			$x = $r->nextBoundedInt(16);
-			$z = $r->nextBoundedInt(16);
-			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$blockPos = $pos->add($x, $terrainHeight + 1, $z);
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$terrainHeight = $r->nextBoundedInt($w->getHeight($x, $z) + 1 + 32);
+			$blockPos = new BlockPos($x, $terrainHeight, $z);
 
 			$gen = $b->getFlowerType($r, $blockPos);
 			if($gen !== null){
@@ -212,54 +235,70 @@ class Decorator{
 		}
 
 		for($i = 0; $i < $this->grassPerChunk; $i++){
-			$x = $r->nextBoundedInt(16);
-			$z = $r->nextBoundedInt(16);
-			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$this->grassGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$terrainHeight = $r->nextBoundedInt(($w->getHeight($x, $z) + 1) * 2);
+			$this->grassGen->generate($w, $r, new BlockPos($x, $terrainHeight, $z));
 		}
 
 		for($i = 0; $i < $this->deadBushPerChunk; $i++){
-			$x = $r->nextBoundedInt(16);
-			$z = $r->nextBoundedInt(16);
-			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$this->deadBushGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$terrainHeight = $r->nextBoundedInt(($w->getHeight($x, $z) + 1) * 2);
+			$this->deadBushGen->generate($w, $r, new BlockPos($x, $terrainHeight, $z));
 		}
 
 		for($i = 0; $i < $this->waterlilyPerChunk; $i++){
-			$x = $r->nextBoundedInt(16);
-			$z = $r->nextBoundedInt(16);
-			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$this->waterlilyGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$y = $r->nextBoundedInt(($w->getHeight($x, $z) + 1) * 2);
+			while($y > 0 && $w->getBlockId($x, $y - 1, $z) === Block::AIR){
+				$y--;
+			}
+			$this->waterlilyGen->generate($w, $r, new BlockPos($x, $y, $z));
 		}
 
 		for($i = 0; $i < $this->mushroomsPerChunk; $i++){
 			if($r->nextBoundedInt(4) === 0){
-				$x = $r->nextBoundedInt(16);
-				$z = $r->nextBoundedInt(16);
-				$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-				$this->mushroomBrGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
+				$x = $pos->x + $r->nextBoundedInt(16) + 8;
+				$z = $pos->z + $r->nextBoundedInt(16) + 8;
+				$terrainHeight = $w->getHeight($x, $z) + 1;
+				$this->mushroomBrGen->generate($w, $r, new BlockPos($x, $terrainHeight, $z));
 			}
 			if($r->nextBoundedInt(8) === 0){
-				$x = $r->nextBoundedInt(16);
-				$z = $r->nextBoundedInt(16);
-				$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-				$this->mushroomRdGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
+				$x = $pos->x + $r->nextBoundedInt(16) + 8;
+				$z = $pos->z + $r->nextBoundedInt(16) + 8;
+				$terrainHeight = $r->nextBoundedInt(($w->getHeight($x, $z) + 1) * 2);
+				$this->mushroomRdGen->generate($w, $r, new BlockPos($x, $terrainHeight, $z));
 			}
 		}
 
-		for($i = 0; $i < $this->bigMushroomsPerChunk; $i++){
-			$x = $r->nextBoundedInt(16);
-			$z = $r->nextBoundedInt(16);
-			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$mushroom = new BigMushroom($r->nextBoolean());
-			$mushroom->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
+		if($r->nextBoundedInt(4) === 0){
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$terrainHeight = $r->nextBoundedInt(($w->getHeight($x, $z) + 1) * 2);
+			$this->mushroomBrGen->generate($w, $r, new BlockPos($x, $terrainHeight, $z));
+		}
+		if($r->nextBoundedInt(8) === 0){
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$terrainHeight = $r->nextBoundedInt(($w->getHeight($x, $z) + 1) * 2);
+			$this->mushroomRdGen->generate($w, $r, new BlockPos($x, $terrainHeight, $z));
 		}
 
 		for($i = 0; $i < $this->reedsPerChunk; $i++){
-			$x = $r->nextBoundedInt(16);
-			$z = $r->nextBoundedInt(16);
-			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$this->reedGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$terrainHeight = $r->nextBoundedInt(($w->getHeight($x, $z) + 1) * 2);
+			$this->reedGen->generate($w, $r, new BlockPos($x, $terrainHeight, $z));
+		}
+
+		// Java 在 biome 自身芦苇数量之外固定再生成 10 次。
+		for($i = 0; $i < 10; $i++){
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$terrainHeight = $r->nextBoundedInt(($w->getHeight($x, $z) + 1) * 2);
+			$this->reedGen->generate($w, $r, new BlockPos($x, $terrainHeight, $z));
 		}
 
 		// Java BiomeDecorator：无论群系配置如何，都固定再尝试 10 次芦苇。
@@ -271,28 +310,35 @@ class Decorator{
 		}
 
 		if($r->nextBoundedInt(32) === 0){
-			$x = $r->nextBoundedInt(16);
-			$z = $r->nextBoundedInt(16);
-			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$this->pumpkinGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$terrainHeight = $r->nextBoundedInt(($w->getHeight($x, $z) + 1) * 2);
+			$this->pumpkinGen->generate($w, $r, new BlockPos($x, $terrainHeight, $z));
 		}
 
 		for($i = 0; $i < $this->cactiPerChunk; $i++){
-			$x = $r->nextBoundedInt(16);
-			$z = $r->nextBoundedInt(16);
-			$terrainHeight = $w->getHeight($pos->x + $x, $pos->z + $z);
-			$this->cactusGen->generate($w, $r, $pos->add($x, $terrainHeight + 1, $z));
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$terrainHeight = $r->nextBoundedInt(($w->getHeight($x, $z) + 1) * 2);
+			$this->cactusGen->generate($w, $r, new BlockPos($x, $terrainHeight, $z));
 		}
+		self::timing("decorate-plants", $stageStart, $stageMemory, $pos);
 
 		if($this->generateFalls){
+			$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
 			for($i = 0; $i < 50; $i++){
-				$p = $pos->add($r->nextBoundedInt(16), $r->nextBoundedInt($r->nextBoundedInt(112) + 8) + 8, $r->nextBoundedInt(16));
-				$this->waterSpringGen->generate($w, $r, $p);
+				$x = $pos->x + $r->nextBoundedInt(16) + 8;
+				$y = $r->nextBoundedInt($r->nextBoundedInt(248) + 8);
+				$z = $pos->z + $r->nextBoundedInt(16) + 8;
+				$this->waterSpringGen->generate($w, $r, new BlockPos($x, $y, $z));
 			}
 			for($i = 0; $i < 20; $i++){
-				$p = $pos->add($r->nextBoundedInt(16), $r->nextBoundedInt($r->nextBoundedInt(112) + 8) + 8, $r->nextBoundedInt(16));
-				$this->lavaSpringGen->generate($w, $r, $p);
+				$x = $pos->x + $r->nextBoundedInt(16) + 8;
+				$y = $r->nextBoundedInt($r->nextBoundedInt($r->nextBoundedInt(240) + 8) + 8);
+				$z = $pos->z + $r->nextBoundedInt(16) + 8;
+				$this->lavaSpringGen->generate($w, $r, new BlockPos($x, $y, $z));
 			}
+			self::timing("decorate-springs", $stageStart, $stageMemory, $pos);
 		}
 	}
 

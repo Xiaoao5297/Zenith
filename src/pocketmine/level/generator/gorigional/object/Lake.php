@@ -23,6 +23,7 @@
 namespace pocketmine\level\generator\gorigional\object;
 
 use pocketmine\block\Block;
+use pocketmine\level\generator\gorigional\biome\BiomeRegistry;
 use pocketmine\level\generator\gorigional\JavaRandom;
 
 /**
@@ -53,15 +54,16 @@ class Lake implements Feature{
 		$y -= 4;
 
 		$aboolean = array_fill(0, 2048, false);
-		$i = ($r->nextInt() & 3) + 4;
+		$i = $r->nextBoundedInt(4) + 4;
 
 		for($j = 0; $j < $i; $j++){
-			$d0 = $r->nextFloat() * 6.0 + 3.0;
-			$d1 = $r->nextFloat() * 4.0 + 2.0;
-			$d2 = $r->nextFloat() * 6.0 + 3.0;
-			$d3 = $r->nextFloat() * (16.0 - $d0 - 2.0) + 1.0 + $d0 / 2.0;
-			$d4 = $r->nextFloat() * (8.0 - $d1 - 4.0) + 2.0 + $d1 / 2.0;
-			$d5 = $r->nextFloat() * (16.0 - $d2 - 2.0) + 1.0 + $d2 / 2.0;
+			// Java WorldGenLakes 使用 nextDouble() 生成椭球参数。
+			$d0 = $r->nextDouble() * 6.0 + 3.0;
+			$d1 = $r->nextDouble() * 4.0 + 2.0;
+			$d2 = $r->nextDouble() * 6.0 + 3.0;
+			$d3 = $r->nextDouble() * (16.0 - $d0 - 2.0) + 1.0 + $d0 / 2.0;
+			$d4 = $r->nextDouble() * (8.0 - $d1 - 4.0) + 2.0 + $d1 / 2.0;
+			$d5 = $r->nextDouble() * (16.0 - $d2 - 2.0) + 1.0 + $d2 / 2.0;
 
 			for($l = 1; $l < 15; $l++){
 				for($i1 = 1; $i1 < 15; $i1++){
@@ -98,9 +100,9 @@ class Lake implements Feature{
 
 					$mat = $w->getBlockId($x + $k1, $y + $k, $z + $l2);
 					$isLiquid = $mat === Block::WATER || $mat === Block::STILL_WATER || $mat === Block::LAVA || $mat === Block::STILL_LAVA;
+					$isSolid = $mat !== Block::AIR && Block::get($mat)->isSolid();
 
 					if($k < 4){
-						$isSolid = $mat !== 0 && !$isLiquid;
 						if(!$isSolid && $mat !== $this->blockID){
 							return false;
 						}
@@ -125,7 +127,7 @@ class Lake implements Feature{
 			}
 		}
 
-		// 湖面上方的泥土转草方块，贴近 MCPE 的湖岸处理。
+		// Java：湖面上方的泥土转草方块，且必须有天空光。
 		for($l1 = 0; $l1 < 16; $l1++){
 			for($i3 = 0; $i3 < 16; $i3++){
 				for($i4 = 4; $i4 < 8; $i4++){
@@ -133,8 +135,60 @@ class Lake implements Feature{
 						$bx = $x + $l1;
 						$by = $y + $i4 - 1;
 						$bz = $z + $i3;
-						if($w->getBlockId($bx, $by, $bz) === Block::DIRT){
-							$w->setBlock($bx, $by, $bz, Block::GRASS, 0);
+						if($w->getBlockId($bx, $by, $bz) !== Block::DIRT){
+							continue;
+						}
+						if(method_exists($w, 'getSkyLight') && $w->getSkyLight($bx, $by + 1, $bz) <= 0){
+							continue;
+						}
+						$topBiome = BiomeRegistry::getBiome($w->getBiomeId($bx, $bz));
+						$w->setBlock($bx, $by, $bz, $topBiome->getTopBlock() === Block::MYCELIUM ? Block::MYCELIUM : Block::GRASS, 0);
+					}
+				}
+			}
+		}
+
+		// Java WorldGenLakes：水湖生成时对湖面上方（y+4）的水结冰。
+		if($this->blockID === Block::WATER || $this->blockID === Block::STILL_WATER){
+			for($l1 = 0; $l1 < 16; $l1++){
+				for($i3 = 0; $i3 < 16; $i3++){
+					$bx = $x + $l1;
+					$by = $y + 4;
+					$bz = $z + $i3;
+					if($w->getBlockId($bx, $by, $bz) !== Block::STILL_WATER && $w->getBlockId($bx, $by, $bz) !== Block::WATER){
+						continue;
+					}
+					if($w->getBlockLight($bx, $by, $bz) >= 10){
+						continue;
+					}
+					$biome = BiomeRegistry::getBiome($w->getBiomeId($bx, $bz));
+					if($biome->getTemperatureAt($bx, $by, $bz) > 0.15){
+						continue;
+					}
+					$w->setBlock($bx, $by, $bz, Block::ICE, 0);
+				}
+			}
+		}
+
+		// Java：岩浆湖外壳的实心方块转石头。
+		if($this->blockID === Block::STILL_LAVA || $this->blockID === Block::LAVA){
+			for($l1 = 0; $l1 < 16; $l1++){
+				for($i3 = 0; $i3 < 16; $i3++){
+					for($i4 = 0; $i4 < 8; $i4++){
+						$flag = !$aboolean[($l1 * 16 + $i3) * 8 + $i4] && (($l1 < 15 && $aboolean[(($l1 + 1) * 16 + $i3) * 8 + $i4]) ||
+							($l1 > 0 && $aboolean[(($l1 - 1) * 16 + $i3) * 8 + $i4]) ||
+							($i3 < 15 && $aboolean[($l1 * 16 + $i3 + 1) * 8 + $i4]) ||
+							($i3 > 0 && $aboolean[($l1 * 16 + ($i3 - 1)) * 8 + $i4]) ||
+							($i4 < 7 && $aboolean[($l1 * 16 + $i3) * 8 + $i4 + 1]) ||
+							($i4 > 0 && $aboolean[($l1 * 16 + $i3) * 8 + ($i4 - 1)]));
+
+						if($flag && ($i4 < 4 || $r->nextBoundedInt(2) !== 0)){
+							$bx = $x + $l1;
+							$by = $y + $i4;
+							$bz = $z + $i3;
+							if(Block::get($w->getBlockId($bx, $by, $bz))->isSolid()){
+								$w->setBlock($bx, $by, $bz, Block::STONE, 0);
+							}
 						}
 					}
 				}

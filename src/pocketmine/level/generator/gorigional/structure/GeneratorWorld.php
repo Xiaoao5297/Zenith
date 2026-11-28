@@ -27,6 +27,7 @@ use pocketmine\level\Level;
 use pocketmine\level\generator\gorigional\Int64;
 use pocketmine\level\generator\gorigional\JavaRandom;
 use pocketmine\level\generator\gorigional\object\ChunkManagerAdapter;
+use pocketmine\level\generator\gorigional\object\ObjectChunkManager;
 use pocketmine\nbt\tag\CompoundTag;
 use pocketmine\nbt\tag\IntTag;
 use pocketmine\nbt\tag\StringTag;
@@ -37,7 +38,7 @@ use pocketmine\tile\Tile;
 /**
  * 把核心 ChunkManager 适配为结构生成所需的 World。
  */
-class GeneratorWorld implements World{
+class GeneratorWorld implements World, ObjectChunkManager{
 	/** @var ChunkManagerAdapter */
 	private $blocks;
 	/** @var int */
@@ -132,6 +133,18 @@ class GeneratorWorld implements World{
 
 	public function getHeight($x, $z){
 		return $this->blocks->getHeight($x, $z);
+	}
+
+	public function getTopSolidOrLiquidBlock($x, $z){
+		return $this->blocks->getTopSolidOrLiquidBlock($x, $z);
+	}
+
+	public function getBiomeId($x, $z){
+		return $this->biomeManager->getBiome($x, $z);
+	}
+
+	public function getBlockLight($x, $y, $z){
+		return $this->blocks->getBlockLight($x, $y, $z);
 	}
 
 	public function getBiome($x, $z){

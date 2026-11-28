@@ -290,20 +290,31 @@ abstract class BaseFullChunk implements FullChunk{
 		for($z = 0; $z < 16; ++$z){
 			for($x = 0; $x < 16; ++$x){
 				$top = $this->getHeightMap($x, $z);
-				for($y = 127; $y > $top; --$y){
-					$this->setBlockSkyLight($x, $y, $z, 15);
-				}
-
+				$firstSolid = -1;
 				for($y = $top; $y >= 0; --$y){
 					if(Block::$solid[$this->getBlockId($x, $y, $z)]){
+						$firstSolid = $y;
 						break;
 					}
-
-					$this->setBlockSkyLight($x, $y, $z, 15);
 				}
 
-				$this->setHeightMap($x, $z, $this->getHighestBlockAt($x, $z, false));
+				$from = $firstSolid + 1;
+				if($from <= 127){
+					$this->setBlockSkyLightRange($x, $z, $from, 127);
+				}
 			}
+		}
+	}
+
+	/**
+	 * 把一列中 [fromY, toY] 的天光设为 15。
+	 * 默认逐格写入，具体区块格式可覆盖为批量写入。
+	 */
+	public function setBlockSkyLightRange($x, $z, $fromY, $toY = 127){
+		$fromY = max(0, $fromY);
+		$toY = min(127, $toY);
+		for($y = $toY; $y >= $fromY; --$y){
+			$this->setBlockSkyLight($x, $y, $z, 15);
 		}
 	}
 

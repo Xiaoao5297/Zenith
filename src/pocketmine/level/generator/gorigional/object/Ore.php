@@ -59,7 +59,7 @@ class Ore implements Feature{
 		$d4 = $pos->y + $r->nextBoundedInt(3) - 2;
 		$d5 = $pos->y + $r->nextBoundedInt(3) - 2;
 
-		for($i = 0; $i < $this->blockCount; $i++){
+		for($i = 0; $i <= $this->blockCount; $i++){
 			$f1 = $i / $this->blockCount;
 			$d6 = $d0 + ($d1 - $d0) * $f1;
 			$d7 = $d4 + ($d5 - $d4) * $f1;

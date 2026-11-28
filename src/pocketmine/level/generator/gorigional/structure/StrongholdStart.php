@@ -25,24 +25,29 @@ namespace pocketmine\level\generator\gorigional\structure;
 use pocketmine\level\generator\gorigional\JavaRandom;
 
 /**
- * MCPE 0.14.3 StrongholdStart。
+ * Java 1.7.10 MapGenStronghold$Start。
  */
 class StrongholdStart extends StructureStart{
+	/** @var StrongholdStairs2 */
+	private $startPiece;
 
 	public function __construct(World $world, JavaRandom $rnd, $chunkX, $chunkZ){
 		parent::__construct($chunkX, $chunkZ);
 		StrongholdPieces::reset();
 
 		$start = new StrongholdStairs2(0, $rnd, ($chunkX << 4) + 2, ($chunkZ << 4) + 2);
+		$this->startPiece = $start;
 		$this->components[] = $start;
-		StrongholdPieces::setStartBox($start->getBoundingBox());
+		StrongholdPieces::setStartBox($start->getBoundingBox(), $start);
+		StrongholdPieces::setForcedPiece(StrongholdCrossing::class);
 		$start->buildComponent($start, $this->components, $rnd);
 
 		$guard = 0;
 		while(!empty($start->pendingPieces)){
-			if(++$guard > 120){
+			if(++$guard > 512){
 				break;
 			}
+			// Java MapGenStronghold$Start 从待处理列表中随机取一个部件。
 			$index = $rnd->nextBoundedInt(count($start->pendingPieces));
 			$piece = $start->pendingPieces[$index];
 			array_splice($start->pendingPieces, $index, 1);
@@ -50,6 +55,10 @@ class StrongholdStart extends StructureStart{
 		}
 
 		$this->updateBoundingBox();
-		$this->placeAtHeight($world, $rnd, 5);
+		$this->placeAtHeight($world, $rnd, 10);
+	}
+
+	public function hasPortalRoom(){
+		return $this->startPiece->portalRoom !== null;
 	}
 }

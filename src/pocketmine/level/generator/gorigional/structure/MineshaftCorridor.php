@@ -239,12 +239,17 @@ class MineshaftCorridor extends MineshaftPiece{
 	}
 
 	private function generateMinecartChest(WorldAccess $w, BoundingBox $box, JavaRandom $rnd, $x, $y, $z){
+		// Java 在调用 func_74879_a 前计算数量，即使位置无效也消耗随机数。
+		$stacks = 3 + $rnd->nextBoundedInt(4);
+
 		$worldX = $this->getXWithOffset($x, $z);
 		$worldY = $this->getYWithOffset($y);
 		$worldZ = $this->getZWithOffset($x, $z);
 
 		if($box->resultIsInside($worldX, $worldY, $worldZ) && $w->getBlockId($worldX, $worldY, $worldZ) === self::AIR){
-			$this->generateChest($w, $box, $rnd, $x, $y, $z, 'mineshaft');
+			// Java 用 nextBoolean() 选择矿车朝向。
+			$rnd->nextBoolean();
+			$this->generateChest($w, $box, $rnd, $x, $y, $z, 'mineshaft', $stacks);
 		}
 	}
 }

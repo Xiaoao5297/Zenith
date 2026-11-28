@@ -81,6 +81,36 @@ class ChunkManagerAdapter implements ObjectChunkManager{
 		$chunk->setBlock($x & 15, $y, $z & 15, $id, $meta);
 	}
 
+	public function getSkyLight($x, $y, $z){
+		if($y < 0 || $y >= 128){
+			return 0;
+		}
+		$chunk = $this->chunkAt($x, $z);
+		if($chunk === null){
+			return 0;
+		}
+		return $chunk->getBlockSkyLight($x & 15, $y, $z & 15);
+	}
+
+	public function getBlockLight($x, $y, $z){
+		if($y < 0 || $y >= 128){
+			return 0;
+		}
+		$chunk = $this->chunkAt($x, $z);
+		if($chunk === null){
+			return 0;
+		}
+		return $chunk->getBlockLight($x & 15, $y, $z & 15);
+	}
+
+	public function getBiomeId($x, $z){
+		$chunk = $this->chunkAt($x, $z);
+		if($chunk === null){
+			return 0;
+		}
+		return $chunk->getBiomeId($x & 15, $z & 15);
+	}
+
 	public function getHeight($x, $z){
 		$chunk = $this->chunkAt($x, $z);
 		if($chunk === null){

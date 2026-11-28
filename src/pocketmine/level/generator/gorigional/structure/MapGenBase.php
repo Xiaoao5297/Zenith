@@ -43,18 +43,15 @@ abstract class MapGenBase{
 	}
 
 	public function generate($chunkX, $chunkZ, FullChunk $chunk){
-		/*
-		 * Java 1.7.10 MapGenBase.func_151539_a：
-		 * 用世界种子初始化，取两次 nextLong 作为两个乘子；
-		 * 每个候选原点用 (x * l) ^ (z * i1) ^ worldSeed 重新播种。
-		 */
+		// Java MapGenBase.func_151539_a：
+		// seed = (long)x * nextLong() ^ (long)z * nextLong() ^ worldSeed
 		$this->rand->setSeed($this->worldSeed);
-		$l = $this->rand->nextLong();
-		$i1 = $this->rand->nextLong();
+		$r1 = $this->rand->nextLong();
+		$r2 = $this->rand->nextLong();
 
 		for($x = $chunkX - $this->range; $x <= $chunkX + $this->range; $x++){
 			for($z = $chunkZ - $this->range; $z <= $chunkZ + $this->range; $z++){
-				$seed = Int64::mul($x, $l) ^ Int64::mul($z, $i1) ^ $this->worldSeed;
+				$seed = Int64::mul($x, $r1) ^ Int64::mul($z, $r2) ^ $this->worldSeed;
 				$this->rand->setSeed($seed);
 
 				$this->recursiveGenerate($chunkX, $chunkZ, $x, $z, $chunk);

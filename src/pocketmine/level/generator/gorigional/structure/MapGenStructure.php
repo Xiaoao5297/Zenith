@@ -48,6 +48,8 @@ abstract class MapGenStructure extends MapGenBase{
 		if(isset($this->structureMap[$key])){
 			return;
 		}
+		// Java MapGenStructure.func_151538_a 在检查结构前先消耗一次 nextInt()。
+		$this->rand->nextInt();
 		// 负结果也缓存；否则每个区块都会把 ±8 范围重新算一遍。
 		if(isset($this->checkedChunks[$key])){
 			return;
@@ -71,7 +73,7 @@ abstract class MapGenStructure extends MapGenBase{
 
 		$flag = false;
 		foreach($this->structureMap as $start){
-			if($start->boundingBox !== null && $start->boundingBox->intersectsWith($box)){
+			if($start->isValid() && $start->boundingBox !== null && $start->boundingBox->intersectsWith($box)){
 				$start->generateStructure($world, $random, $box);
 				$flag = true;
 			}

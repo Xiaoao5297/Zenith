@@ -249,7 +249,7 @@ class DesertPyramid extends ScatteredFeaturePiece{
 					case 2: $dz = 2; break;
 					case 3: $dx = -2; break;
 				}
-				$this->hasPlacedChest[$i1] = $this->generateChest($w, $box, $rnd, 10 + $dx, -11, 10 + $dz, 'desert');
+				$this->hasPlacedChest[$i1] = $this->generateChest($w, $box, $rnd, 10 + $dx, -11, 10 + $dz, 'desert', 2 + $rnd->nextBoundedInt(5));
 			}
 		}
 

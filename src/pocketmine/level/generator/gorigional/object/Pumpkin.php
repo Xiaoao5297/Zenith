@@ -31,7 +31,7 @@ use pocketmine\level\generator\gorigional\JavaRandom;
 class Pumpkin implements Feature{
 
 	public function generate(ObjectChunkManager $w, JavaRandom $r, BlockPos $pos){
-		for($i = 0; $i < 8; $i++){
+		for($i = 0; $i < 64; $i++){
 			$target = $pos->add(
 				$r->nextBoundedInt(8) - $r->nextBoundedInt(8),
 				$r->nextBoundedInt(4) - $r->nextBoundedInt(4),

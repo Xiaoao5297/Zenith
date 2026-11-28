@@ -31,24 +31,31 @@ use pocketmine\level\generator\gorigional\JavaRandom;
 class DeadBush implements Feature{
 
 	public function generate(ObjectChunkManager $w, JavaRandom $r, BlockPos $pos){
-		for($i = 0; $i < 4; $i++){
-			$target = $pos->add(
-				$r->nextBoundedInt(8) - $r->nextBoundedInt(8),
-				$r->nextBoundedInt(4) - $r->nextBoundedInt(4),
-				$r->nextBoundedInt(8) - $r->nextBoundedInt(8)
-			);
+		$j = $pos->y;
+		while($j > 0){
+			$id = $w->getBlockId($pos->x, $j, $pos->z);
+			if($id !== Block::AIR && $id !== Block::LEAVES && $id !== Block::LEAVES2){
+				break;
+			}
+			$j--;
+		}
 
-			if($target->y < 0 || $target->y >= 128){
+		for($i = 0; $i < 4; $i++){
+			$x = $pos->x + $r->nextBoundedInt(8) - $r->nextBoundedInt(8);
+			$y = $j + $r->nextBoundedInt(4) - $r->nextBoundedInt(4);
+			$z = $pos->z + $r->nextBoundedInt(8) - $r->nextBoundedInt(8);
+			if($y < 1 || $y >= 128){
 				continue;
 			}
 
-			if($w->getBlockId($target->x, $target->y, $target->z) === 0){
-				$below = $w->getBlockId($target->x, $target->y - 1, $target->z);
+			if($w->getBlockId($x, $y, $z) === Block::AIR){
+				$below = $w->getBlockId($x, $y - 1, $z);
 				if($below === Block::SAND || $below === Block::DIRT || $below === Block::HARDENED_CLAY || $below === Block::STAINED_CLAY){
-					$w->setBlock($target->x, $target->y, $target->z, Block::DEAD_BUSH, 0);
+					$w->setBlock($x, $y, $z, Block::DEAD_BUSH, 0);
 				}
 			}
 		}
 		return true;
 	}
+
 }

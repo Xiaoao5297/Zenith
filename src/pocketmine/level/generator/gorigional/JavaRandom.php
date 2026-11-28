@@ -62,7 +62,11 @@ class JavaRandom implements RandomSource{
 	}
 
 	public function nextInt(){
-		return $this->next(32);
+		$value = $this->next(32);
+		if($value >= 0x80000000){
+			$value -= 0x100000000;
+		}
+		return $value;
 	}
 
 	public function nextBoundedInt($n){
@@ -77,7 +81,12 @@ class JavaRandom implements RandomSource{
 		do{
 			$bits = $this->next(31);
 			$val = $bits % $n;
-		}while($bits - $val + ($n - 1) < 0);
+			// Java 使用 32 位有符号 int，bits - val + (n - 1) 溢出后会变成负数并重试。
+			$check = ($bits - $val + ($n - 1)) & 0xFFFFFFFF;
+			if($check >= 0x80000000){
+				$check -= 0x100000000;
+			}
+		}while($check < 0);
 
 		return $val;
 	}

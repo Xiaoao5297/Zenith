@@ -43,6 +43,8 @@ class MutatedBiome implements Biome{
 	private $maxElevation;
 	/** @var bool */
 	private $decorateParent;
+	/** @var MesaBiome|null 变异台地使用独立实例（Java BiomeGenMesa.func_150566_k） */
+	private $terrain = null;
 	/** @var float */
 	public $temperature;
 	/** @var float */
@@ -56,6 +58,12 @@ class MutatedBiome implements Biome{
 		$this->decorateParent = $decorateParent;
 		$this->temperature = $parent->temperature;
 		$this->rainfall = $parent->rainfall;
+
+		// Java 的台地变种不是委托父群系，而是新建 BiomeGenMesa 并带上自己的
+		// field_150626_aH / field_150620_aI 标记。
+		if($parent instanceof MesaBiome){
+			$this->terrain = $parent->createMutated($this->id, $this->minElevation, $this->maxElevation);
+		}
 	}
 
 	public function getID(){
@@ -63,10 +71,16 @@ class MutatedBiome implements Biome{
 	}
 
 	public function getMinElevation(){
+		if($this->terrain !== null){
+			return $this->terrain->getMinElevation();
+		}
 		return $this->minElevation;
 	}
 
 	public function getMaxElevation(){
+		if($this->terrain !== null){
+			return $this->terrain->getMaxElevation();
+		}
 		return $this->maxElevation;
 	}
 
@@ -74,11 +88,37 @@ class MutatedBiome implements Biome{
 		return $this->parent->getColor();
 	}
 
+	public function getTopBlock(){
+		return $this->terrain !== null ? $this->terrain->getTopBlock() : $this->parent->getTopBlock();
+	}
+
+	public function getTopMeta(){
+		return $this->terrain !== null ? $this->terrain->getTopMeta() : $this->parent->getTopMeta();
+	}
+
 	public function genTerrainBlocks(FullChunk $chunk, JavaRandom $r, $x, $z, $noiseVal){
-		$this->parent->genTerrainBlocks($chunk, $r, $x, $z, $noiseVal);
+		if($this->terrain !== null){
+			$this->terrain->genTerrainBlocks($chunk, $r, $x, $z, $noiseVal);
+		}else{
+			$this->parent->genTerrainBlocks($chunk, $r, $x, $z, $noiseVal);
+		}
+	}
+
+	public function refreshMesa($seed){
+		if($this->terrain instanceof MesaBiome){
+			$this->terrain->refreshBands($seed);
+		}
+	}
+
+	public function getTemperatureAt($x, $y, $z){
+		return $this->parent->getTemperatureAt($x, $y, $z);
 	}
 
 	public function decorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
+		if($this->parent instanceof BaseBiome && $this->parent->getID() === 4){
+			$this->parent->flowerForestDecorate($level, $r, $pos);
+			return;
+		}
 		if($this->decorateParent){
 			$this->parent->decorate($level, $r, $pos);
 		}else{
@@ -91,6 +131,9 @@ class MutatedBiome implements Biome{
 	}
 
 	public function getFlowerType(JavaRandom $r, BlockPos $pos){
+		if($this->parent instanceof BaseBiome && $this->parent->getID() === 4){
+			return $this->parent->getFlowerForestType($r, $pos);
+		}
 		return $this->parent->getFlowerType($r, $pos);
 	}
 

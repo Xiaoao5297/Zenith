@@ -57,8 +57,8 @@ class TaigaBiome extends BaseBiome{
 			$this->topMeta = 1;
 			$this->fillerBlock = Block::DIRT;
 		}elseif($noiseVal > -0.95){
-			$this->topBlock = Block::PODZOL;
-			$this->topMeta = 0;
+			$this->topBlock = Block::DIRT;
+			$this->topMeta = 2;
 			$this->fillerBlock = Block::DIRT;
 		}else{
 			$this->topBlock = Block::GRASS;

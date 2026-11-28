@@ -36,7 +36,7 @@ class StrongholdStraight extends StrongholdPiece{
 	public function __construct($type, JavaRandom $rnd, BoundingBox $box, $facing){
 		parent::__construct($type);
 		$this->coordBaseMode = $facing;
-		$this->entryDoor = $rnd->nextBoundedInt(5) <= 1 ? 0 : ($rnd->nextBoundedInt(5) === 2 ? 1 : ($rnd->nextBoundedInt(5) === 3 ? 3 : 2));
+		$this->entryDoor = $this->createEntryDoor($rnd);
 		$this->boundingBox = $box;
 		$this->left = $rnd->nextBoundedInt(2) === 0;
 		$this->right = $rnd->nextBoundedInt(2) === 0;
@@ -61,6 +61,9 @@ class StrongholdStraight extends StrongholdPiece{
 	}
 
 	public function addComponentParts(WorldAccess $w, JavaRandom $rnd, BoundingBox $box){
+		if($this->isLiquidInStructureBoundingBox($w, $box)){
+			return;
+		}
 		$this->generateShell($w, $rnd, $box, 4, 4, 6);
 		$this->generateDoor($w, $box, 1, 1, 0, $this->entryDoor);
 		$this->generateDoor($w, $box, 1, 1, 6, 0);

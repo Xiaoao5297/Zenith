@@ -27,256 +27,211 @@ use pocketmine\level\generator\gorigional\JavaMath;
 use pocketmine\level\generator\gorigional\JavaRandom;
 
 /**
- * Java 1.7.10 MapGenCaves 的移植。
- *
- * 旧的实现来自 SCAXE-GO-CE 的 MCPE LargeCaveFeature，两者在"是否生成、生成几个、
- * 隧道怎么拐弯"上都不同。现在按 `docs/remapped_server_1.7.10/net/minecraft/world/gen/MapGenCaves.java`
- * 逐段重写：
- *  - 数量 = nextInt(nextInt(nextInt(15) + 1) + 1)，随后 nextInt(7) != 0 直接清零（约 1/7 保留）；
- *  - 每个洞穴原点用 MapGenBase 的 (x * l) ^ (z * i1) ^ worldSeed 播种 Java LCG；
- *  - 房间、主隧道、分叉、y 裁剪、岩浆层、草方块下方回填都按 Java；
- *  - 挖洞前会先检查包围盒里有没有水（Java 的 flag2），有水就整条放弃。
- *
- * 与 Java 的唯一区别是世界高度：Java 是 0..255，这里是 0..127，
- * 因此 y 的上限从 248 变成 maxHeight - 8。
+ * 移植自 SCAXE-GO-CE pkg/level/generator/gorigional/structure/map_gen_caves.go。
  */
 class MapGenCaves extends MapGenBase{
-	/** @var int 世界高度（有效 y 为 0..maxHeight-1） */
-	public $maxHeight = 128;
+	/** @var int */
+	public $maxHeight = 256;
 
-	public function generateChunk($chunkX, $chunkZ, FullChunk $chunk){
-		$this->generate($chunkX, $chunkZ, $chunk);
+	public function generateChunk($cx, $cz, FullChunk $chunk){
+		$this->generate($cx, $cz, $chunk);
 	}
 
 	public function recursiveGenerate($chunkX, $chunkZ, $originX, $originZ, FullChunk $chunk){
-		// Java: int i1 = rand.nextInt(rand.nextInt(rand.nextInt(15) + 1) + 1);
-		$count = $this->rand->nextBoundedInt($this->rand->nextBoundedInt($this->rand->nextBoundedInt(15) + 1) + 1);
-
-		// Java: if (rand.nextInt(7) != 0) i1 = 0;
+		// Java MapGenCaves.func_151538_a：1/7 的区块原点拥有洞穴系统。
+		$nodes = $this->rand->nextBoundedInt($this->rand->nextBoundedInt($this->rand->nextBoundedInt(15) + 1) + 1);
 		if($this->rand->nextBoundedInt(7) !== 0){
-			$count = 0;
+			$nodes = 0;
 		}
+		$descriptors = [];
 
-		for($i = 0; $i < $count; $i++){
-			$d0 = (double) ($originX * 16 + $this->rand->nextBoundedInt(16));
-			$d1 = (double) $this->rand->nextBoundedInt($this->rand->nextBoundedInt(120) + 8);
-			$d2 = (double) ($originZ * 16 + $this->rand->nextBoundedInt(16));
+		for($j = 0; $j < $nodes; $j++){
+			$rx = $originX * 16 + $this->rand->nextBoundedInt(16);
+			$ry = $this->rand->nextBoundedInt($this->rand->nextBoundedInt(120) + 8);
+			$rz = $originZ * 16 + $this->rand->nextBoundedInt(16);
 
-			$branches = 1;
+			$count = 1;
 			if($this->rand->nextBoundedInt(4) === 0){
-				$this->addRoom($this->rand->nextLong(), $chunkX, $chunkZ, $chunk, $d0, $d1, $d2);
-				$branches += $this->rand->nextBoundedInt(4);
+				$descriptors[] = [
+					'room',
+					$this->rand->nextLong(),
+					$rx, $ry, $rz,
+					1.0 + $this->rand->nextFloat() * 6.0
+				];
+				$count += $this->rand->nextBoundedInt(4);
 			}
 
-			for($j = 0; $j < $branches; $j++){
-				$yaw = $this->rand->nextFloat() * M_PI * 2.0;
-				$pitch = ($this->rand->nextFloat() - 0.5) * 2.0 / 8.0;
+			for($k = 0; $k < $count; $k++){
+				$f = $this->rand->nextFloat() * M_PI * 2.0;
+				$f1 = ($this->rand->nextFloat() - 0.5) * 2.0 / 8.0;
 				$size = $this->rand->nextFloat() * 2.0 + $this->rand->nextFloat();
 
 				if($this->rand->nextBoundedInt(10) === 0){
-					$size *= $this->rand->nextFloat() * $this->rand->nextFloat() * 3.0 + 1.0;
+					$size *= ($this->rand->nextFloat() * $this->rand->nextFloat() * 3.0 + 1.0);
 				}
 
-				$this->addTunnel($this->rand->nextLong(), $chunkX, $chunkZ, $chunk, $d0, $d1, $d2, $size, $yaw, $pitch, 0, 0, 1.0);
+				$descriptors[] = [
+					'tunnel',
+					$this->rand->nextLong(),
+					$rx, $ry, $rz,
+					$size, $f, $f1
+				];
+			}
+		}
+
+		foreach($descriptors as $descriptor){
+			if($descriptor[0] === 'room'){
+				$this->addTunnel($descriptor[1], $chunkX, $chunkZ, $chunk, $descriptor[2], $descriptor[3], $descriptor[4], $descriptor[5], 0.0, 0.0, -1, -1, 0.5);
+			}else{
+				$this->addTunnel($descriptor[1], $chunkX, $chunkZ, $chunk, $descriptor[2], $descriptor[3], $descriptor[4], $descriptor[5], $descriptor[6], $descriptor[7], 0, 0, 1.0);
 			}
 		}
 	}
 
-	/**
-	 * Java MapGenCaves.func_151542_a：先挖一个球形房间，再从房间里长隧道。
-	 */
-	private function addRoom($seed, $chunkX, $chunkZ, FullChunk $chunk, $x, $y, $z){
-		$this->addTunnel($seed, $chunkX, $chunkZ, $chunk, $x, $y, $z, 1.0 + $this->rand->nextFloat() * 6.0, 0.0, 0.0, -1, -1, 0.5);
-	}
-
-	/**
-	 * Java MapGenCaves.func_151541_a（隧道 / 房间的椭球雕刻）。
-	 *
-	 * @param mixed $seed       Java 的 long 种子
-	 * @param int   $chunkX     目标区块 X
-	 * @param int   $chunkZ     目标区块 Z
-	 * @param float $x          世界坐标
-	 * @param float $y
-	 * @param float $z
-	 * @param float $size
-	 * @param float $yaw
-	 * @param float $pitch
-	 * @param int   $currentStep -1 表示从中间开始
-	 * @param int   $tunnelLength
-	 * @param float $heightScale
-	 */
 	public function addTunnel($seed, $chunkX, $chunkZ, FullChunk $chunk, $x, $y, $z, $size, $yaw, $pitch, $currentStep, $tunnelLength, $heightScale){
+		$cx = $chunkX * 16 + 8;
+		$cz = $chunkZ * 16 + 8;
+
+		$f = 0.0;
+		$f1 = 0.0;
+
 		$rnd = new JavaRandom($seed);
 
 		if($tunnelLength <= 0){
-			$max = $this->range * 16 - 16;
-			$tunnelLength = $max - $rnd->nextBoundedInt(intdiv($max, 4));
+			$i = $this->range * 16 - 16;
+			$tunnelLength = $i - $rnd->nextBoundedInt(intdiv($i, 4));
 		}
 
-		$isMiddle = false;
+		$flag = false;
 		if($currentStep === -1){
 			$currentStep = intdiv($tunnelLength, 2);
-			$isMiddle = true;
+			$flag = true;
 		}
 
-		$branchStep = $rnd->nextBoundedInt(intdiv($tunnelLength, 2)) + intdiv($tunnelLength, 4);
-		$wide = $rnd->nextBoundedInt(6) === 0;
-
-		$chunkOriginX = $chunkX * 16 + 8;
-		$chunkOriginZ = $chunkZ * 16 + 8;
-
-		$yawDrift = 0.0;
-		$pitchDrift = 0.0;
+		$j = $rnd->nextBoundedInt(intdiv($tunnelLength, 2)) + intdiv($tunnelLength, 4);
+		$flag1 = $rnd->nextBoundedInt(6) === 0;
 
 		for(; $currentStep < $tunnelLength; $currentStep++){
-			$radius = 1.5 + JavaMath::sin($currentStep * M_PI / $tunnelLength) * $size;
-			$radiusY = $radius * $heightScale;
+			$d2 = 1.5 + JavaMath::sin($currentStep * M_PI / $tunnelLength) * $size;
+			$d3 = $d2 * $heightScale;
+			$f2 = JavaMath::cos($pitch);
+			$f3 = JavaMath::sin($pitch);
 
-			$cosPitch = JavaMath::cos($pitch);
-			$sinPitch = JavaMath::sin($pitch);
+			$x += JavaMath::cos($yaw) * $f2;
+			$y += $f3;
+			$z += JavaMath::sin($yaw) * $f2;
 
-			$x += JavaMath::cos($yaw) * $cosPitch;
-			$y += $sinPitch;
-			$z += JavaMath::sin($yaw) * $cosPitch;
-
-			if($wide){
+			if($flag1){
 				$pitch *= 0.92;
 			}else{
 				$pitch *= 0.7;
 			}
 
-			$pitch += $pitchDrift * 0.1;
-			$yaw += $yawDrift * 0.1;
-			$pitchDrift *= 0.9;
-			$yawDrift *= 0.75;
-			$pitchDrift += ($rnd->nextFloat() - $rnd->nextFloat()) * $rnd->nextFloat() * 2.0;
-			$yawDrift += ($rnd->nextFloat() - $rnd->nextFloat()) * $rnd->nextFloat() * 4.0;
+			$pitch += $f1 * 0.1;
+			$yaw += $f * 0.1;
+			$f1 *= 0.9;
+			$f *= 0.75;
+			$f1 += ($rnd->nextFloat() - $rnd->nextFloat()) * $rnd->nextFloat() * 2.0;
+			$f += ($rnd->nextFloat() - $rnd->nextFloat()) * $rnd->nextFloat() * 4.0;
 
-			if(!$isMiddle && $currentStep === $branchStep && $size > 1.0 && $tunnelLength > 0){
+			if(!$flag && $currentStep === $j && $size > 1.0 && $tunnelLength > 0){
 				$this->addTunnel($rnd->nextLong(), $chunkX, $chunkZ, $chunk, $x, $y, $z, $rnd->nextFloat() * 0.5 + 0.5, $yaw - M_PI / 2.0, $pitch / 3.0, $currentStep, $tunnelLength, 1.0);
 				$this->addTunnel($rnd->nextLong(), $chunkX, $chunkZ, $chunk, $x, $y, $z, $rnd->nextFloat() * 0.5 + 0.5, $yaw + M_PI / 2.0, $pitch / 3.0, $currentStep, $tunnelLength, 1.0);
 				return;
 			}
 
-			if($isMiddle || $rnd->nextBoundedInt(4) !== 0){
-				$dx = $x - $chunkOriginX;
-				$dz = $z - $chunkOriginZ;
-				$remaining = $tunnelLength - $currentStep;
-				$reach = $size + 2.0 + 16.0;
+			if($flag || $rnd->nextBoundedInt(4) !== 0){
+				$d4 = $x - $cx;
+				$d5 = $z - $cz;
+				$d6 = $tunnelLength - $currentStep;
+				$d7 = $size + 2.0 + 16.0;
 
-				if($dx * $dx + $dz * $dz - $remaining * $remaining > $reach * $reach){
+				if($d4 * $d4 + $d5 * $d5 - $d6 * $d6 > $d7 * $d7){
 					return;
 				}
 
-				if($x >= $chunkOriginX - 16.0 - $radius * 2.0 && $z >= $chunkOriginZ - 16.0 - $radius * 2.0
-					&& $x <= $chunkOriginX + 16.0 + $radius * 2.0 && $z <= $chunkOriginZ + 16.0 + $radius * 2.0){
-					$x0 = (int) floor($x - $radius) - $chunkX * 16 - 1;
-					$x1 = (int) floor($x + $radius) - $chunkX * 16 + 1;
-					$y0 = (int) floor($y - $radiusY) - 1;
-					$y1 = (int) floor($y + $radiusY) + 1;
-					$z0 = (int) floor($z - $radius) - $chunkZ * 16 - 1;
-					$z1 = (int) floor($z + $radius) - $chunkZ * 16 + 1;
+				if($x >= $cx - 16.0 - $d2 * 2.0 && $z >= $cz - 16.0 - $d2 * 2.0 && $x <= $cx + 16.0 + $d2 * 2.0 && $z <= $cz + 16.0 + $d2 * 2.0){
+					$k = (int) ($x - $d2) - $chunkX * 16 - 1;
+					$l = (int) ($x + $d2) - $chunkX * 16 + 1;
+					$i1 = (int) ($y - $d3) - 1;
+					$j1 = (int) ($y + $d3) + 1;
+					$k1 = (int) ($z - $d2) - $chunkZ * 16 - 1;
+					$l1 = (int) ($z + $d2) - $chunkZ * 16 + 1;
 
-					if($x0 < 0){
-						$x0 = 0;
+					if($k < 0){
+						$k = 0;
 					}
-					if($x1 > 16){
-						$x1 = 16;
+					if($l > 16){
+						$l = 16;
 					}
-					if($y0 < 1){
-						$y0 = 1;
+					if($i1 < 1){
+						$i1 = 1;
 					}
-					if($y1 > $this->maxHeight - 8){
-						$y1 = $this->maxHeight - 8;
+					if($j1 > $this->maxHeight - 8){
+						$j1 = $this->maxHeight - 8;
 					}
-					if($z0 < 0){
-						$z0 = 0;
+					if($k1 < 0){
+						$k1 = 0;
 					}
-					if($z1 > 16){
-						$z1 = 16;
-					}
-
-					if($this->containsWater($chunk, $x0, $x1, $y0, $y1, $z0, $z1)){
-						continue;
+					if($l1 > 16){
+						$l1 = 16;
 					}
 
-					for($bx = $x0; $bx < $x1; $bx++){
-						$nx = ($bx + $chunkX * 16 + 0.5 - $x) / $radius;
-
-						for($bz = $z0; $bz < $z1; $bz++){
-							$nz = ($bz + $chunkZ * 16 + 0.5 - $z) / $radius;
-
-							if($nx * $nx + $nz * $nz >= 1.0){
-								continue;
-							}
-
-							$sawGrass = false;
-
-							for($by = $y1 - 1; $by >= $y0; $by--){
-								$ny = ($by + 0.5 - $y) / $radiusY;
-
-								if($ny > -0.7 && $nx * $nx + $ny * $ny + $nz * $nz < 1.0){
-									$id = $chunk->getBlockId($bx, $by, $bz);
-
-									if($id === 2){ // 草方块
-										$sawGrass = true;
+					// Java func_151541_a：先扫描整个候选包围盒，只要出现水就整段不雕刻。
+					$hasWater = false;
+					for($i3 = $k; !$hasWater && $i3 < $l; $i3++){
+						for($k3 = $k1; !$hasWater && $k3 < $l1; $k3++){
+							for($j3 = $j1 + 1; !$hasWater && $j3 >= $i1 - 1; $j3--){
+								if($j3 >= 0 && $j3 < $this->maxHeight){
+									$waterID = $chunk->getBlockId($i3, $j3, $k3);
+									if($waterID === 8 || $waterID === 9){
+										$hasWater = true;
 									}
-
-									if($id === 1 || $id === 3 || $id === 2){ // 石头 / 泥土 / 草方块
-										if($by < 10){
-											$chunk->setBlock($bx, $by, $bz, 10, 0); // 岩浆
-										}else{
-											$chunk->setBlock($bx, $by, $bz, 0, 0);
-
-											if($sawGrass && $chunk->getBlockId($bx, $by - 1, $bz) === 3){
-												$chunk->setBlock($bx, $by - 1, $bz, $this->topBlockAt($chunk, $bx, $bz), 0);
-											}
-										}
+									if($j3 !== $i1 - 1 && $i3 !== $k && $i3 !== $l - 1 && $k3 !== $k1 && $k3 !== $l1 - 1){
+										$j3 = $i1;
 									}
 								}
 							}
 						}
 					}
 
-					if($isMiddle){
-						break;
-					}
-				}
-			}
-		}
-	}
+					if(!$hasWater){
+						for($i2 = $k; $i2 < $l; $i2++){
+							$d8 = ($i2 + $chunkX * 16 + 0.5 - $x) / $d2;
+							for($k2 = $k1; $k2 < $l1; $k2++){
+								$d9 = ($k2 + $chunkZ * 16 + 0.5 - $z) / $d2;
+								if($d8 * $d8 + $d9 * $d9 < 1.0){
+									$flag3 = false;
+									for($j2 = $j1; $j2 > $i1; $j2--){
+										$d10 = ($j2 - 1 + 0.5 - $y) / $d3;
+										if($d10 > -0.7 && $d8 * $d8 + $d10 * $d10 + $d9 * $d9 < 1.0){
+											$b = $chunk->getBlockId($i2, $j2, $k2);
+											if($b === 2){
+												$flag3 = true;
+											}
+											if($b === 1 || $b === 3 || $b === 2){
+												if($j2 < 10){
+													$chunk->setBlock($i2, $j2, $k2, 10, 0);
+												}else{
+													$chunk->setBlock($i2, $j2, $k2, 0, 0);
+													if($flag3 && $j2 - 1 >= 0 && $chunk->getBlockId($i2, $j2 - 1, $k2) === 3){
+														$topBiome = BiomeRegistry::getBiome($chunk->getBiomeId($i2, $k2));
+														$chunk->setBlock($i2, $j2 - 1, $k2, $topBiome->getTopBlock(), $topBiome->getTopMeta());
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
 
-	/**
-	 * Java 的 flag2：包围盒内只要有水（8/9），整条隧道放弃。
-	 * Java 只对盒子边界做完整扫描，内部柱子只看最上/最下两格，这里保持一致。
-	 */
-	private function containsWater(FullChunk $chunk, $x0, $x1, $y0, $y1, $z0, $z1){
-		for($x = $x0; $x < $x1; $x++){
-			for($z = $z0; $z < $z1; $z++){
-				for($y = $y1 + 1; $y >= $y0 - 1; $y--){
-					if($y >= 0 && $y < $this->maxHeight){
-						$id = $chunk->getBlockId($x, $y, $z);
-						if($id === 8 || $id === 9){
-							return true;
+						if($flag){
+							break;
 						}
 					}
-
-					if($y !== $y0 - 1 && $x !== $x0 && $x !== $x1 - 1 && $z !== $z0 && $z !== $z1 - 1){
-						$y = $y0;
-					}
 				}
 			}
 		}
-
-		return false;
-	}
-
-	/**
-	 * Java 用 world.getBiomeGenForCoords(x, z).topBlock 回填被挖掉草方块后的泥土。
-	 */
-	private function topBlockAt(FullChunk $chunk, $x, $z){
-		$biome = BiomeRegistry::getBiome($chunk->getBiomeId($x & 15, $z & 15) & 0xFF);
-
-		return $biome->topBlock;
 	}
 }

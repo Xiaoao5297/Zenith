@@ -34,7 +34,7 @@ class StrongholdRoomCrossing extends StrongholdPiece{
 	public function __construct($type, JavaRandom $rnd, BoundingBox $box, $facing){
 		parent::__construct($type);
 		$this->coordBaseMode = $facing;
-		$this->entryDoor = $rnd->nextBoundedInt(5) <= 1 ? 0 : 2;
+		$this->entryDoor = $this->createEntryDoor($rnd);
 		$this->roomType = $rnd->nextBoundedInt(5);
 		$this->boundingBox = $box;
 	}
@@ -54,6 +54,9 @@ class StrongholdRoomCrossing extends StrongholdPiece{
 	}
 
 	public function addComponentParts(WorldAccess $w, JavaRandom $rnd, BoundingBox $box){
+		if($this->isLiquidInStructureBoundingBox($w, $box)){
+			return;
+		}
 		$this->generateShell($w, $rnd, $box, 10, 6, 10);
 		$this->generateDoor($w, $box, 4, 1, 0, $this->entryDoor);
 		$this->fillWithAir($w, $box, 4, 1, 10, 6, 3, 10);
@@ -65,10 +68,9 @@ class StrongholdRoomCrossing extends StrongholdPiece{
 			foreach([[4, 3, 5], [6, 3, 5], [5, 3, 4], [5, 3, 6]] as $p){
 				$this->placeBlock($w, self::TORCH, 0, $p[0], $p[1], $p[2], $box);
 			}
-			$this->fillWithBlocks($w, $box, 4, 1, 4, 4, 1, 6, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-			$this->fillWithBlocks($w, $box, 6, 1, 4, 6, 1, 6, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-			$this->fillWithBlocks($w, $box, 5, 1, 4, 5, 1, 4, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-			$this->fillWithBlocks($w, $box, 5, 1, 6, 5, 1, 6, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
+			foreach([[4, 1, 4], [4, 1, 5], [4, 1, 6], [6, 1, 4], [6, 1, 5], [6, 1, 6], [5, 1, 4], [5, 1, 6]] as $p){
+				$this->placeBlock($w, 44, 0, $p[0], $p[1], $p[2], $box);
+			}
 		}elseif($this->roomType === 1){
 			for($i = 0; $i < 5; $i++){
 				$this->placeBlock($w, self::STONE_BRICKS, 0, 3, 1, 3 + $i, $box);
@@ -80,10 +82,18 @@ class StrongholdRoomCrossing extends StrongholdPiece{
 			$this->placeBlock($w, self::WATER, 0, 5, 4, 5, $box);
 		}elseif($this->roomType === 2){
 			for($i = 1; $i <= 9; $i++){
-				$this->placeBlock($w, self::STONE_BRICKS, 0, 1, 3, $i, $box);
-				$this->placeBlock($w, self::STONE_BRICKS, 0, 9, 3, $i, $box);
-				$this->placeBlock($w, self::STONE_BRICKS, 0, $i, 3, 1, $box);
-				$this->placeBlock($w, self::STONE_BRICKS, 0, $i, 3, 9, $box);
+				$this->placeBlock($w, self::COBBLESTONE, 0, 1, 3, $i, $box);
+				$this->placeBlock($w, self::COBBLESTONE, 0, 9, 3, $i, $box);
+				$this->placeBlock($w, self::COBBLESTONE, 0, $i, 3, 1, $box);
+				$this->placeBlock($w, self::COBBLESTONE, 0, $i, 3, 9, $box);
+			}
+			foreach([[5, 1, 4], [5, 1, 6], [5, 3, 4], [5, 3, 6], [4, 1, 5], [6, 1, 5], [4, 3, 5], [6, 3, 5]] as $p){
+				$this->placeBlock($w, self::COBBLESTONE, 0, $p[0], $p[1], $p[2], $box);
+			}
+			for($i = 1; $i <= 3; $i++){
+				foreach([[4, 4], [6, 4], [4, 6], [6, 6]] as $p){
+					$this->placeBlock($w, self::COBBLESTONE, 0, $p[0], $i, $p[1], $box);
+				}
 			}
 			$this->placeBlock($w, self::TORCH, 0, 5, 3, 5, $box);
 			for($i = 2; $i <= 8; $i++){
@@ -91,11 +101,20 @@ class StrongholdRoomCrossing extends StrongholdPiece{
 				$this->placeBlock($w, self::PLANKS, 0, 3, 3, $i, $box);
 				$this->placeBlock($w, self::PLANKS, 0, 7, 3, $i, $box);
 				$this->placeBlock($w, self::PLANKS, 0, 8, 3, $i, $box);
+				if($i <= 3 || $i >= 7){
+					foreach([4, 5, 6] as $x){
+						$this->placeBlock($w, self::PLANKS, 0, $x, 3, $i, $box);
+					}
+				}
+			}
+			$ladderMeta = $this->getMetadataWithOffset(self::LADDER, 4);
+			for($i = 1; $i <= 3; $i++){
+				$this->placeBlock($w, self::LADDER, $ladderMeta, 9, $i, 3, $box);
 			}
 		}
 
-		if($this->roomType === 1){
-			$this->generateChest($w, $box, $rnd, 3, 2, 8, 'stronghold');
+		if($this->roomType === 2){
+			$this->generateChest($w, $box, $rnd, 3, 4, 8, 'stronghold_crossing', 1 + $rnd->nextBoundedInt(4));
 		}
 		return true;
 	}

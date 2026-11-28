@@ -33,7 +33,7 @@ class StrongholdChestCorridor extends StrongholdPiece{
 	public function __construct($type, JavaRandom $rnd, BoundingBox $box, $facing){
 		parent::__construct($type);
 		$this->coordBaseMode = $facing;
-		$this->entryDoor = $rnd->nextBoundedInt(5) <= 1 ? 0 : 2;
+		$this->entryDoor = $this->createEntryDoor($rnd);
 		$this->boundingBox = $box;
 	}
 
@@ -50,17 +50,32 @@ class StrongholdChestCorridor extends StrongholdPiece{
 	}
 
 	public function addComponentParts(WorldAccess $w, JavaRandom $rnd, BoundingBox $box){
+		if($this->isLiquidInStructureBoundingBox($w, $box)){
+			return;
+		}
 		$this->generateShell($w, $rnd, $box, 4, 4, 6);
 		$this->generateDoor($w, $box, 1, 1, 0, $this->entryDoor);
 		$this->generateDoor($w, $box, 1, 1, 6, 0);
 
 		$this->fillWithBlocks($w, $box, 3, 1, 2, 3, 1, 4, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-		$this->placeBlock($w, self::STONE_BRICK_STAIRS, 5, 3, 1, 1, $box);
-		$this->placeBlock($w, self::STONE_BRICK_STAIRS, 5, 3, 1, 5, $box);
+		$this->placeBlock($w, 44, 5, 3, 1, 1, $box);
+		$this->placeBlock($w, 44, 5, 3, 1, 5, $box);
+		$this->placeBlock($w, 44, 5, 3, 2, 2, $box);
+		$this->placeBlock($w, 44, 5, 3, 2, 4, $box);
+		for($i = 2; $i <= 4; $i++){
+			$this->placeBlock($w, 44, 5, 2, 1, $i, $box);
+		}
 
 		if(!$this->chestPlaced){
-			$this->chestPlaced = true;
-			$this->generateChest($w, $box, $rnd, 3, 2, 3, 'stronghold');
+			$worldY = $this->getYWithOffset(2);
+			$worldX = $this->getXWithOffset(3, 3);
+			$worldZ = $this->getZWithOffset(3, 3);
+			if($box->resultIsInside($worldX, $worldY, $worldZ)){
+				$this->chestPlaced = true;
+				$stacks = 2 + $rnd->nextBoundedInt(2);
+				$w->setBlock($worldX, $worldY, $worldZ, 54, 0);
+				$w->setChestContents($worldX, $worldY, $worldZ, $this->createLoot($rnd, 'stronghold_chest', $stacks));
+			}
 		}
 		return true;
 	}

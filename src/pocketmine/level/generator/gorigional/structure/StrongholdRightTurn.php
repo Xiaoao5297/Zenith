@@ -38,6 +38,9 @@ class StrongholdRightTurn extends StrongholdLeftTurn{
 	}
 
 	public function addComponentParts(WorldAccess $w, JavaRandom $rnd, BoundingBox $box){
+		if($this->isLiquidInStructureBoundingBox($w, $box)){
+			return;
+		}
 		$this->generateShell($w, $rnd, $box, 4, 4, 4);
 		$this->generateDoor($w, $box, 1, 1, 0, $this->entryDoor);
 

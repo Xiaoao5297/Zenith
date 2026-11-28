@@ -92,6 +92,12 @@ class PopulationTask extends AsyncTask{
 		}
 	}
 
+	private function logGeneratorTiming(Generator $generator, $stage, $startTime, $startMemory){
+		if(method_exists($generator, "logExternalTiming")){
+			$generator->logExternalTiming($this->chunkX, $this->chunkZ, $stage, $startTime, $startMemory);
+		}
+	}
+
 	private function runPopulation(){
 		/** @var SimpleChunkManager $manager */
 		$manager = $this->getFromThreadStore("generation.level{$this->levelId}.manager");
@@ -157,10 +163,18 @@ class PopulationTask extends AsyncTask{
 		}
 
 		$chunk = $manager->getChunk($chunk->getX(), $chunk->getZ());
+		$postStart = microtime(true); $postMemory = memory_get_usage(false);
 		$chunk->recalculateHeightMap();
+		$this->logGeneratorTiming($generator, "post-heightmap", $postStart, $postMemory);
+
+		$postStart = microtime(true); $postMemory = memory_get_usage(false);
 		$chunk->populateSkyLight();
+		$this->logGeneratorTiming($generator, "post-skylight", $postStart, $postMemory);
+
 		$chunk->setLightPopulated();
 		$chunk->setPopulated();
+
+		$postStart = microtime(true); $postMemory = memory_get_usage(false);
 		$this->chunk = $chunk->toFastBinary();
 
 		$manager->setChunk($chunk->getX(), $chunk->getZ(), null);
@@ -177,8 +191,6 @@ class PopulationTask extends AsyncTask{
 			}
 		}
 
-		$manager->cleanChunks();
-
 		for($i = 0; $i < 9; ++$i){
 			if($i === 4){
 				continue;
@@ -186,6 +198,9 @@ class PopulationTask extends AsyncTask{
 
 			$this->{"chunk$i"} = $chunks[$i] !== null ? $chunks[$i]->toFastBinary() : null;
 		}
+		$this->logGeneratorTiming($generator, "post-serialize", $postStart, $postMemory);
+
+		$manager->cleanChunks();
 	}
 
 	public function onCompletion(Server $server){

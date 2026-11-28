@@ -33,9 +33,11 @@ final class BiomeRegistry{
 
 	public static function refreshMesa($seed){
 		self::init();
-		foreach([37, 38, 39] as $id){
-			if(isset(self::$biomes[$id]) && self::$biomes[$id] instanceof MesaBiome){
-				self::$biomes[$id]->refreshBands($seed);
+		foreach(self::$biomes as $biome){
+			if($biome instanceof MesaBiome){
+				$biome->refreshBands($seed);
+			}elseif($biome instanceof MutatedBiome){
+				$biome->refreshMesa($seed);
 			}
 		}
 	}
@@ -96,9 +98,9 @@ final class BiomeRegistry{
 		self::surface(25, Block::STONE, 0, Block::STONE);       // Stone Beach
 		self::surface(14, Block::MYCELIUM, 0, Block::DIRT);     // Mushroom Island
 		self::surface(15, Block::MYCELIUM, 0, Block::DIRT);     // Mushroom Island Shore
-		self::surface(37, Block::SAND, 1, Block::HARDENED_CLAY); // Mesa
-		self::surface(38, Block::SAND, 1, Block::HARDENED_CLAY); // Mesa Plateau F
-		self::surface(39, Block::SAND, 1, Block::HARDENED_CLAY); // Mesa Plateau
+		self::surface(37, Block::SAND, 1, Block::STAINED_CLAY); // Mesa
+		self::surface(38, Block::SAND, 1, Block::STAINED_CLAY); // Mesa Plateau F
+		self::surface(39, Block::SAND, 1, Block::STAINED_CLAY); // Mesa Plateau
 		self::surface(140, Block::SNOW_BLOCK, 0, Block::DIRT);  // Ice Plains Spikes
 
 		self::configureDecorators();

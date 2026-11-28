@@ -37,24 +37,31 @@ class Grass implements Feature{
 	}
 
 	public function generate(ObjectChunkManager $w, JavaRandom $r, BlockPos $pos){
-		for($i = 0; $i < 8; $i++){
-			$target = $pos->add(
-				$r->nextBoundedInt(8) - $r->nextBoundedInt(8),
-				0,
-				$r->nextBoundedInt(8) - $r->nextBoundedInt(8)
-			);
-			$target->y = $w->getHeight($target->x, $target->z) + 1;
-			if($target->y < 1 || $target->y >= 128){
+		$j = $pos->y;
+		while($j > 0){
+			$id = $w->getBlockId($pos->x, $j, $pos->z);
+			if($id !== Block::AIR && $id !== Block::LEAVES && $id !== Block::LEAVES2){
+				break;
+			}
+			$j--;
+		}
+
+		for($i = 0; $i < 128; $i++){
+			$x = $pos->x + $r->nextBoundedInt(8) - $r->nextBoundedInt(8);
+			$y = $j + $r->nextBoundedInt(4) - $r->nextBoundedInt(4);
+			$z = $pos->z + $r->nextBoundedInt(8) - $r->nextBoundedInt(8);
+			if($y < 1 || $y >= 128){
 				continue;
 			}
 
-			if($w->getBlockId($target->x, $target->y, $target->z) === 0){
-				$below = $w->getBlockId($target->x, $target->y - 1, $target->z);
+			if($w->getBlockId($x, $y, $z) === Block::AIR){
+				$below = $w->getBlockId($x, $y - 1, $z);
 				if($below === Block::GRASS || $below === Block::DIRT){
-					$w->setBlock($target->x, $target->y, $target->z, Block::TALL_GRASS, $this->type);
+					$w->setBlock($x, $y, $z, Block::TALL_GRASS, $this->type);
 				}
 			}
 		}
 		return true;
 	}
+
 }

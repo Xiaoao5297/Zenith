@@ -38,8 +38,8 @@ class SwampBiome extends BaseBiome{
 
 	public function __construct($id, $name, $baseHeight, $heightVariation, $temperature, $rainfall){
 		parent::__construct($id, $name, $baseHeight, $heightVariation, $temperature, $rainfall);
-		// Java 1.7.10 BiomeGenSwamp：new NoiseGeneratorPerlin(new Random(0x5A17L), 1)。
-		$this->swampNoise = new PerlinSimplexGenerator(new JavaRandom(0x5A17), 1);
+		// Java BiomeGenBase.field_150606_ad = new NoiseGeneratorPerlin(new Random(2345L), 1)。
+		$this->swampNoise = new PerlinSimplexGenerator(new JavaRandom(2345), 1);
 	}
 
 	public function genTerrainBlocks(FullChunk $chunk, JavaRandom $r, $x, $z, $noiseVal){

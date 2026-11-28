@@ -26,14 +26,16 @@ use pocketmine\level\ChunkManager;
 use pocketmine\level\format\FullChunk;
 use pocketmine\level\generator\Generator;
 use pocketmine\level\Level;
+use pocketmine\level\generator\gorigional\biome\Biome;
 use pocketmine\level\generator\gorigional\biome\BiomeRegistry;
+use pocketmine\level\generator\gorigional\Int64;
 use pocketmine\level\generator\gorigional\layer\GenLayer;
 use pocketmine\level\generator\gorigional\layer\LayerFactory;
-use pocketmine\level\generator\gorigional\JavaRandom;
 use pocketmine\level\generator\gorigional\noise\OctavesNoise;
 use pocketmine\level\generator\gorigional\noise\PerlinSimplexGenerator;
 use pocketmine\level\generator\gorigional\object\BlockPos;
 use pocketmine\level\generator\gorigional\object\ChunkManagerAdapter;
+use pocketmine\level\generator\gorigional\object\Decorator;
 use pocketmine\level\generator\gorigional\object\Dungeon;
 use pocketmine\level\generator\gorigional\object\Lake;
 use pocketmine\level\generator\gorigional\structure\GeneratorWorld;
@@ -63,6 +65,7 @@ class Gorigional extends Generator{
 	 */
 	const COORDINATE_SCALE = 684.412;
 	const HEIGHT_SCALE = 684.412;
+	// Java 1.7.10 ChunkProviderGenerate 的原始常量。
 	const LOWER_LIMIT_SCALE = 512.0;
 	const UPPER_LIMIT_SCALE = 512.0;
 	const DEPTH_NOISE_SCALE_X = 200.0;
@@ -71,6 +74,7 @@ class Gorigional extends Generator{
 	const MAIN_NOISE_SCALE_Y = 160.0;
 	const MAIN_NOISE_SCALE_Z = 80.0;
 	const BASE_SIZE = 8.5;
+	// Java: (j2 - d8) * 12.0 * 128.0 / 256.0，128 高世界取 6.0。
 	const STRETCH_Y = 12.0;
 	const BIOME_DEPTH_OFFSET = 0.0;
 	const BIOME_DEPTH_WEIGHT = 1.0;
@@ -121,15 +125,33 @@ class Gorigional extends Generator{
 	private $stronghold;
 	/** @var GeneratorWorld */
 	private $world;
+	/** @var bool 是否输出地形生成阶段耗时 */
+	private $debugTiming = false;
+	/** @var bool 使用 info 级别输出（否则走 debug 级别） */
+	private $debugTimingInfo = false;
+	/** @var \pocketmine\utils\MainLogger|null */
+	private $debugLogger = null;
 
 	public function __construct(array $settings = []){
 
 	}
 
 	public function init(ChunkManager $level, Random $random){
+		$initStart = microtime(true);
+		$initMemory = memory_get_usage(false);
 		$this->level = $level;
 		$this->seed = $level->getSeed();
 
+		if($level instanceof Level){
+			$this->debugLogger = $level->getServer()->getLogger();
+			$this->debugTiming = (bool) $level->getServer()->getProperty("debug.generator-timing", false);
+			$this->debugTimingInfo = $this->debugTiming;
+			if(!$this->debugTiming && defined("pocketmine\\DEBUG") && \pocketmine\DEBUG > 1){
+				$this->debugTiming = true;
+			}
+		}
+
+		// Java 1.7.10 的七个地形噪声共用同一个 java.util.Random(seed)。
 		$rnd = new JavaRandom($this->seed);
 
 		$this->minLimitPerlinNoise = new OctavesNoise($rnd, 16);
@@ -160,14 +182,17 @@ class Gorigional extends Generator{
 		$this->caves->maxHeight = self::MAX_HEIGHT;
 		$this->ravines->maxHeight = self::MAX_HEIGHT;
 		$this->world = new GeneratorWorld($level, $this->seed, new WorldChunkManager($this->genLayer, $this->biomeGen));
+		Decorator::setTimingCallback(function($stage, $startTime, $startMemory, $chunkX, $chunkZ){
+			$this->logTiming($chunkX, $chunkZ, $stage, $startTime, $startMemory);
+		});
 		$this->mineshaft = new MapGenMineshaft($this->seed);
 		$this->scatteredFeature = new MapGenScatteredFeature($this->seed);
 		$this->village = new MapGenVillage($this->seed);
 
-		// MCPE 0.14 原版默认不自然生成要塞；仅在世界配置显式开启时创建。
-		$generateStronghold = false;
+		// Java 1.7.10 默认生成 3 个要塞；可用 world.generate-stronghold 关闭。
+		$generateStronghold = true;
 		if($level instanceof Level){
-			$value = $level->getServer()->getAdvancedProperty("world.generate-stronghold", false);
+			$value = $level->getServer()->getAdvancedProperty("world.generate-stronghold", true);
 			if(is_bool($value)){
 				$generateStronghold = $value;
 			}elseif(is_string($value)){
@@ -180,7 +205,38 @@ class Gorigional extends Generator{
 
 		if($level instanceof Level){
 			$level->getServer()->getLogger()->info("[Gorigional] MCPE terrain generator active, seed=" . $this->seed);
+			$this->logTiming(null, null, "init", $initStart, $initMemory);
 		}
+	}
+
+	/**
+	 * 输出单个地形阶段的耗时与内存信息。
+	 * $chunkX/$chunkZ 为 null 时用于 init 等全局阶段。
+	 */
+	private function logTiming($chunkX, $chunkZ, $stage, $startTime, $startMemory){
+		if(!$this->debugTiming || $this->debugLogger === null || $startTime === null){
+			return;
+		}
+		$ms = (microtime(true) - $startTime) * 1000.0;
+		$memDiff = (memory_get_usage(false) - $startMemory) / 1048576.0;
+		$peak = memory_get_peak_usage(false) / 1048576.0;
+		$where = $chunkX === null ? "global" : "chunk(" . $chunkX . "," . $chunkZ . ")";
+		$message = sprintf(
+			"[Gorigional] %s %-22s %8.3f ms  mem %+6.2f MB (peak %.2f MB)",
+			$where, $stage, $ms, $memDiff, $peak
+		);
+		if($this->debugTimingInfo){
+			$this->debugLogger->info($message);
+		}else{
+			$this->debugLogger->debug($message);
+		}
+	}
+
+	/**
+	 * 供 PopulationTask 等外部调用者记录阶段耗时；未开启计时时直接返回。
+	 */
+	public function logExternalTiming($chunkX, $chunkZ, $stage, $startTime, $startMemory){
+		$this->logTiming($chunkX, $chunkZ, $stage, $startTime, $startMemory);
 	}
 
 	public function takeDeferredTiles(){
@@ -193,6 +249,18 @@ class Gorigional extends Generator{
 
 	public function getSettings(){
 		return [];
+	}
+
+	/**
+	 * 由 GeneratorRegisterTask 在主线程把日志器传给异步 worker。
+	 * worker 里的 init() 拿到的是 SimpleChunkManager，无法读取 Server 配置。
+	 *
+	 * @param \ThreadedLogger $logger
+	 */
+	public function setDebugLogger($logger){
+		$this->debugLogger = $logger;
+		$this->debugTiming = true;
+		$this->debugTimingInfo = true;
 	}
 
 	public function getWaterHeight() : int{
@@ -332,12 +400,6 @@ class Gorigional extends Generator{
 
 					$d5 = self::clampedLerp($minVal, $maxVal, $mainVal) - $d1;
 
-					// Java 只在 33 个点里的最后 3 个点（y>232）把密度压向 -10；17 个点时不会触发。
-					if($l1 > 29){
-						$d6 = ($l1 - 29) / 3.0;
-						$d5 = $d5 * (1.0 - $d6) + -10.0 * $d6;
-					}
-
 					$heightMap[$i] = $d5;
 					$i++;
 				}
@@ -346,7 +408,10 @@ class Gorigional extends Generator{
 	}
 
 	private function setBlocksInChunk($chunkX, $chunkZ, FullChunk $chunk){
+		$stageStart = microtime(true);
+		$stageMemory = memory_get_usage(false);
 		$biomesForGeneration = $this->genLayer->getInts($chunkX * 4 - 2, $chunkZ * 4 - 2, 10, 10);
+		$this->logTiming($chunkX, $chunkZ, "biome-sample", $stageStart, $stageMemory);
 
 		$verticalPoints = intdiv(self::MAX_HEIGHT, 8) + 1;
 		$horizontalPoints = 5;
@@ -358,8 +423,13 @@ class Gorigional extends Generator{
 		$minLimitRegion = [];
 		$maxLimitRegion = [];
 
+		$stageStart = microtime(true);
+		$stageMemory = memory_get_usage(false);
 		$this->generateHeightmap($heightMap, $depthRegion, $mainNoiseRegion, $minLimitRegion, $maxLimitRegion, $chunkX * 4, 0, $chunkZ * 4, $biomesForGeneration);
+		$this->logTiming($chunkX, $chunkZ, "heightmap/noise", $stageStart, $stageMemory);
 
+		$stageStart = microtime(true);
+		$stageMemory = memory_get_usage(false);
 		$verticalSegments = intdiv(self::MAX_HEIGHT, 8);
 
 		for($i = 0; $i < 4; $i++){
@@ -422,16 +492,20 @@ class Gorigional extends Generator{
 				}
 			}
 		}
+		$this->logTiming($chunkX, $chunkZ, "density/fill", $stageStart, $stageMemory);
 	}
 
 	private function replaceBiomeBlocks($x, $z, FullChunk $c, JavaRandom $rnd){
+		$stageStart = microtime(true);
+		$stageMemory = memory_get_usage(false);
 		$chunkX = $x * 16;
 		$chunkZ = $z * 16;
 
-		// 多取一圈邻居 (18x18)，给下面 3x3 颜色平均用，区块边缘也能拿到区块外的群系。
-		$biomeIDs = $this->biomeGen->getInts($chunkX - 16, $chunkZ - 16, 18, 18);
+		$biomeIDs = $this->biomeGen->getInts($chunkX, $chunkZ, 16, 16);
+		$this->world->getBiomeManager()->primeBiomeCache($x, $z, $biomeIDs);
 
 		$noiseArray = [];
+		// Java func_147422_a: d0 = 0.03125，缩放取 d0 * 2 = 0.0625。
 		$noiseArray = $this->surfaceNoise->getRegion($noiseArray, $chunkX, $chunkZ, 16, 16, 0.0625, 0.0625, 1.0);
 
 		$biomeCache = [];
@@ -472,6 +546,7 @@ class Gorigional extends Generator{
 				$c->setBiomeId($i, $j, $b->getID());
 			}
 		}
+		$this->logTiming($x, $z, "surface/biomes", $stageStart, $stageMemory);
 	}
 
 	/**
@@ -519,6 +594,8 @@ class Gorigional extends Generator{
 	}
 
 	public function generateChunk($chunkX, $chunkZ){
+		$chunkStart = microtime(true);
+		$chunkMemory = memory_get_usage(false);
 		$chunk = $this->level->getChunk($chunkX, $chunkZ);
 		if($chunk === null){
 			return;
@@ -526,146 +603,212 @@ class Gorigional extends Generator{
 
 		GenLayer::newEpoch();
 
-		// Java 1.7.10 ChunkProviderGenerate.func_147424_a：区块随机数 = 区块坐标的 64 位线性组合（不含世界种子）。
-		$rnd = new JavaRandom(self::chunkSeed($chunkX, $chunkZ));
+		// Java func_73154_d: rand.setSeed(x * 341873128712 + z * 132897987541)
+		$seed = Int64::add(Int64::mul($chunkX, 341873128712), Int64::mul($chunkZ, 132897987541));
+		$rnd = new JavaRandom($seed);
 
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
 		$this->setBlocksInChunk($chunkX, $chunkZ, $chunk);
-		$this->replaceBiomeBlocks($chunkX, $chunkZ, $chunk, $rnd);
-		$this->caves->generateChunk($chunkX, $chunkZ, $chunk);
-		$this->ravines->generateChunk($chunkX, $chunkZ, $chunk);
+		$this->logTiming($chunkX, $chunkZ, "terrain", $stageStart, $stageMemory);
 
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
+		$this->replaceBiomeBlocks($chunkX, $chunkZ, $chunk, $rnd);
+		$this->logTiming($chunkX, $chunkZ, "biome-surface", $stageStart, $stageMemory);
+
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
+		$this->caves->generateChunk($chunkX, $chunkZ, $chunk);
+		$this->logTiming($chunkX, $chunkZ, "caves", $stageStart, $stageMemory);
+
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
+		$this->ravines->generateChunk($chunkX, $chunkZ, $chunk);
+		$this->logTiming($chunkX, $chunkZ, "ravines", $stageStart, $stageMemory);
+
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
 		$this->mineshaft->prepare($this->world, $chunkX, $chunkZ, $chunk);
-		$this->scatteredFeature->prepare($this->world, $chunkX, $chunkZ, $chunk);
+		$this->logTiming($chunkX, $chunkZ, "struct-mineshaft", $stageStart, $stageMemory);
+
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
 		$this->village->prepare($this->world, $chunkX, $chunkZ, $chunk);
+		$this->logTiming($chunkX, $chunkZ, "struct-village", $stageStart, $stageMemory);
+
 		if($this->stronghold !== null){
+			$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
 			$this->stronghold->prepare($this->world, $chunkX, $chunkZ, $chunk);
+			$this->logTiming($chunkX, $chunkZ, "struct-stronghold", $stageStart, $stageMemory);
 		}
+
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
+		$this->scatteredFeature->prepare($this->world, $chunkX, $chunkZ, $chunk);
+		$this->logTiming($chunkX, $chunkZ, "struct-scattered", $stageStart, $stageMemory);
+
+		$this->logTiming($chunkX, $chunkZ, "generate TOTAL", $chunkStart, $chunkMemory);
 	}
 
 	public function populateChunk($chunkX, $chunkZ){
+		$populateStart = microtime(true);
+		$populateMemory = memory_get_usage(false);
+		$biomeStart = microtime(true);
+		$biomeMemory = memory_get_usage(false);
 		GenLayer::newEpoch();
 
 		$x = $chunkX * 16;
 		$z = $chunkZ * 16;
 
-		$ints = $this->biomeGen->getInts($x + 8, $z + 8, 1, 1);
-		$biomeID = $ints[0] & 0xFF;
+		// Java func_73153_a 取的是区块东南角（+16）的群系。
+		// replaceBiomeBlocks() 已把 voronoi 16×16 结果写入 WorldChunkManager 缓存；
+		// 邻居区块已生成时这里直接命中，未生成时才回退到 GenLayer。
+		$biomeID = $this->world->getBiome($x + 16, $z + 16);
 		$b = BiomeRegistry::getBiome($biomeID);
+		$this->logTiming($chunkX, $chunkZ, "populate-biome", $biomeStart, $biomeMemory);
 
-		// Java 1.7.10 ChunkProviderGenerate.func_73153_a：
-		// setSeed(worldSeed) -> 两次 nextLong 各取一个奇数乘子 -> setSeed(x*i1 + z*j1 ^ worldSeed)。
-		$rnd = new JavaRandom(self::populateSeed($chunkX, $chunkZ, $this->seed));
+		// Java: i1 = nextLong() / 2 * 2 + 1, j1 同理；
+		//       setSeed(chunkX * i1 + chunkZ * j1 ^ worldSeed)
+		$rnd = new JavaRandom($this->seed);
+		$k = intdiv($rnd->nextLong(), 2) * 2 + 1;
+		$l = intdiv($rnd->nextLong(), 2) * 2 + 1;
+		$seed = Int64::add(Int64::mul($chunkX, $k), Int64::mul($chunkZ, $l)) ^ $this->seed;
+		$rnd->setSeed($seed);
 
 		$manager = new ChunkManagerAdapter($this->level);
 
-		$isOceanOrRiver = $biomeID === 0 || $biomeID === 10 || $biomeID === 24 || $biomeID === 7 || $biomeID === 11;
-
-		/*
-		 * Java 1.7.10 RandomLevelSource（ChunkProviderGenerate::populate）：
-		 * 同一条随机流贯穿 湖泊 -> Village -> Mineshaft -> Stronghold -> Scattered -> 地牢 -> decorate，
-		 * 中途不再重新播种。
-		 */
-		if(!$isOceanOrRiver){
-			$this->generateLakes($manager, $rnd, $x, $z, $b->getID());
-		}
-
-		$this->village->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
+		$flag = false;
 		$this->mineshaft->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
+		$flag = $this->village->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 		if($this->stronghold !== null){
 			$this->stronghold->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
 		}
 		$this->scatteredFeature->generateStructure($this->world, $rnd, $chunkX, $chunkZ);
+		$this->logTiming($chunkX, $chunkZ, "struct-populate", $stageStart, $stageMemory);
 
-		for($j2 = 0; $j2 < 8; $j2++){
-			$i3 = $rnd->nextBoundedInt(16) + 8;
-			$l3 = $rnd->nextBoundedInt(128);
-			$l1 = $rnd->nextBoundedInt(16) + 8;
-			$dungeon = new Dungeon();
-			$dungeon->generate($manager, $rnd, new BlockPos($x + $i3, $l3, $z + $l1));
-		}
-
-		$this->freezeChunk($manager, $chunkX, $chunkZ);
-
-		$b->decorate($manager, $rnd, new BlockPos($x, 0, $z));
-	}
-
-	/**
-	 * MCPE 0.14.3 湖泊分支：
-	 * - 沙漠/沙漠丘陵：1/8 概率尝试岩浆湖
-	 * - 其他群系：1/4 概率直接尝试水湖，3/4 概率再以 1/8 尝试岩浆湖
-	 * 水湖 y=rand&0x7f；岩浆湖 y=rand%(rand%120+8)，且需 y>59。
-	 */
-	private function generateLakes(ChunkManagerAdapter $manager, JavaRandom $rnd, $x, $z, $biomeID){
 		$isDesert = $biomeID === 2 || $biomeID === 17;
 
-		if($isDesert){
-			if($rnd->nextBoundedInt(8) !== 0){
-				return;
-			}
-			$this->tryLavaLake($manager, $rnd, $x, $z);
-			return;
-		}
-
-		if($rnd->nextBoundedInt(4) === 0){
-			$i = $rnd->nextBoundedInt(9) + 3;
-			$y = $rnd->nextBoundedInt(128);
-			$k = $rnd->nextBoundedInt(9) + 3;
+		// Java WorldGenLakes（水）
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
+		if(!$isDesert && !$flag && $rnd->nextBoundedInt(4) === 0){
+			$lx = $x + $rnd->nextBoundedInt(16) + 8;
+			$ly = $rnd->nextBoundedInt(256);
+			$lz = $z + $rnd->nextBoundedInt(16) + 8;
 
 			$lake = new Lake(Block::STILL_WATER);
-			$lake->generate($manager, $rnd, new BlockPos($x + $i, $y, $z + $k));
-			return;
+			$lake->generate($manager, $rnd, new BlockPos($lx, $ly, $lz));
 		}
+		$this->logTiming($chunkX, $chunkZ, "lake-water", $stageStart, $stageMemory);
 
-		if($rnd->nextBoundedInt(8) === 0){
-			$this->tryLavaLake($manager, $rnd, $x, $z);
+		// Java WorldGenLakes（岩浆）
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
+		if(!$flag && $rnd->nextBoundedInt(8) === 0){
+			$lx = $x + $rnd->nextBoundedInt(16) + 8;
+			$ly = $rnd->nextBoundedInt($rnd->nextBoundedInt(248) + 8);
+			$lz = $z + $rnd->nextBoundedInt(16) + 8;
+
+			if($ly < 63 || $rnd->nextBoundedInt(10) === 0){
+				$lake = new Lake(Block::STILL_LAVA);
+				$lake->generate($manager, $rnd, new BlockPos($lx, $ly, $lz));
+			}
 		}
-	}
+		$this->logTiming($chunkX, $chunkZ, "lake-lava", $stageStart, $stageMemory);
 
-	private function tryLavaLake(ChunkManagerAdapter $manager, JavaRandom $rnd, $x, $z){
-		$i = $rnd->nextBoundedInt(9) + 3;
-		$y = $rnd->nextBoundedInt($rnd->nextBoundedInt(120) + 8);
-		$k = $rnd->nextBoundedInt(9) + 3;
-
-		if($y <= 59){
-			return;
+		// Java WorldGenDungeons：8 次，y = nextInt(256)。
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
+		for($j2 = 0; $j2 < 8; $j2++){
+			$i3 = $x + $rnd->nextBoundedInt(16) + 8;
+			$l3 = $rnd->nextBoundedInt(256);
+			$l1 = $z + $rnd->nextBoundedInt(16) + 8;
+			$dungeon = new Dungeon();
+			$dungeon->generate($this->world, $rnd, new BlockPos($i3, $l3, $l1));
 		}
-		if($y >= 64 && $rnd->nextBoundedInt(10) !== 0){
-			return;
-		}
+		$this->logTiming($chunkX, $chunkZ, "dungeons x8", $stageStart, $stageMemory);
 
-		$lake = new Lake(Block::STILL_LAVA);
-		$lake->generate($manager, $rnd, new BlockPos($x + $i, $y, $z + $k));
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
+		$b->decorate($manager, $rnd, new BlockPos($x, 0, $z));
+		$this->logTiming($chunkX, $chunkZ, "decorate", $stageStart, $stageMemory);
+
+		$stageStart = microtime(true); $stageMemory = memory_get_usage(false);
+		$this->freezeChunk($manager, $chunkX, $chunkZ);
+		$this->logTiming($chunkX, $chunkZ, "freeze/snow", $stageStart, $stageMemory);
+
+		$this->logTiming($chunkX, $chunkZ, "populate TOTAL", $populateStart, $populateMemory);
 	}
 
 	/**
-	 * MCPE postProcess 末尾的 16x16 结冰：温度 < 0.15 的水面放冰。
+	 * Java ChunkProviderGenerate.func_73153_a 末尾的 16×16 结冰/积雪。
+	 * 区域是 x+8..x+23、z+8..z+23，而不是本区块 0..15。
 	 */
 	private function freezeChunk(ChunkManagerAdapter $manager, $chunkX, $chunkZ){
-		$biomeIDs = $this->biomeGen->getInts($chunkX * 16, $chunkZ * 16, 16, 16);
+		$x0 = $chunkX * 16 + 8;
+		$z0 = $chunkZ * 16 + 8;
 
 		for($i = 0; $i < 16; $i++){
 			for($j = 0; $j < 16; $j++){
-				$biome = BiomeRegistry::getBiome($biomeIDs[$j * 16 + $i] & 0xFF);
-				if($biome->temperature >= 0.15){
+				$wx = $x0 + $i;
+				$wz = $z0 + $j;
+				$biome = BiomeRegistry::getBiome($this->world->getBiome($wx, $wz));
+				// 128 高世界里，温度 > 0.3 的群系即使叠加高度降温和噪声也不可能低于 0.15；
+				// 直接跳过，避免每列都做高度扫描和两次 Perlin 温度计算。
+				if($biome->getTemperatureAt($wx, 64, $wz) > 0.3){
 					continue;
 				}
+				$top = $manager->getHeight($wx, $wz);
 
-				$wx = $chunkX * 16 + $i;
-				$wz = $chunkZ * 16 + $j;
-
-				for($y = 127; $y > 0; $y--){
-					$id = $manager->getBlockId($wx, $y, $wz);
-					if($id === 0){
-						continue;
-					}
-
-					if($id === Block::STILL_WATER || $id === Block::WATER){
-						$manager->setBlock($wx, $y, $wz, Block::ICE, 0);
-					}
-					break;
+				if($this->canBlockFreeze($manager, $wx, $top, $wz, $biome)){
+					$manager->setBlock($wx, $top, $wz, Block::ICE, 0);
+				}
+				if($this->canSnowAt($manager, $wx, $top + 1, $wz, $biome)){
+					$manager->setBlock($wx, $top + 1, $wz, Block::SNOW_LAYER, 0);
 				}
 			}
 		}
+	}
+
+	/**
+	 * Java World.func_72884_u / func_72834_c(..., false)。
+	 */
+	private function canBlockFreeze(ChunkManagerAdapter $manager, $x, $y, $z, Biome $biome = null){
+		if($y < 0 || $y >= 128){
+			return false;
+		}
+		if($biome === null){
+			$biome = BiomeRegistry::getBiome($this->world->getBiome($x, $z));
+		}
+		if($biome->getTemperatureAt($x, $y, $z) > 0.15){
+			return false;
+		}
+
+		$chunk = $manager->getChunkAt($x, $z);
+		if($chunk === null || $chunk->getBlockLight($x & 15, $y, $z & 15) >= 10){
+			return false;
+		}
+
+		$id = $chunk->getBlockId($x & 15, $y, $z & 15);
+		return ($id === Block::STILL_WATER || $id === Block::WATER)
+			&& $chunk->getBlockData($x & 15, $y, $z & 15) === 0;
+	}
+
+	/**
+	 * Java World.func_147478_e(..., true)。
+	 */
+	private function canSnowAt(ChunkManagerAdapter $manager, $x, $y, $z, Biome $biome = null){
+		if($y < 0 || $y >= 128){
+			return false;
+		}
+		if($biome === null){
+			$biome = BiomeRegistry::getBiome($this->world->getBiome($x, $z));
+		}
+		if($biome->getTemperatureAt($x, $y, $z) > 0.15){
+			return false;
+		}
+
+		$chunk = $manager->getChunkAt($x, $z);
+		if($chunk === null || $chunk->getBlockLight($x & 15, $y, $z & 15) >= 10){
+			return false;
+		}
+		if($chunk->getBlockId($x & 15, $y, $z & 15) !== Block::AIR){
+			return false;
+		}
+
+		$below = $y > 0 ? $chunk->getBlockId($x & 15, $y - 1, $z & 15) : 0;
+		return $below !== Block::AIR && Block::get($below)->isSolid();
 	}
 
 	private static function clampedLerp($lowerB, $upperB, $t){

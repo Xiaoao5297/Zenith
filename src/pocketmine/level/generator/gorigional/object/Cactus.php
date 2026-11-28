@@ -31,29 +31,47 @@ use pocketmine\level\generator\gorigional\JavaRandom;
 class Cactus implements Feature{
 
 	public function generate(ObjectChunkManager $w, JavaRandom $r, BlockPos $pos){
-		for($i = 0; $i < 4; $i++){
-			$target = $pos->add(
-				$r->nextBoundedInt(8) - $r->nextBoundedInt(8),
-				$r->nextBoundedInt(4) - $r->nextBoundedInt(4),
-				$r->nextBoundedInt(8) - $r->nextBoundedInt(8)
-			);
-
-			if($target->y < 0 || $target->y >= 128){
+		for($i = 0; $i < 10; $i++){
+			$x = $pos->x + $r->nextBoundedInt(8) - $r->nextBoundedInt(8);
+			$y = $pos->y + $r->nextBoundedInt(4) - $r->nextBoundedInt(4);
+			$z = $pos->z + $r->nextBoundedInt(8) - $r->nextBoundedInt(8);
+			if($y < 1 || $y >= 128){
 				continue;
 			}
 
-			if($w->getBlockId($target->x, $target->y, $target->z) === 0){
-				$below = $w->getBlockId($target->x, $target->y - 1, $target->z);
-				if($below === Block::SAND || $below === Block::CACTUS){
-					$h = 1 + $r->nextBoundedInt($r->nextBoundedInt(3) + 1);
-					for($j = 0; $j < $h; $j++){
-						if($w->getBlockId($target->x, $target->y + $j, $target->z) === 0){
-							$w->setBlock($target->x, $target->y + $j, $target->z, Block::CACTUS, 0);
-						}
+			if($w->getBlockId($x, $y, $z) === Block::AIR){
+				$h = 1 + $r->nextBoundedInt($r->nextBoundedInt(3) + 1);
+				for($j = 0; $j < $h; $j++){
+					if(!$this->canPlaceCactus($w, $x, $y + $j, $z)){
+						continue;
 					}
+					$w->setBlock($x, $y + $j, $z, Block::CACTUS, 0);
 				}
 			}
 		}
 		return true;
 	}
+
+	private function canPlaceCactus(ObjectChunkManager $w, $x, $y, $z){
+		if($y < 1 || $y >= 128 || $w->getBlockId($x, $y, $z) !== Block::AIR){
+			return false;
+		}
+		$below = $w->getBlockId($x, $y - 1, $z);
+		if($below !== Block::SAND && $below !== Block::CACTUS){
+			return false;
+		}
+		$neighbors = [
+			$w->getBlockId($x - 1, $y, $z),
+			$w->getBlockId($x + 1, $y, $z),
+			$w->getBlockId($x, $y, $z - 1),
+			$w->getBlockId($x, $y, $z + 1),
+		];
+		foreach($neighbors as $id){
+			if(Block::get($id)->isSolid()){
+				return false;
+			}
+		}
+		return true;
+	}
+
 }

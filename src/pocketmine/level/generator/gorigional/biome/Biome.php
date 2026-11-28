@@ -42,7 +42,13 @@ interface Biome{
 
 	public function getColor();
 
+	public function getTopBlock();
+
+	public function getTopMeta();
+
 	public function genTerrainBlocks(FullChunk $chunk, JavaRandom $r, $x, $z, $noiseVal);
+
+	public function getTemperatureAt($x, $y, $z);
 
 	public function decorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos);
 

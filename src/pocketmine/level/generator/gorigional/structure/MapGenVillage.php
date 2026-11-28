@@ -17,32 +17,27 @@
  * @link https://github.com/Xiaoao5297/Zenith
  *
  *
-*/
+ */
 
 
 namespace pocketmine\level\generator\gorigional\structure;
 
-use pocketmine\level\generator\gorigional\Int64;
-use pocketmine\level\generator\gorigional\JavaRandom;
-
 /**
- * Java 1.7.10 MapGenVillage：32 区块网格，8 区块间隔，种子来自 World.setRandomSeed。
+ * 移植自 Java 1.7.10 MapGenVillage：32 区块网格，8 区块间隔。
  */
 class MapGenVillage extends MapGenStructure{
 	const SPACING = 32;
 	const SEPARATION = 8;
+	const SIZE = 0;
 	const ALLOWED_BIOMES = [1, 2, 35];
-
-	/** @var JavaRandom|null 与 Java 一样，村庄展开沿用 MapGenBase 为本原点播种的随机流 */
-	private $structureRand = null;
 
 	protected function canSpawnStructureAtCoords($chunkX, $chunkZ){
 		$originalX = $chunkX;
 		$originalZ = $chunkZ;
 
 		/*
-		 * Java 1.7.10 MapGenVillage.func_75047_a：
-		 * 负坐标先减 spacing-1，再按整数除法截断（等价 floorDiv）。
+		 * Java 对负坐标先减去 spacing-1，再按整数除法向零截断，
+		 * 等价于 floorDiv(chunk, 32)。
 		 */
 		if($chunkX < 0){
 			$chunkX -= self::SPACING - 1;
@@ -51,28 +46,26 @@ class MapGenVillage extends MapGenStructure{
 			$chunkZ -= self::SPACING - 1;
 		}
 
-		$gridIndexX = intdiv($chunkX, self::SPACING);
-		$gridIndexZ = intdiv($chunkZ, self::SPACING);
+		$gridX = intdiv($chunkX, self::SPACING);
+		$gridZ = intdiv($chunkZ, self::SPACING);
 
-		// World.func_72843_D(i, j, 10387312)：i * 341873128712 + j * 132897987541 + randomSeed + 10387312。
-		// 普通世界的 WorldInfo.randomSeed 为 0。
-		$seed = Int64::add(Int64::add(Int64::mul($gridIndexX, 341873128712), Int64::mul($gridIndexZ, 132897987541)), 10387312);
-		$rnd = new JavaRandom($seed);
+		// Java: world.func_72843_D(gridX, gridZ, 10387312)
+		$rnd = $this->world->getRandomAt($gridX, $gridZ, 10387312);
 
-		$offsetX = $rnd->nextBoundedInt(self::SPACING - self::SEPARATION);
-		$offsetZ = $rnd->nextBoundedInt(self::SPACING - self::SEPARATION);
+		$gridX *= self::SPACING;
+		$gridZ *= self::SPACING;
+		$gridX += $rnd->nextBoundedInt(self::SPACING - self::SEPARATION);
+		$gridZ += $rnd->nextBoundedInt(self::SPACING - self::SEPARATION);
 
-		$gridX = $gridIndexX * self::SPACING + $offsetX;
-		$gridZ = $gridIndexZ * self::SPACING + $offsetZ;
-
-		if($gridX !== $originalX || $gridZ !== $originalZ){
+		if($originalX !== $gridX || $originalZ !== $gridZ){
 			return false;
 		}
 
-		return in_array($this->world->getBiome(($originalX << 4) + 8, ($originalZ << 4) + 8), self::ALLOWED_BIOMES, true);
+		// Java: world.func_72959_q().func_76940_a(x * 16 + 8, z * 16 + 8, 0, list)
+		return $this->world->getBiomeManager()->isBiomeAllowed($originalX * 16 + 8, $originalZ * 16 + 8, 0, self::ALLOWED_BIOMES);
 	}
 
 	protected function getStructureStart($chunkX, $chunkZ){
-		return new VillageStart($this->world, $this->structureRand !== null ? $this->structureRand : $this->rand, $chunkX, $chunkZ);
+		return new VillageStart($this->world, $this->rand, $chunkX, $chunkZ, self::SIZE);
 	}
 }

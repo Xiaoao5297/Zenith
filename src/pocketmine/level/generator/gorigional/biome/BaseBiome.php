@@ -39,17 +39,24 @@ use pocketmine\level\generator\gorigional\object\JungleBush;
 use pocketmine\level\generator\gorigional\object\JungleSmallTree;
 use pocketmine\level\generator\gorigional\object\MegaJungleTree;
 use pocketmine\level\generator\gorigional\object\MegaPineTree;
+use pocketmine\level\generator\gorigional\object\Melon;
 use pocketmine\level\generator\gorigional\object\OakTree;
+use pocketmine\level\generator\gorigional\object\Ore;
 use pocketmine\level\generator\gorigional\object\PineTree;
 use pocketmine\level\generator\gorigional\object\SavannaTree;
 use pocketmine\level\generator\gorigional\object\SpruceTree;
 use pocketmine\level\generator\gorigional\object\SwampTree;
 use pocketmine\level\generator\gorigional\object\Vines;
+use pocketmine\level\generator\gorigional\noise\PerlinSimplexGenerator;
 
 /**
  * 移植自 SCAXE-GO-CE pkg/level/generator/biome/biome.go 的 BaseBiome。
  */
 class BaseBiome implements Biome{
+	/** @var PerlinSimplexGenerator|null Java BiomeGenBase.field_150605_ac */
+	private static $temperatureNoise = null;
+	/** @var PerlinSimplexGenerator|null Java BiomeGenForest.field_150606_ad */
+	private static $forestFlowerNoise = null;
 	/** @var int */
 	public $id;
 	/** @var string */
@@ -97,8 +104,19 @@ class BaseBiome implements Biome{
 		return self::generateBiomeColor($this->temperature, $this->rainfall);
 	}
 
+	public function getTopBlock(){
+		return $this->topBlock;
+	}
+
+	public function getTopMeta(){
+		return $this->topMeta;
+	}
+
 	public function decorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
 		switch($this->id){
+			case 1:
+				$this->plainsDecorate($level, $r, $pos);
+				break;
 			case 4:
 			case 18:
 			case 27:
@@ -107,9 +125,13 @@ class BaseBiome implements Biome{
 			case 29:
 				$this->roofedForestDecorate($level, $r, $pos);
 				break;
+			case 5:
+			case 19:
+			case 30:
+			case 31:
 			case 32:
 			case 33:
-				$this->megaTaigaDecorate($level, $r, $pos);
+				$this->taigaDecorate($level, $r, $pos);
 				break;
 			case 21:
 			case 22:
@@ -134,27 +156,26 @@ class BaseBiome implements Biome{
 			case 31:
 			case 140:
 				$this->decorator->decorate($level, $r, $this, $pos);
-				$this->snowDecorate($level, $pos);
 				break;
 			default:
 				$this->decorator->decorate($level, $r, $this, $pos);
 		}
 	}
 
-	private function forestDecorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
-		$doublePlantCount = $r->nextBoundedInt(5) - 3;
-		for($i = 0; $i < $doublePlantCount; $i++){
-			$plantType = $r->nextBoundedInt(3);
-			switch($plantType){
+	private function forestDecorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos, $extraDoublePlants = 0){
+		$count = $r->nextBoundedInt(5) - 3 + $extraDoublePlants;
+		for($i = 0; $i < $count; $i++){
+			$type = $r->nextBoundedInt(3);
+			switch($type){
 				case 0: $plant = new DoublePlant(DoublePlant::LILAC); break;
 				case 1: $plant = new DoublePlant(DoublePlant::ROSE_BUSH); break;
 				default: $plant = new DoublePlant(DoublePlant::PEONY); break;
 			}
-			for($k = 0; $k < 5; $k++){
-				$px = $r->nextBoundedInt(16);
-				$pz = $r->nextBoundedInt(16);
-				$py = self::getHeightAtForBiome($level, $pos->x + $px, $pos->z + $pz);
-				if($plant->generate($level, $r, $pos->add($px, $py, $pz))){
+			for($j = 0; $j < 5; $j++){
+				$x = $pos->x + $r->nextBoundedInt(16) + 8;
+				$z = $pos->z + $r->nextBoundedInt(16) + 8;
+				$y = $r->nextBoundedInt(self::getHeightAtForBiome($level, $x, $z) + 32);
+				if($plant->generate($level, $r, new BlockPos($x, $y, $z))){
 					break;
 				}
 			}
@@ -165,39 +186,35 @@ class BaseBiome implements Biome{
 	private function roofedForestDecorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
 		for($i = 0; $i < 4; $i++){
 			for($j = 0; $j < 4; $j++){
-				$k = $i * 4 + 1 + $r->nextBoundedInt(3);
-				$l = $j * 4 + 1 + $r->nextBoundedInt(3);
-
-				$treeX = $pos->x + $k;
-				$treeZ = $pos->z + $l;
-				$treeY = self::getHeightAtForBiome($level, $treeX, $treeZ);
-
-				$treePos = new BlockPos($treeX, $treeY, $treeZ);
+				$x = $pos->x + $i * 4 + 1 + 8 + $r->nextBoundedInt(3);
+				$z = $pos->z + $j * 4 + 1 + 8 + $r->nextBoundedInt(3);
+				$y = self::getHeightAtForBiome($level, $x, $z);
 
 				if($r->nextBoundedInt(20) === 0){
-					continue;
-				}
-
-				$tree = $this->getTreeFeature($r);
-				if($tree !== null){
-					$tree->generate($level, $r, $treePos);
+					$mushroom = new BigMushroom(false);
+					$mushroom->generate($level, $r, new BlockPos($x, $y, $z));
+				}else{
+					$tree = $this->getTreeFeature($r);
+					if($tree !== null){
+						$tree->generate($level, $r, new BlockPos($x, $y, $z));
+					}
 				}
 			}
 		}
 
-		$doublePlantCount = $r->nextBoundedInt(5) - 3;
-		for($i = 0; $i < $doublePlantCount; $i++){
-			$plantType = $r->nextBoundedInt(3);
-			switch($plantType){
+		$count = $r->nextBoundedInt(5) - 3;
+		for($i = 0; $i < $count; $i++){
+			$type = $r->nextBoundedInt(3);
+			switch($type){
 				case 0: $plant = new DoublePlant(DoublePlant::LILAC); break;
 				case 1: $plant = new DoublePlant(DoublePlant::ROSE_BUSH); break;
 				default: $plant = new DoublePlant(DoublePlant::PEONY); break;
 			}
-			for($k = 0; $k < 5; $k++){
-				$px = $r->nextBoundedInt(16);
-				$pz = $r->nextBoundedInt(16);
-				$py = self::getHeightAtForBiome($level, $pos->x + $px, $pos->z + $pz);
-				if($plant->generate($level, $r, $pos->add($px, $py, $pz))){
+			for($j = 0; $j < 5; $j++){
+				$x = $pos->x + $r->nextBoundedInt(16) + 8;
+				$z = $pos->z + $r->nextBoundedInt(16) + 8;
+				$y = $r->nextBoundedInt(self::getHeightAtForBiome($level, $x, $z) + 32);
+				if($plant->generate($level, $r, new BlockPos($x, $y, $z))){
 					break;
 				}
 			}
@@ -206,21 +223,24 @@ class BaseBiome implements Biome{
 		$this->decorator->decorate($level, $r, $this, $pos);
 	}
 
-	private function megaTaigaDecorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
-		$boulderCount = $r->nextBoundedInt(3);
-		for($i = 0; $i < $boulderCount; $i++){
-			$bx = $r->nextBoundedInt(16);
-			$bz = $r->nextBoundedInt(16);
-			$boulder = new BlockBlob(Block::MOSS_STONE, 0);
-			$boulder->generate($level, $r, $pos->add($bx, 128, $bz));
+	private function taigaDecorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
+		if($this->id === 32 || $this->id === 33){
+			$boulderCount = $r->nextBoundedInt(3);
+			for($i = 0; $i < $boulderCount; $i++){
+				$x = $pos->x + $r->nextBoundedInt(16) + 8;
+				$z = $pos->z + $r->nextBoundedInt(16) + 8;
+				$y = self::getHeightAtForBiome($level, $x, $z);
+				$boulder = new BlockBlob(Block::MOSS_STONE, 0);
+				$boulder->generate($level, $r, new BlockPos($x, $y, $z));
+			}
 		}
 
 		for($i = 0; $i < 7; $i++){
-			$fx = $r->nextBoundedInt(16);
-			$fz = $r->nextBoundedInt(16);
-			$fy = self::getHeightAtForBiome($level, $pos->x + $fx, $pos->z + $fz);
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$y = $r->nextBoundedInt(self::getHeightAtForBiome($level, $x, $z) + 32);
 			$fern = new DoublePlant(DoublePlant::FERN);
-			$fern->generate($level, $r, $pos->add($fx, $fy, $fz));
+			$fern->generate($level, $r, new BlockPos($x, $y, $z));
 		}
 
 		$this->decorator->decorate($level, $r, $this, $pos);
@@ -229,50 +249,83 @@ class BaseBiome implements Biome{
 	private function jungleDecorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
 		$this->decorator->decorate($level, $r, $this, $pos);
 
-		$x = $r->nextBoundedInt(16);
-		$z = $r->nextBoundedInt(16);
-		$y = self::getHeightAtForBiome($level, $pos->x + $x, $pos->z + $z);
-		$melon = new BlockPatch(Block::MELON_BLOCK);
-		$melon->generate($level, $r, $pos->add($x, $y, $z));
+		$x = $pos->x + $r->nextBoundedInt(16) + 8;
+		$z = $pos->z + $r->nextBoundedInt(16) + 8;
+		$y = $r->nextBoundedInt(self::getHeightAtForBiome($level, $x, $z) * 2);
+		$melon = new Melon();
+		$melon->generate($level, $r, new BlockPos($x, $y, $z));
 
 		$vines = new Vines();
 		for($i = 0; $i < 50; $i++){
-			$vx = $r->nextBoundedInt(16);
-			$vz = $r->nextBoundedInt(16);
-			$vy = self::getHeightAtForBiome($level, $pos->x + $vx, $pos->z + $vz);
-			$vines->generate($level, $r, $pos->add($vx, $vy, $vz));
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$vines->generate($level, $r, new BlockPos($x, 128, $z));
 		}
 	}
 
 	private function savannaDecorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
 		for($i = 0; $i < 7; $i++){
-			$px = $r->nextBoundedInt(16);
-			$pz = $r->nextBoundedInt(16);
-
-			$py = self::getHeightAtForBiome($level, $pos->x + $px, $pos->z + $pz);
+			$x = $pos->x + $r->nextBoundedInt(16) + 8;
+			$z = $pos->z + $r->nextBoundedInt(16) + 8;
+			$y = $r->nextBoundedInt(self::getHeightAtForBiome($level, $x, $z) + 32);
 			$grass = new DoublePlant(DoublePlant::GRASS);
-			$grass->generate($level, $r, $pos->add($px, $py, $pz));
+			$grass->generate($level, $r, new BlockPos($x, $y, $z));
 		}
 
 		$this->decorator->decorate($level, $r, $this, $pos);
 	}
 
-	private function sunflowerDecorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
+	private function plainsDecorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
+		$noise = GrassColorNoise::getValue(($pos->x + 8) / 200.0, ($pos->z + 8) / 200.0);
+		if($noise < -0.8){
+			$this->decorator->flowersPerChunk = 15;
+			$this->decorator->grassPerChunk = 5;
+		}else{
+			$this->decorator->flowersPerChunk = 4;
+			$this->decorator->grassPerChunk = 10;
+			$this->generateDoublePlants($level, $r, $pos, 2);
+		}
 		$this->decorator->decorate($level, $r, $this, $pos);
+	}
 
-		$sunflower = new DoublePlant(DoublePlant::SUNFLOWER);
-		for($i = 0; $i < 10; $i++){
-			$x = $r->nextBoundedInt(16);
-			$z = $r->nextBoundedInt(16);
-			$y = self::getHeightAtForBiome($level, $pos->x + $x, $pos->z + $z);
-			$sunflower->generate($level, $r, $pos->add($x, $y, $z));
+	private function sunflowerDecorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
+		$noise = GrassColorNoise::getValue(($pos->x + 8) / 200.0, ($pos->z + 8) / 200.0);
+		if($noise < -0.8){
+			$this->decorator->flowersPerChunk = 15;
+			$this->decorator->grassPerChunk = 5;
+		}else{
+			$this->decorator->flowersPerChunk = 4;
+			$this->decorator->grassPerChunk = 10;
+			$this->generateDoublePlants($level, $r, $pos, 2);
+		}
+		$this->generateDoublePlants($level, $r, $pos, 0);
+		$this->decorator->decorate($level, $r, $this, $pos);
+	}
+
+	private function generateDoublePlants(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos, $type){
+		for($i = 0; $i < 64; $i++){
+			$x = $pos->x + $r->nextBoundedInt(8) - $r->nextBoundedInt(8);
+			$y = $pos->y + $r->nextBoundedInt(4) - $r->nextBoundedInt(4);
+			$z = $pos->z + $r->nextBoundedInt(8) - $r->nextBoundedInt(8);
+			if($y < 1 || $y >= 127){
+				continue;
+			}
+			if($level->getBlockId($x, $y, $z) !== Block::AIR || $level->getBlockId($x, $y + 1, $z) !== Block::AIR){
+				continue;
+			}
+			$below = $level->getBlockId($x, $y - 1, $z);
+			if($below !== Block::GRASS && $below !== Block::DIRT){
+				continue;
+			}
+			$level->setBlock($x, $y, $z, Block::DOUBLE_PLANT, $type);
+			$level->setBlock($x, $y + 1, $z, Block::DOUBLE_PLANT, $type | 8);
 		}
 	}
 
 	private function extremeHillsDecorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
 		$this->decorator->decorate($level, $r, $this, $pos);
 
-		$emeraldCount = $r->nextBoundedInt(3) + 3 + $r->nextBoundedInt(6);
+		$emeraldCount = 3 + $r->nextBoundedInt(6);
 		for($i = 0; $i < $emeraldCount; $i++){
 			$x = $r->nextBoundedInt(16);
 			$y = $r->nextBoundedInt(28) + 4;
@@ -286,17 +339,12 @@ class BaseBiome implements Biome{
 			}
 		}
 
+		$silverfish = new Ore(Block::MONSTER_EGG_BLOCK, 0, 8);
 		for($i = 0; $i < 7; $i++){
-			$x = $r->nextBoundedInt(16);
-			$y = $r->nextBoundedInt(64);
-			$z = $r->nextBoundedInt(16);
-
-			$tx = $pos->x + $x;
-			$ty = $pos->y + $y;
-			$tz = $pos->z + $z;
-			if($level->getBlockId($tx, $ty, $tz) === Block::STONE){
-				$level->setBlock($tx, $ty, $tz, Block::MONSTER_EGG_BLOCK, 0);
-			}
+			$x = $pos->x + $r->nextBoundedInt(16);
+			$y = $pos->y + $r->nextBoundedInt(64);
+			$z = $pos->z + $r->nextBoundedInt(16);
+			$silverfish->generate($level, $r, new BlockPos($x, $y, $z));
 		}
 	}
 
@@ -384,23 +432,6 @@ class BaseBiome implements Biome{
 		return new OakTree();
 	}
 
-	private function snowDecorate(ObjectChunkManager $level, BlockPos $pos){
-		for($x = 0; $x < 16; $x++){
-			for($z = 0; $z < 16; $z++){
-				$wx = $pos->x + $x;
-				$wz = $pos->z + $z;
-				$y = self::getHeightAtForBiome($level, $wx, $wz);
-				if($y < 1 || $y >= 128 || $level->getBlockId($wx, $y, $wz) !== Block::AIR){
-					continue;
-				}
-				$below = $level->getBlockId($wx, $y - 1, $wz);
-				if($below === Block::GRASS || $below === Block::DIRT || $below === Block::STONE || $below === Block::SNOW_BLOCK || $below === Block::PODZOL){
-					$level->setBlock($wx, $y, $wz, Block::SNOW_LAYER, 0);
-				}
-			}
-		}
-	}
-
 	private function jungleTree(JavaRandom $r, $isEdge){
 		if($r->nextBoundedInt(10) === 0){
 			return new BigOakTree();
@@ -419,12 +450,8 @@ class BaseBiome implements Biome{
 			$noise = GrassColorNoise::getValue($pos->x / 200.0, $pos->z / 200.0);
 
 			if($noise < -0.8){
-				switch($r->nextBoundedInt(4)){
-					case 0: return new Bush(Block::RED_FLOWER, 5);
-					case 1: return new Bush(Block::RED_FLOWER, 4);
-					case 2: return new Bush(Block::RED_FLOWER, 7);
-					default: return new Bush(Block::RED_FLOWER, 6);
-				}
+				$meta = 4 + $r->nextBoundedInt(4);
+				return new Bush(Block::RED_FLOWER, $meta);
 			}elseif($r->nextBoundedInt(3) > 0){
 				switch($r->nextBoundedInt(3)){
 					case 0: return new Bush(Block::RED_FLOWER, 0);
@@ -446,10 +473,30 @@ class BaseBiome implements Biome{
 		return $this->decorator->flowerRGen;
 	}
 
+	public function flowerForestDecorate(ObjectChunkManager $level, JavaRandom $r, BlockPos $pos){
+		$this->forestDecorate($level, $r, $pos, 2);
+	}
+
+	public function getFlowerForestType(JavaRandom $r, BlockPos $pos){
+		if(self::$forestFlowerNoise === null){
+			self::$forestFlowerNoise = new PerlinSimplexGenerator(new JavaRandom(2345), 1);
+		}
+		$d = (1.0 + self::$forestFlowerNoise->getValue($pos->x / 48.0, $pos->z / 48.0)) / 2.0;
+		if($d < 0.0){ $d = 0.0; }elseif($d > 0.9999){ $d = 0.9999; }
+		$meta = (int)($d * 9);
+		if($meta === 1){ $meta = 0; }
+		return new Bush(Block::RED_FLOWER, $meta);
+	}
+
 	public function getDecorator(){
 		return $this->decorator;
 	}
 
+	/**
+	 * Java BiomeGenBase.func_150560_b 的逐列表层生成。
+	 * 注意 Java 从 y=255 循环到 0，即使 y>=128 不可写也会消耗 nextInt(5)；
+	 * 这里保持同样的循环与随机流，只跳过 y>=128 的方块写入。
+	 */
 	public function genTerrainBlocks(FullChunk $chunk, JavaRandom $r, $x, $z, $noiseVal){
 		$topBlock = $this->topBlock;
 		$topMeta = $this->topMeta;
@@ -458,69 +505,97 @@ class BaseBiome implements Biome{
 		$air = Block::AIR;
 		$bedrock = Block::BEDROCK;
 
-		$seaLevel = 63;
-
 		$chunkX = $x & 15;
 		$chunkZ = $z & 15;
 
-		// Java 1.7.10 BiomeGenBase.func_150560_b：y=0 固定基岩，深度为 nextInt(5)（1..5 层）。
-		$depth = (int) ($noiseVal / 3.0 + 3.0 + $r->nextFloat() * 0.25);
-		$bedrockTop = $r->nextBoundedInt(5);
-		for($y = 0; $y <= $bedrockTop; $y++){
-			$chunk->setBlock($chunkX, $y, $chunkZ, $bedrock, 0);
-		}
+		$depth = (int) ($noiseVal / 3.0 + 3.0 + $r->nextDouble() * 0.25);
 
 		$run = -1;
 		$currentTop = $topBlock;
+		$currentMeta = $topMeta;
 		$currentFiller = $fillerBlock;
 
-		for($y = 127; $y >= 0; $y--){
-			$id = $chunk->getBlockId($chunkX, $y, $chunkZ);
+		for($y = 255; $y >= 0; $y--){
+			if($y <= $r->nextBoundedInt(5)){
+				if($y < 128){
+					$chunk->setBlock($chunkX, $y, $chunkZ, $bedrock, 0);
+				}
+				continue;
+			}
+
+			$id = $y < 128 ? $chunk->getBlockId($chunkX, $y, $chunkZ) : $air;
 
 			if($id === $air){
 				$run = -1;
-			}elseif($id === $stone){
-				if($run === -1){
-					if($depth < 1){
-						$currentTop = $air;
-						$currentFiller = $stone;
-					}elseif($y >= $seaLevel - 4 && $y <= $seaLevel + 1){
-						$currentTop = $topBlock;
-						$currentFiller = $fillerBlock;
-					}
+				continue;
+			}
+			if($id !== $stone){
+				continue;
+			}
 
-					// 水下/低洼处：冷群系结冰，其余放水。
-					if($y < $seaLevel && $currentTop === $air){
-						$currentTop = $this->temperature < 0.15 ? Block::ICE : Block::STILL_WATER;
-						$topMeta = 0;
-					}
+			if($run === -1){
+				if($depth <= 0){
+					$currentTop = $air;
+					$currentMeta = 0;
+					$currentFiller = $stone;
+				}elseif($y >= 59 && $y <= 64){
+					$currentTop = $topBlock;
+					$currentMeta = $topMeta;
+					$currentFiller = $fillerBlock;
+				}
 
-					$run = $depth;
-
-					if($y >= $seaLevel - 1){
-						$chunk->setBlock($chunkX, $y, $chunkZ, $currentTop, $topMeta);
-					}elseif($y < $seaLevel - 7 - $depth){
-						$currentTop = $air;
-						$currentFiller = $stone;
-						$chunk->setBlock($chunkX, $y, $chunkZ, Block::GRAVEL, 0);
+				if($y < 63 && $currentTop === $air){
+					if($this->getTemperatureAt($x, $y, $z) < 0.15){
+						$currentTop = Block::ICE;
 					}else{
+						$currentTop = Block::STILL_WATER;
+					}
+					$currentMeta = 0;
+				}
+
+				$run = $depth;
+
+				if($y >= 62){
+					if($y < 128){
+						$chunk->setBlock($chunkX, $y, $chunkZ, $currentTop, $currentMeta);
+					}
+				}elseif($y < 56 - $depth){
+					$currentTop = $air;
+					$currentFiller = $stone;
+					if($y < 128){
+						$chunk->setBlock($chunkX, $y, $chunkZ, Block::GRAVEL, 0);
+					}
+				}else{
+					if($y < 128){
 						$chunk->setBlock($chunkX, $y, $chunkZ, $currentFiller, 0);
 					}
-				}elseif($run > 0){
-					$run--;
+				}
+			}elseif($run > 0){
+				$run--;
+				if($y < 128){
 					$chunk->setBlock($chunkX, $y, $chunkZ, $currentFiller, 0);
+				}
 
-					if($run === 0 && $currentFiller === Block::SAND){
-						$extraDepth = $r->nextBoundedInt(4);
-						if($y - 63 > 0){
-							$extraDepth += $y - 63;
-						}
-						$run = $extraDepth;
-						$currentFiller = Block::SANDSTONE;
-					}
+				if($run === 0 && $currentFiller === Block::SAND){
+					$run = $r->nextBoundedInt(4) + max(0, $y - 63);
+					$currentFiller = Block::SANDSTONE;
 				}
 			}
 		}
+	}
+
+	/**
+	 * Java BiomeGenBase.func_150564_a：温度随高度递减。
+	 */
+	public function getTemperatureAt($x, $y, $z){
+		if($y > 64){
+			if(self::$temperatureNoise === null){
+				self::$temperatureNoise = new PerlinSimplexGenerator(new JavaRandom(1234), 1);
+			}
+			$f = self::$temperatureNoise->getValue($x / 8.0, $z / 8.0) * 4.0;
+			return $this->temperature - ($f + $y - 64.0) * 0.05 / 30.0;
+		}
+		return $this->temperature;
 	}
 
 	public static function generateBiomeColor($temperature, $rainfall){

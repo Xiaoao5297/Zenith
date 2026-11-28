@@ -49,24 +49,27 @@ class StrongholdPrison extends StrongholdPiece{
 	}
 
 	public function addComponentParts(WorldAccess $w, JavaRandom $rnd, BoundingBox $box){
+		if($this->isLiquidInStructureBoundingBox($w, $box)){
+			return;
+		}
 		$this->generateShell($w, $rnd, $box, 8, 4, 10);
-		$this->generateDoor($w, $box, 1, 1, 0, 0);
+		$this->generateDoor($w, $box, 1, 1, 0, $this->entryDoor);
 
-		// 两排牢房和铁栏杆。
-		$this->fillWithBlocks($w, $box, 3, 1, 1, 3, 4, 9, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-		$this->fillWithBlocks($w, $box, 6, 1, 1, 6, 4, 9, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-		for($z = 2; $z <= 8; $z += 3){
-			$this->fillWithBlocks($w, $box, 3, 1, $z, 3, 3, $z + 1, self::IRON_BARS, 0, self::IRON_BARS, 0, false);
-			$this->fillWithBlocks($w, $box, 6, 1, $z, 6, 3, $z + 1, self::IRON_BARS, 0, self::IRON_BARS, 0, false);
+		$this->fillWithAir($w, $box, 1, 1, 10, 3, 3, 10);
+		foreach([1, 3, 7, 9] as $z){
+			$this->fillRandomBricks($w, $box, 4, 1, $z, 4, 3, $z, $rnd, false);
 		}
 
-		foreach([[2, 1, 2], [7, 1, 2], [2, 1, 8], [7, 1, 8]] as $p){
-			$this->placeBlock($w, self::MOSSY_STONE_BRICKS, 1, $p[0], $p[1], $p[2], $box);
-		}
+		$this->fillWithBlocks($w, $box, 4, 1, 4, 4, 3, 6, self::IRON_BARS, 0, self::IRON_BARS, 0, false);
+		$this->fillWithBlocks($w, $box, 5, 1, 5, 7, 3, 5, self::IRON_BARS, 0, self::IRON_BARS, 0, false);
+		$this->placeBlock($w, self::IRON_BARS, 0, 4, 3, 2, $box);
+		$this->placeBlock($w, self::IRON_BARS, 0, 4, 3, 8, $box);
 
-		if($rnd->nextBoundedInt(3) === 0){
-			$this->generateChest($w, $box, $rnd, 2, 1, 5, 'stronghold');
-		}
+		$doorMeta = $this->getMetadataWithOffset(71, 3);
+		$this->placeBlock($w, 71, $doorMeta, 4, 1, 2, $box);
+		$this->placeBlock($w, 71, $doorMeta + 8, 4, 2, 2, $box);
+		$this->placeBlock($w, 71, $doorMeta, 4, 1, 8, $box);
+		$this->placeBlock($w, 71, $doorMeta + 8, 4, 2, 8, $box);
 		return true;
 	}
 }

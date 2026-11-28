@@ -31,90 +31,116 @@ use pocketmine\level\generator\gorigional\JavaRandom;
  * StrongholdStart 使用同一组权重（名称略有不同）。
  */
 class StrongholdPieces{
-	/** @var array<int,array{class:string,weight:int,limit:int,count:int}> */
+	/** @var array<string,array{class:string,weight:int,limit:int,count:int,minType?:int}> */
 	private static $weights = [];
 	/** @var BoundingBox|null */
 	private static $startBox = null;
-	/** @var string|null */
-	private static $lastClass = null;
+	/** @var StrongholdStairs2|null */
+	private static $startPiece = null;
+	/** @var string|null Java field_75203_d：下一次生成强制使用的部件类 */
+	private static $forcedPiece = null;
 
 	public static function reset(){
 		self::$startBox = null;
-		self::$lastClass = null;
+		self::$startPiece = null;
+		self::$forcedPiece = null;
 		self::$weights = [
-			['class' => StrongholdStraight::class, 'weight' => 40, 'limit' => 0, 'count' => 0],
-			['class' => StrongholdPrison::class, 'weight' => 5, 'limit' => 5, 'count' => 0],
-			['class' => StrongholdLeftTurn::class, 'weight' => 20, 'limit' => 0, 'count' => 0],
-			['class' => StrongholdRightTurn::class, 'weight' => 20, 'limit' => 0, 'count' => 0],
-			['class' => StrongholdRoomCrossing::class, 'weight' => 10, 'limit' => 6, 'count' => 0],
-			['class' => StrongholdStairsStraight::class, 'weight' => 5, 'limit' => 5, 'count' => 0],
-			['class' => StrongholdStairs::class, 'weight' => 5, 'limit' => 5, 'count' => 0],
-			['class' => StrongholdCrossing::class, 'weight' => 5, 'limit' => 4, 'count' => 0],
-			['class' => StrongholdChestCorridor::class, 'weight' => 5, 'limit' => 4, 'count' => 0],
-			['class' => StrongholdLibrary::class, 'weight' => 10, 'limit' => 2, 'count' => 0, 'minType' => 5],
-			['class' => StrongholdPortalRoom::class, 'weight' => 20, 'limit' => 1, 'count' => 0, 'minType' => 6],
+			StrongholdStraight::class => ['class' => StrongholdStraight::class, 'weight' => 40, 'limit' => 0, 'count' => 0],
+			StrongholdPrison::class => ['class' => StrongholdPrison::class, 'weight' => 5, 'limit' => 5, 'count' => 0],
+			StrongholdLeftTurn::class => ['class' => StrongholdLeftTurn::class, 'weight' => 20, 'limit' => 0, 'count' => 0],
+			StrongholdRightTurn::class => ['class' => StrongholdRightTurn::class, 'weight' => 20, 'limit' => 0, 'count' => 0],
+			StrongholdRoomCrossing::class => ['class' => StrongholdRoomCrossing::class, 'weight' => 10, 'limit' => 6, 'count' => 0],
+			StrongholdStairsStraight::class => ['class' => StrongholdStairsStraight::class, 'weight' => 5, 'limit' => 5, 'count' => 0],
+			StrongholdStairs::class => ['class' => StrongholdStairs::class, 'weight' => 5, 'limit' => 5, 'count' => 0],
+			StrongholdCrossing::class => ['class' => StrongholdCrossing::class, 'weight' => 5, 'limit' => 4, 'count' => 0],
+			StrongholdChestCorridor::class => ['class' => StrongholdChestCorridor::class, 'weight' => 5, 'limit' => 4, 'count' => 0],
+			// Java StructureStrongholdPieces$1：func_75189_a 额外要求 type > 4。
+			StrongholdLibrary::class => ['class' => StrongholdLibrary::class, 'weight' => 10, 'limit' => 2, 'count' => 0, 'minType' => 4],
+			// Java StructureStrongholdPieces$2：func_75189_a 额外要求 type > 5。
+			StrongholdPortalRoom::class => ['class' => StrongholdPortalRoom::class, 'weight' => 20, 'limit' => 1, 'count' => 0, 'minType' => 5],
 		];
 	}
 
-	public static function setStartBox(BoundingBox $box){
+	public static function setStartBox(BoundingBox $box, StrongholdStairs2 $startPiece = null){
 		self::$startBox = $box;
+		if($startPiece !== null){
+			self::$startPiece = $startPiece;
+		}
+	}
+
+	/**
+	 * Java StructureStrongholdPieces.field_75203_d：起始楼梯强制下一段为 Crossing。
+	 */
+	public static function setForcedPiece($class){
+		self::$forcedPiece = $class;
 	}
 
 	/**
 	 * 对应 Java StructureStrongholdPieces.func_75196_c 的硬限制。
 	 */
 	public static function canCreateAt($type, $x, $z){
-		if($type > 50 || self::$startBox === null){
+		// Java 在 func_75196_c 用父部件 type 判断 >50，再以 type+1 创建子部件。
+		// 这里收到的是已 +1 的子部件 type，因此阈值是 51。
+		if($type > 51 || self::$startBox === null){
 			return false;
 		}
 		return abs($x - self::$startBox->minX) <= 112 && abs($z - self::$startBox->minZ) <= 112;
 	}
 
-	private static function available($type){
-		$list = [];
+	/**
+	 * Java func_75202_c：只要还有未达到上限的有限部件就继续生成。
+	 * 全部有限部件用尽后，即使还有无限权重部件也不再生成。
+	 */
+	private static function hasAvailableLimited(){
+		foreach(self::$weights as $w){
+			if($w['limit'] > 0 && $w['count'] < $w['limit']){
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static function isValidType(array $w, $type){
+		return !isset($w['minType']) || $type > $w['minType'];
+	}
+
+	private static function totalWeight(){
 		$total = 0;
-		foreach(self::$weights as $i => $w){
-			if(isset($w['minType']) && $type <= $w['minType']){
-				continue;
-			}
-			if($w['limit'] > 0 && $w['count'] >= $w['limit']){
-				continue;
-			}
-			// Java 不允许连续两个相同部件；只有一种可选时才保留它，避免分支直接断掉。
-			if(self::$lastClass !== null && $w['class'] === self::$lastClass && count(self::$weights) > 1){
-				$continue = false;
-				foreach(self::$weights as $other){
-					if($other['class'] !== self::$lastClass && ($other['limit'] <= 0 || $other['count'] < $other['limit'])){
-						$continue = true;
-						break;
-					}
-				}
-				if($continue){
-					continue;
-				}
-			}
-			$list[] = $i;
+		foreach(self::$weights as $w){
 			$total += $w['weight'];
 		}
-		return [$list, $total];
+		return $total;
 	}
 
 	public static function createRandom(array $components, JavaRandom $rnd, $x, $y, $z, $facing, $type){
-		if(!self::canCreateAt($type, $x, $z)){
+		if(!self::canCreateAt($type, $x, $z) || !self::hasAvailableLimited()){
+			return null;
+		}
+
+		if(self::$forcedPiece !== null){
+			$piece = self::createClass(self::$forcedPiece, $components, $rnd, $x, $y, $z, $facing, $type);
+			self::$forcedPiece = null;
+			if($piece !== null){
+				return $piece;
+			}
+		}
+
+		$total = self::totalWeight();
+		if($total <= 0){
 			return null;
 		}
 
 		for($attempt = 0; $attempt < 5; $attempt++){
-			list($available, $total) = self::available($type);
-			if($total <= 0){
-				break;
-			}
 			$pick = $rnd->nextBoundedInt($total);
 			$chosen = null;
-			foreach($available as $index){
-				$pick -= self::$weights[$index]['weight'];
+			foreach(self::$weights as $key => $w){
+				$pick -= $w['weight'];
 				if($pick < 0){
-					$chosen = $index;
+					// Java：类型不满足或与上一个部件相同则本次放弃，重新抽。
+					if(!self::isValidType($w, $type) || (self::$startPiece !== null && self::$startPiece->lastPiece === $key)){
+						break;
+					}
+					$chosen = $key;
 					break;
 				}
 			}
@@ -126,7 +152,12 @@ class StrongholdPieces{
 			$piece = self::createClass($class, $components, $rnd, $x, $y, $z, $facing, $type);
 			if($piece !== null){
 				self::$weights[$chosen]['count']++;
-				self::$lastClass = $class;
+				if(self::$startPiece !== null){
+					self::$startPiece->lastPiece = $chosen;
+				}
+				if(self::$weights[$chosen]['limit'] > 0 && self::$weights[$chosen]['count'] >= self::$weights[$chosen]['limit']){
+					unset(self::$weights[$chosen]);
+				}
 				return $piece;
 			}
 		}

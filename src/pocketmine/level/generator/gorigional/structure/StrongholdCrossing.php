@@ -36,7 +36,7 @@ class StrongholdCrossing extends StrongholdPiece{
 	public function __construct($type, JavaRandom $rnd, BoundingBox $box, $facing){
 		parent::__construct($type);
 		$this->coordBaseMode = $facing;
-		$this->entryDoor = $rnd->nextBoundedInt(5) <= 1 ? 0 : 2;
+		$this->entryDoor = $this->createEntryDoor($rnd);
 		$this->leftLow = $rnd->nextBoundedInt(2) === 0;
 		$this->leftHigh = $rnd->nextBoundedInt(2) === 0;
 		$this->rightLow = $rnd->nextBoundedInt(2) === 0;
@@ -76,6 +76,9 @@ class StrongholdCrossing extends StrongholdPiece{
 	}
 
 	public function addComponentParts(WorldAccess $w, JavaRandom $rnd, BoundingBox $box){
+		if($this->isLiquidInStructureBoundingBox($w, $box)){
+			return;
+		}
 		$this->generateShell($w, $rnd, $box, 9, 8, 10);
 		$this->generateDoor($w, $box, 4, 3, 0, $this->entryDoor);
 
@@ -93,19 +96,19 @@ class StrongholdCrossing extends StrongholdPiece{
 		}
 
 		$this->fillWithAir($w, $box, 5, 1, 10, 7, 3, 10);
-		$this->fillWithBlocks($w, $box, 1, 2, 1, 8, 2, 6, self::STONE_BRICK_STAIRS, 0, self::STONE_BRICK_STAIRS, 0, false);
-		$this->fillWithBlocks($w, $box, 4, 1, 5, 4, 4, 9, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-		$this->fillWithBlocks($w, $box, 8, 1, 5, 8, 4, 9, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-		$this->fillWithBlocks($w, $box, 1, 4, 7, 3, 4, 9, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-		$this->fillWithBlocks($w, $box, 1, 3, 5, 3, 3, 6, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-		$this->fillWithBlocks($w, $box, 1, 3, 4, 3, 3, 4, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-		$this->fillWithBlocks($w, $box, 1, 4, 6, 3, 4, 6, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-		$this->fillWithBlocks($w, $box, 5, 1, 7, 7, 1, 8, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-		$this->fillWithBlocks($w, $box, 5, 1, 9, 7, 1, 9, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-		$this->fillWithBlocks($w, $box, 5, 2, 7, 7, 2, 7, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-		$this->fillWithBlocks($w, $box, 4, 5, 7, 4, 5, 9, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-		$this->fillWithBlocks($w, $box, 8, 5, 7, 8, 5, 9, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
-		$this->fillWithBlocks($w, $box, 5, 5, 7, 7, 5, 9, self::STONE_BRICKS, 0, self::STONE_BRICKS, 0, false);
+		$this->fillRandomBricks($w, $box, 1, 2, 1, 8, 2, 6, $rnd, false);
+		$this->fillRandomBricks($w, $box, 4, 1, 5, 4, 4, 9, $rnd, false);
+		$this->fillRandomBricks($w, $box, 8, 1, 5, 8, 4, 9, $rnd, false);
+		$this->fillRandomBricks($w, $box, 1, 4, 7, 3, 4, 9, $rnd, false);
+		$this->fillRandomBricks($w, $box, 1, 3, 5, 3, 3, 6, $rnd, false);
+		$this->fillWithBlocks($w, $box, 1, 3, 4, 3, 3, 4, 44, 0, 44, 0, false);
+		$this->fillWithBlocks($w, $box, 1, 4, 6, 3, 4, 6, 44, 0, 44, 0, false);
+		$this->fillRandomBricks($w, $box, 5, 1, 7, 7, 1, 8, $rnd, false);
+		$this->fillWithBlocks($w, $box, 5, 1, 9, 7, 1, 9, 44, 0, 44, 0, false);
+		$this->fillWithBlocks($w, $box, 5, 2, 7, 7, 2, 7, 44, 0, 44, 0, false);
+		$this->fillWithBlocks($w, $box, 4, 5, 7, 4, 5, 9, 44, 0, 44, 0, false);
+		$this->fillWithBlocks($w, $box, 8, 5, 7, 8, 5, 9, 44, 0, 44, 0, false);
+		$this->fillWithBlocks($w, $box, 5, 5, 7, 7, 5, 9, 43, 0, 43, 0, false);
 		$this->placeBlock($w, self::TORCH, 0, 6, 5, 6, $box);
 		return true;
 	}

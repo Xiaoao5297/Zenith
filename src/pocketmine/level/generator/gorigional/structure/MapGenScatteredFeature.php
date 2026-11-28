@@ -45,13 +45,14 @@ class MapGenScatteredFeature extends MapGenStructure{
 		$k = intdiv($chunkX, $this->maxDistanceBetweenScatteredFeatures);
 		$l = intdiv($chunkZ, $this->maxDistanceBetweenScatteredFeatures);
 
-		// MapGenBase 已按 MCPE LargeFeature::apply 用区块种子初始化 $this->rand，
-		// 这里直接消费两个随机数，不能再用 Java 的 getRandomAt。
+		// Java World.func_72843_D：用网格坐标和 salt 派生随机数。
+		$random = $this->world->getRandomAt($k, $l, 14357617);
+
 		$k *= $this->maxDistanceBetweenScatteredFeatures;
 		$l *= $this->maxDistanceBetweenScatteredFeatures;
 
-		$k += $this->rand->nextBoundedInt($this->maxDistanceBetweenScatteredFeatures - $this->minDistanceBetweenScatteredFeatures);
-		$l += $this->rand->nextBoundedInt($this->maxDistanceBetweenScatteredFeatures - $this->minDistanceBetweenScatteredFeatures);
+		$k += $random->nextBoundedInt($this->maxDistanceBetweenScatteredFeatures - $this->minDistanceBetweenScatteredFeatures);
+		$l += $random->nextBoundedInt($this->maxDistanceBetweenScatteredFeatures - $this->minDistanceBetweenScatteredFeatures);
 
 		if($i === $k && $j === $l){
 			return $this->isStructureBiome($this->world->getBiome($i * 16 + 8, $j * 16 + 8));
@@ -60,6 +61,10 @@ class MapGenScatteredFeature extends MapGenStructure{
 		return false;
 	}
 
+	/**
+	 * Java MapGenScatteredFeature.field_75061_e：
+	 * Desert(2)、DesertHills(17)、Swampland(6)、Jungle(21)、JungleHills(22)。
+	 */
 	private function isStructureBiome($id){
 		switch($id){
 			case 2:
@@ -67,8 +72,6 @@ class MapGenScatteredFeature extends MapGenStructure{
 			case 6:
 			case 21:
 			case 22:
-			case 23:
-			case 134:
 				return true;
 		}
 		return false;

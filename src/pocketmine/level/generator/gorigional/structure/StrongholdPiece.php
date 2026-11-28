@@ -22,13 +22,13 @@
 
 namespace pocketmine\level\generator\gorigional\structure;
 
+use pocketmine\block\Block;
 use pocketmine\level\generator\gorigional\JavaRandom;
 
 /**
  * 要塞部件的公共基类。
  *
- * 结构布局参考 Java 1.7.10 StructureStrongholdPieces，随机数和要塞
- * 选址使用 MCPE 0.14.3 的 StrongholdFeature。
+ * 结构布局、随机数和选址均按 Java 1.7.10 StructureStrongholdPieces。
  */
 abstract class StrongholdPiece extends StructureComponentBase{
 	const AIR = 0;
@@ -63,22 +63,47 @@ abstract class StrongholdPiece extends StructureComponentBase{
 	}
 
 	/**
-	 * 生成随机石砖：大部分是普通石砖，少量苔石/裂石。
+	 * Java StructureStrongholdPieces$Stones：外壳 20% 裂石砖、30% 苔石砖、
+	 * 5% 蠹虫石砖、45% 普通石砖；内部直接放空气且不消耗随机数。
 	 */
-	protected function stoneBrick(JavaRandom $rnd){
-		$r = $rnd->nextBoundedInt(10);
-		if($r === 0){
+	/**
+	 * Java StructureStrongholdPieces$Stronghold.func_74988_a：
+	 * nextInt(5) -> 0/1 OPENING、2 WOOD_DOOR、3 GRATES、4 IRON_DOOR。
+	 */
+	protected function createEntryDoor(JavaRandom $rnd){
+		$i = $rnd->nextBoundedInt(5);
+		if($i === 2){
+			return 1;
+		}
+		if($i === 3){
+			return 3;
+		}
+		if($i === 4){
+			return 2;
+		}
+		return 0;
+	}
+
+	protected function stoneBrick(JavaRandom $rnd, $wall){
+		if(!$wall){
+			return [self::AIR, 0];
+		}
+		$f = $rnd->nextFloat();
+		if($f < 0.2){
+			return [self::STONE_BRICKS, 2];
+		}
+		if($f < 0.5){
 			return [self::STONE_BRICKS, 1];
 		}
-		if($r === 1){
-			return [self::STONE_BRICKS, 2];
+		if($f < 0.55){
+			return [Block::MONSTER_EGG_BLOCK, 2];
 		}
 		return [self::STONE_BRICKS, 0];
 	}
 
 	protected function fillRandomBricks(WorldAccess $w, BoundingBox $box, $minX, $minY, $minZ, $maxX, $maxY, $maxZ, JavaRandom $rnd, $keepOld = false){
 		$this->fillWithRandomizedBlocks($w, $box, $minX, $minY, $minZ, $maxX, $maxY, $maxZ, $keepOld, $rnd, function($r, $x, $y, $z, $wall){
-			return $this->stoneBrick($r);
+			return $this->stoneBrick($r, $wall);
 		});
 	}
 

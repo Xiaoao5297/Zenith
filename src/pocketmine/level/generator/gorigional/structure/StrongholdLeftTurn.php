@@ -32,7 +32,7 @@ class StrongholdLeftTurn extends StrongholdPiece{
 	public function __construct($type, JavaRandom $rnd, BoundingBox $box, $facing){
 		parent::__construct($type);
 		$this->coordBaseMode = $facing;
-		$this->entryDoor = $rnd->nextBoundedInt(5) <= 1 ? 0 : 2;
+		$this->entryDoor = $this->createEntryDoor($rnd);
 		$this->boundingBox = $box;
 	}
 
@@ -53,6 +53,9 @@ class StrongholdLeftTurn extends StrongholdPiece{
 	}
 
 	public function addComponentParts(WorldAccess $w, JavaRandom $rnd, BoundingBox $box){
+		if($this->isLiquidInStructureBoundingBox($w, $box)){
+			return;
+		}
 		$this->generateShell($w, $rnd, $box, 4, 4, 4);
 		$this->generateDoor($w, $box, 1, 1, 0, $this->entryDoor);
 
