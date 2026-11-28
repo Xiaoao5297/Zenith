@@ -237,6 +237,16 @@ abstract class Entity extends Location implements Metadatable{
 
     protected $ySize = 0;
     protected $stepHeight = 0;
+
+    /**
+     * @var int 受击退影响的剩余 tick 数。
+     *
+     * Living::knockBack() 会给 motion 写一次击退速度，但寻路/移动控制层
+     * 每 tick 都会重新写 motion。这里用一个短窗口让击退优先于 AI 移动，
+     * 同时让重力与落地判定不再立刻清零竖直速度。
+     */
+    protected $knockbackTicks = 0;
+
     public $keepMovement = false;
 
     public $fallDistance = 0;
@@ -964,6 +974,10 @@ abstract class Entity extends Location implements Metadatable{
 
         $this->justCreated = false;
 
+        if($this->knockbackTicks > 0){
+            $this->knockbackTicks = max(0, $this->knockbackTicks - $tickDiff);
+        }
+
         if(!$this->isAlive()){
             $this->removeAllEffects();
             $this->despawnFromAll();
@@ -1366,6 +1380,18 @@ abstract class Entity extends Location implements Metadatable{
             // 否则生物会以极慢的速度下沉，看上去一直在抖动。
             if(!$this->isPlayer){
                 $this->recoverPartialBlockStandingHeight();
+
+                // 踏上台阶后 ySize 记着 0.5 的平滑偏移，而下面的 ySize *= 0.4
+                // 只在真正发生位移时执行。若生物踩上台阶后立刻停下（行为结束、
+                // 到达目标、被挡住），ySize 会永远停在 0.5，y 比脚底低半格，
+                // 客户端就会把生物画进地里。这里让静止时也继续收敛。
+                if($this->ySize != 0.0){
+                    $this->ySize *= 0.4;
+                    if(abs($this->ySize) < 0.01){
+                        $this->ySize = 0.0;
+                    }
+                    $this->y = $this->boundingBox->minY - $this->ySize;
+                }
             }
             return true;
         }
@@ -1538,7 +1564,10 @@ abstract class Entity extends Location implements Metadatable{
                 $this->onGround = true;
                 // 没有发生垂直碰撞（movY == dy）时，上面的通用清零不会执行；
                 // 若保留负的 motionY，Creature 末尾乘 -0.5 会把它变成向上弹跳。
-                $this->motionY = 0;
+                // 击退期间保留竖直速度，否则被击退的生物刚离地就被按回去。
+                if($this->knockbackTicks <= 0){
+                    $this->motionY = 0;
+                }
                 return;
             }
 
@@ -1546,7 +1575,9 @@ abstract class Entity extends Location implements Metadatable{
             if($supportY !== null){
                 $this->snapToPartialBlockGroundSupport($supportY);
                 $this->onGround = true;
-                $this->motionY = 0;
+                if($this->knockbackTicks <= 0){
+                    $this->motionY = 0;
+                }
                 return;
             }
 
@@ -1715,7 +1746,10 @@ abstract class Entity extends Location implements Metadatable{
 
         $changed = abs($supportY - $this->boundingBox->minY) > self::THIN_BLOCK_GROUND_EPSILON or !$this->onGround or abs($this->motionY) > self::THIN_BLOCK_GROUND_EPSILON;
         $this->snapToPartialBlockGroundSupport($supportY);
-        $this->motionY = 0.0;
+        if($this->knockbackTicks <= 0){
+            // 击退期间不要把竖直速度清零，否则生物会被钉在地面/台阶上。
+            $this->motionY = 0.0;
+        }
         $this->onGround = true;
         $this->isCollided = true;
         $this->isCollidedVertically = true;
@@ -2050,6 +2084,21 @@ abstract class Entity extends Location implements Metadatable{
     public function isOnGround(){
         return $this->onGround === true;
     }
+
+    /**
+     * 是否正处于被击退的短窗口内。
+     *
+     * 移动控制层（MoveControl / Mob::moveInDirection）在这个窗口里不应
+     * 覆盖 knockBack() 写入的 motion，否则玩家打怪时看不到击退。
+     */
+    public function isKnockedBack() : bool{
+        return $this->knockbackTicks > 0;
+    }
+
+    public function getKnockbackTicks() : int{
+        return $this->knockbackTicks;
+    }
+
 
     /**
      * 活塞推动判定（移植自 InCore-II entity/Entity）。

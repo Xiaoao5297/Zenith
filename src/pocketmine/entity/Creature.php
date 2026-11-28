@@ -26,9 +26,11 @@ abstract class Creature extends Living{
                 // move() 前后都尝试恢复“站在半砖/台阶上”的高度，防止走下台阶时悬空抖动。
                 $this->recoverPartialBlockStandingHeight();
 
-                if($this->onGround){
+                if($this->onGround and !$this->isKnockedBack()){
                     $this->motionY = 0;
                 }else{
+                    // 击退期间即使贴着地面也要继续施加重力，让 0.4 的竖直
+                    // 击退速度形成正常的抛物线，而不是被就地清零。
                     $this->motionY -= $this->gravity;
                 }
 

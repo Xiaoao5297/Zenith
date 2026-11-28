@@ -96,6 +96,11 @@ class MoveControl{
 		}
 		$this->lastMoveTick = $tick;
 
+		if($this->entity->isKnockedBack()){
+			// 击退窗口内不要用 AI 的目标速度覆盖 knockBack() 写入的 motion。
+			return;
+		}
+
 		if(!$this->hasWanted or $this->wantedX === null or $this->wantedZ === null){
 			return;
 		}

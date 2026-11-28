@@ -173,6 +173,10 @@ abstract class Living extends Entity implements Damageable{
 		}
 
 		$this->setMotion($motion);
+
+		// 寻路/移动控制层每 tick 都会重写 motion，这里开一个短窗口让击退
+		// 真正生效（水平位移 + 离地的竖直速度），窗口结束后 AI 再接管。
+		$this->knockbackTicks = max($this->knockbackTicks, 10);
 	}
 
 	public function kill(){

@@ -396,6 +396,11 @@ abstract class Mob extends Creature{
 			return false;
 		}
 
+		if($this->isKnockedBack()){
+			// 击退窗口内由 knockBack() 的 motion 主导，AI 不要覆盖。
+			return true;
+		}
+
 		if(!$this->canApplyMove()){
 			// 本 tick 的 motion 已经由更早的调用写入，保留第一份结果。
 			return true;
