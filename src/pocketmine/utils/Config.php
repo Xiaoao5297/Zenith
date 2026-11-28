@@ -55,6 +55,8 @@ class Config{
 	private $skipAutoSaveOnLoad = false;
 	/** @var bool 载入时内容被规范化（BOM/编码修复）过，需要写回磁盘 */
 	private $forceAutoSaveOnLoad = false;
+	/** @var string|null 最近一次 load() 的解析错误（目前用于 YAML），成功时为 null */
+	private $loadError = null;
 
 	public static $formats = [
 		"properties" => Config::PROPERTIES,
@@ -136,6 +138,7 @@ class Config{
 			}
 			if($this->correct === true){
 				$content = file_get_contents($this->file);
+				$this->loadError = null;
 				switch($this->type){
 					case Config::PROPERTIES:
 					case Config::CNF:
@@ -154,7 +157,24 @@ class Config{
 						break;
 					case Config::YAML:
 						$content = self::fixYAMLIndexes($content);
-						$this->config = yaml_parse($content);
+						// yaml_parse() 解析失败时会发 PHP Warning 并返回 false。
+						// 直接让它冒到控制台只会得到一行英文警告，用户很难看出是哪个文件、
+						// 哪一行写错了；这里捕获警告，转换成可读信息存起来，由调用方统一提示。
+						$parseError = null;
+						set_error_handler(function($severity, $message) use (&$parseError){
+							if($parseError === null){
+								$parseError = $message;
+							}
+							return true;
+						});
+						try{
+							$this->config = yaml_parse($content);
+						}finally{
+							restore_error_handler();
+						}
+						if($parseError !== null){
+							$this->loadError = self::describeYamlError($this->file, $parseError);
+						}
 						break;
 					case Config::SERIALIZED:
 						$this->config = unserialize($content, ["allowed_classes" => false]);
@@ -171,7 +191,9 @@ class Config{
 					$this->config = $default;
 				}
 				$changed = $this->fillDefaults($default, $this->config);
-				if(($changed > 0 or $this->forceAutoSaveOnLoad) and !$this->skipAutoSaveOnLoad){
+				// 解析失败时 config 已经回退成默认值，此时写回会把用户写错的文件覆盖掉，
+				// 所以只在没有 loadError 时自动保存。
+				if(($changed > 0 or $this->forceAutoSaveOnLoad) and !$this->skipAutoSaveOnLoad and $this->loadError === null){
 					$this->save();
 				}
 			}else{
@@ -187,6 +209,46 @@ class Config{
 	 */
 	public function check(){
 		return $this->correct === true;
+	}
+
+	/**
+	 * 最近一次 load() 的可读解析错误；没有错误时返回 null。
+	 *
+	 * 目前只有 YAML 会填充它（yaml_parse 失败时原来的 PHP Warning 被吞掉，
+	 * 改成由调用方打印带文件名/行号的提示，避免用户只看到一行英文警告）。
+	 *
+	 * @return string|null
+	 */
+	public function getLoadError(){
+		return $this->loadError;
+	}
+
+	/**
+	 * 把 yaml_parse() 的英文警告整理成可读的中文提示。
+	 *
+	 * @param string $file
+	 * @param string $message
+	 *
+	 * @return string
+	 */
+	private static function describeYamlError(string $file, string $message) : string{
+		$line = null;
+		$column = null;
+		if(preg_match('/\(line (\d+), column (\d+)\)/', $message, $matches)){
+			$line = (int) $matches[1];
+			$column = (int) $matches[2];
+		}
+		$position = $line !== null ? "（第 " . $line . " 行" . ($column !== null ? "第 " . $column . " 列" : "") . "）" : "";
+		if(strpos($message, "did not find expected key") !== false){
+			$hint = "同一层级的键必须使用相同的缩进";
+		}elseif(strpos($message, "mapping values are not allowed") !== false){
+			$hint = "值里的冒号后面需要加空格，或者给值加引号";
+		}elseif(strpos($message, "did not find expected node content") !== false){
+			$hint = "存在无法解析的字符或缩进";
+		}else{
+			$hint = $message;
+		}
+		return $file . " 格式错误" . $position . "：" . $hint;
 	}
 
 	/**

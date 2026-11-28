@@ -2223,11 +2223,17 @@ class Server{
 				// 迁移前记录文件是否已存在：本次才创建的 "fresh" 文件允许被旧配置覆盖。
 				$existed = is_file($this->getConfigFile($name));
 				$configPaths[$name] = $this->ensureCoreConfig($name);
+				$config = new Config($configPaths[$name], Config::YAML, []);
 				$configEntries[$name] = [
-					"config" => new Config($configPaths[$name], Config::YAML, []),
+					"config" => $config,
 					"keys" => $keys,
 					"fresh" => !$existed,
 				];
+				// YAML 写错时 yaml_parse 会静默回退到默认值，如果不提示，用户会以为
+				// "配置文件没生效" 却找不到原因。这里给出文件、行号和常见成因。
+				if(($loadError = $config->getLoadError()) !== null){
+					$this->getLogger()->warning("[配置] " . $loadError . "，该文件已按默认值加载；修正后需重启服务器。");
+				}
 			}
 
 			$groupEntries = [];
