@@ -655,9 +655,14 @@ class Gorigional extends Generator{
 		$z = $chunkZ * 16;
 
 		// Java func_73153_a 取的是区块东南角（+16）的群系。
-		// replaceBiomeBlocks() 已把 voronoi 16×16 结果写入 WorldChunkManager 缓存；
-		// 邻居区块已生成时这里直接命中，未生成时才回退到 GenLayer。
-		$biomeID = $this->world->getBiome($x + 16, $z + 16);
+		// 人口任务已经加载/生成 3×3 邻居，优先直接读东南角邻居的 (0,0)；
+		// 邻居缺失时才回退到 replaceBiomeBlocks() 预填的 WorldChunkManager 缓存。
+		$neighbor = $this->level->getChunk($chunkX + 1, $chunkZ + 1);
+		if($neighbor !== null && $neighbor->isGenerated()){
+			$biomeID = $neighbor->getBiomeId(0, 0);
+		}else{
+			$biomeID = $this->world->getBiome($x + 16, $z + 16);
+		}
 		$b = BiomeRegistry::getBiome($biomeID);
 		$this->logTiming($chunkX, $chunkZ, "populate-biome", $biomeStart, $biomeMemory);
 

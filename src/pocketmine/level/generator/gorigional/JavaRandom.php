@@ -91,6 +91,39 @@ class JavaRandom implements RandomSource{
 		return $val;
 	}
 
+	/**
+	 * 连续消耗 $count 次 nextBoundedInt(5)，只保留随机流，不返回结果。
+	 * 用于 BaseBiome 生成 y>=128 时只消耗 RNG、不读写方块的场景。
+	 */
+	public function skipBoundedInt5($count){
+		$seed = $this->seed;
+		$m = self::MULTIPLIER;
+		$add = self::ADDEND;
+		$mask = self::MASK48;
+
+		for($i = 0; $i < $count; ++$i){
+			do{
+				$a = ($seed >> 32) & 0xFFFF;
+				$b = ($seed >> 16) & 0xFFFF;
+				$c = $seed & 0xFFFF;
+
+				$t1 = (($a * $m) & 0xFFFF) << 32;
+				$t2 = (($b * $m) & 0xFFFFFFFF) << 16;
+				$t3 = ($c * $m) & $mask;
+
+				$seed = ($t1 + $t2 + $t3 + $add) & $mask;
+				$bits = $seed >> 17;
+				$val = $bits % 5;
+				$check = ($bits - $val + 4) & 0xFFFFFFFF;
+				if($check >= 0x80000000){
+					$check -= 0x100000000;
+				}
+			}while($check < 0);
+		}
+
+		$this->seed = $seed;
+	}
+
 	public function nextFloat(){
 		return $this->next(24) / 16777216.0;
 	}

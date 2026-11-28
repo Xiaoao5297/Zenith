@@ -55,6 +55,12 @@ use pocketmine\level\generator\gorigional\noise\PerlinSimplexGenerator;
 class BaseBiome implements Biome{
 	/** @var PerlinSimplexGenerator|null Java BiomeGenBase.field_150605_ac */
 	private static $temperatureNoise = null;
+	/** @var int|null 上一列温度噪声的 x 坐标（冻结/积雪会对同一列连续取两次） */
+	private static $temperatureCacheX = null;
+	/** @var int|null 上一列温度噪声的 z 坐标 */
+	private static $temperatureCacheZ = null;
+	/** @var float 上一列已乘 4 的温度噪声值 */
+	private static $temperatureCacheValue = 0.0;
 	/** @var PerlinSimplexGenerator|null Java BiomeGenForest.field_150606_ad */
 	private static $forestFlowerNoise = null;
 	/** @var int */
@@ -515,15 +521,18 @@ class BaseBiome implements Biome{
 		$currentMeta = $topMeta;
 		$currentFiller = $fillerBlock;
 
-		for($y = 255; $y >= 0; $y--){
+		// Java 世界高 256，但当前区块只保留 y<128。y=128..255 仍要按原顺序
+		// 每层消耗一次 nextBoundedInt(5)，否则后续随机流会错位；这些层
+		// 不读不写方块，因此单独走一个紧凑循环。
+		$r->skipBoundedInt5(128);
+
+		for($y = 127; $y >= 0; $y--){
 			if($y <= $r->nextBoundedInt(5)){
-				if($y < 128){
-					$chunk->setBlock($chunkX, $y, $chunkZ, $bedrock, 0);
-				}
+				$chunk->setBlock($chunkX, $y, $chunkZ, $bedrock, 0);
 				continue;
 			}
 
-			$id = $y < 128 ? $chunk->getBlockId($chunkX, $y, $chunkZ) : $air;
+			$id = $chunk->getBlockId($chunkX, $y, $chunkZ);
 
 			if($id === $air){
 				$run = -1;
@@ -556,25 +565,17 @@ class BaseBiome implements Biome{
 				$run = $depth;
 
 				if($y >= 62){
-					if($y < 128){
-						$chunk->setBlock($chunkX, $y, $chunkZ, $currentTop, $currentMeta);
-					}
+					$chunk->setBlock($chunkX, $y, $chunkZ, $currentTop, $currentMeta);
 				}elseif($y < 56 - $depth){
 					$currentTop = $air;
 					$currentFiller = $stone;
-					if($y < 128){
-						$chunk->setBlock($chunkX, $y, $chunkZ, Block::GRAVEL, 0);
-					}
+					$chunk->setBlock($chunkX, $y, $chunkZ, Block::GRAVEL, 0);
 				}else{
-					if($y < 128){
-						$chunk->setBlock($chunkX, $y, $chunkZ, $currentFiller, 0);
-					}
+					$chunk->setBlock($chunkX, $y, $chunkZ, $currentFiller, 0);
 				}
 			}elseif($run > 0){
 				$run--;
-				if($y < 128){
-					$chunk->setBlock($chunkX, $y, $chunkZ, $currentFiller, 0);
-				}
+				$chunk->setBlock($chunkX, $y, $chunkZ, $currentFiller, 0);
 
 				if($run === 0 && $currentFiller === Block::SAND){
 					$run = $r->nextBoundedInt(4) + max(0, $y - 63);
@@ -592,7 +593,15 @@ class BaseBiome implements Biome{
 			if(self::$temperatureNoise === null){
 				self::$temperatureNoise = new PerlinSimplexGenerator(new JavaRandom(1234), 1);
 			}
-			$f = self::$temperatureNoise->getValue($x / 8.0, $z / 8.0) * 4.0;
+			// 冻结/积雪会对同一列连续调用两次（top 与 top+1），缓存一次避免重复计算 Perlin。
+			if(self::$temperatureCacheX === $x && self::$temperatureCacheZ === $z){
+				$f = self::$temperatureCacheValue;
+			}else{
+				$f = self::$temperatureNoise->getValue($x / 8.0, $z / 8.0) * 4.0;
+				self::$temperatureCacheX = $x;
+				self::$temperatureCacheZ = $z;
+				self::$temperatureCacheValue = $f;
+			}
 			return $this->temperature - ($f + $y - 64.0) * 0.05 / 30.0;
 		}
 		return $this->temperature;
