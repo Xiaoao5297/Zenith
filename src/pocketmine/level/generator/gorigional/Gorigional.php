@@ -501,8 +501,16 @@ class Gorigional extends Generator{
 		$chunkX = $x * 16;
 		$chunkZ = $z * 16;
 
-		$biomeIDs = $this->biomeGen->getInts($chunkX, $chunkZ, 16, 16);
-		$this->world->getBiomeManager()->primeBiomeCache($x, $z, $biomeIDs);
+		$biomeIDs = $this->biomeGen->getInts($chunkX - 1, $chunkZ - 1, 18, 18);
+
+		// WorldChunkManager 只缓存中心 16×16，用于 populate/freeze 的按坐标查询。
+		$cacheIDs = [];
+		for($j = 0; $j < 16; $j++){
+			for($i = 0; $i < 16; $i++){
+				$cacheIDs[$j * 16 + $i] = $biomeIDs[($j + 1) * 18 + ($i + 1)] & 0xFF;
+			}
+		}
+		$this->world->getBiomeManager()->primeBiomeCache($x, $z, $cacheIDs);
 
 		$noiseArray = [];
 		// Java func_147422_a: d0 = 0.03125，缩放取 d0 * 2 = 0.0625。
